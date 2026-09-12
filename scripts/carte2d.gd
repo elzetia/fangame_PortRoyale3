@@ -1007,6 +1007,12 @@ func _port_proche(monde: Vector2, rayon: float) -> Dictionary:
 # --- entrées ------------------------------------------------------------------
 
 func _unhandled_input(e: InputEvent) -> void:
+	# Rien tant que la carte n'est pas batie : l'ecran de chargement reste
+	# affiche plus d'une seconde, et une molette tournee pendant ce temps
+	# atteignait `_zoomer` alors que la camera n'existe pas encore.
+	if not _charge:
+		return
+
 	# La barre d'espace se traite AVANT les gardes des panneaux. Si un écran
 	# s'ouvre pendant qu'on la tient, c'est lui qui recevrait le relâchement —
 	# et le jeu resterait bloqué en x10, à devoir deviner pourquoi.

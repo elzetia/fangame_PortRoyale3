@@ -25,7 +25,7 @@ const UI := "res://sprites/ui_pr/"
 const POLICE := "res://polices/serif_gras.ttf"
 
 const LARGEUR := 640
-const HAUTEUR := 720
+const HAUTEUR := 800
 
 # Lots proposés. -1 = tout ce que la caisse, la cale et la ville permettent.
 const QUANTITES := [1, 10, 50, -1]
@@ -60,7 +60,31 @@ const VERT_SOMBRE := Color(0.20, 0.42, 0.18)
 # Le bandeau que chaque ligne pose sur le lin, et de combien il s'amincit par
 # rapport à la hauteur qu'elle occupe.
 const BANDE_LIGNE := Color(0.42, 0.32, 0.18, 0.13)
-const BANDE_FINESSE := 4.0
+const BANDE_FINESSE := 3.0
+
+# Gabarit d'une ligne. Tout est au trois quarts de ce qu'il valait : le comptoir
+# mangeait trop d'ecran pour ce qu'il montre, et une liste de vingt denrees se
+# lit d'autant mieux qu'on en voit beaucoup d'un coup.
+const COL_NOM := 88.0
+const COL_BARRE := 66.0
+const COL_STOCK := 47.0
+const COL_PRIX := 50.0
+const COL_CALE := 45.0
+const HAUTEUR_PLAQUE := 26.0
+const SEPARATION := 6
+
+# La vignette, elle, ne retrecit PAS : elle grandit. Sa case reste etroite mais
+# l'image deborde du bandeau en haut et en bas, ce qui la pose sur la ligne au
+# lieu de l'y enfermer — c'est elle qu'on cherche des yeux en parcourant la
+# liste, pas la colonne qui la contient.
+const COL_VIGNETTE := 50.0
+const HAUTEUR_VIGNETTE := 32.0
+const DEBORD_VIGNETTE := 9.0
+
+const PT_NOM := 12
+const PT_PRIX := 13
+const PT_CALE := 12
+const PT_STOCK := 11
 const ENCRE      := Color(0.58, 0.52, 0.44)
 const VERT       := Color(0.45, 0.72, 0.35)
 const ROUGE      := Color(0.84, 0.42, 0.34)
@@ -111,7 +135,7 @@ func _bouton(texte: String, largeur := 0.0) -> Button:
 	var b := Button.new()
 	b.text = texte
 	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", 15)
+	b.add_theme_font_size_override("font_size", 12)
 	b.add_theme_color_override("font_color", OR_PALE)
 	b.add_theme_color_override("font_hover_color", Color(1, 0.97, 0.86))
 	b.add_theme_color_override("font_pressed_color", OR)
@@ -158,7 +182,7 @@ func _texte(contenu: String, taille: int, teinte: Color,
 # et la colonne se met à onduler d'une ligne à l'autre.
 func _plaque_stock(etiquette: Label, largeur: float) -> Control:
 	var boite := PanelContainer.new()
-	boite.custom_minimum_size = Vector2(largeur, 34)
+	boite.custom_minimum_size = Vector2(largeur, HAUTEUR_PLAQUE)
 	var chemin := UI + "fond_stock.png"
 	if ResourceLoader.exists(chemin):
 		# StyleBoxTexture et non NinePatchRect : un conteneur impose sa taille à
@@ -166,12 +190,15 @@ func _plaque_stock(etiquette: Label, largeur: float) -> Control:
 		# fond restait invisible. Le style, lui, EST le fond du conteneur.
 		var st := StyleBoxTexture.new()
 		st.texture = load(chemin)
-		# Le cadre doré fait une douzaine de pixels sur les 122 de la plaque :
-		# on le préserve, seul le brun du milieu s'étire avec le nombre.
-		st.texture_margin_left = 16
-		st.texture_margin_right = 16
-		st.texture_margin_top = 16
-		st.texture_margin_bottom = 16
+		# Le cadre doré, préservé ; seul le brun du milieu s'étire avec le nombre.
+		# Ces marges ne s'échelonnent PAS : ce sont des pixels de la texture, posés
+		# tels quels. A 16 sur une plaque haute de 26, les coins du haut et du bas
+		# se chevauchaient et la plaque se dessinait en losange écrasé. La texture
+		# a donc été réduite de moitié, et les marges avec elle.
+		st.texture_margin_left = 8
+		st.texture_margin_right = 8
+		st.texture_margin_top = 8
+		st.texture_margin_bottom = 8
 		st.content_margin_left = 4
 		st.content_margin_right = 4
 		boite.add_theme_stylebox_override("panel", st)
@@ -193,7 +220,7 @@ func _picto(fichier: String, largeur: float, infobulle: String,
 	var chemin := UI + fichier
 	if ResourceLoader.exists(chemin):
 		t.texture = load(chemin)
-	t.custom_minimum_size = Vector2(38, 32)
+	t.custom_minimum_size = Vector2(29, 24)
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	t.tooltip_text = infobulle
@@ -209,31 +236,31 @@ func _entetes() -> Control:
 	var cadre := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0, 0, 0, 0)
-	sb.content_margin_left = 8
-	sb.content_margin_right = 8
+	sb.content_margin_left = 6
+	sb.content_margin_right = 6
 	sb.content_margin_top = 0
 	sb.content_margin_bottom = 0
 	cadre.add_theme_stylebox_override("panel", sb)
 
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 8)
+	h.add_theme_constant_override("separation", SEPARATION)
 	cadre.add_child(h)
 
 	# Rien au-dessus de la vignette ni du nom : ils se passent d'étiquette.
-	for largeur in [46.0, 118.0]:
+	for largeur in [COL_VIGNETTE, COL_NOM]:
 		var vide := Control.new()
 		vide.custom_minimum_size.x = largeur
 		h.add_child(vide)
 
 	# La barre d'abondance et le tonnage disent la même chose — ce que la ville
 	# a en magasin — donc un seul picto les coiffe tous les deux.
-	h.add_child(_picto("stock.png", 88, "Ce que la ville tient en magasin"))
+	h.add_child(_picto("stock.png", COL_BARRE, "Ce que la ville tient en magasin"))
 	var t := Control.new()
-	t.custom_minimum_size.x = 62
+	t.custom_minimum_size.x = COL_STOCK
 	h.add_child(t)
 
-	h.add_child(_picto("prix.png", 66, "Le cours du jour", true))
-	for largeur in [60.0, 66.0]:
+	h.add_child(_picto("prix.png", COL_PRIX, "Le cours du jour", true))
+	for largeur in [COL_CALE, COL_PRIX]:
 		var vide2 := Control.new()
 		vide2.custom_minimum_size.x = largeur
 		h.add_child(vide2)
@@ -337,7 +364,7 @@ func _batir() -> void:
 	for libelle in ["Infos ville", "Liste denrées", "Équiper"]:
 		var b := _bouton(libelle)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.custom_minimum_size.y = 38
+		b.custom_minimum_size.y = 29
 		if libelle == "Infos ville":
 			b.pressed.connect(func() -> void: infos_demandees.emit(_port))
 		else:
@@ -352,9 +379,9 @@ func _batir() -> void:
 	var barre := HBoxContainer.new()
 	barre.add_theme_constant_override("separation", 6)
 	barre.alignment = BoxContainer.ALIGNMENT_CENTER
-	barre.add_child(_texte("Par lots de", 13, ENCRE))
+	barre.add_child(_texte("Par lots de", 11, ENCRE_PALE))
 	for q in QUANTITES:
-		var b := _bouton("tout" if q < 0 else str(q) + " t", 54)
+		var b := _bouton("tout" if q < 0 else str(q) + " t", 42)
 		b.toggle_mode = true
 		b.pressed.connect(_choisir_lot.bind(q))
 		barre.add_child(b)
@@ -381,10 +408,10 @@ func _batir() -> void:
 
 	# --- pied : caisse et cale -------------------------------------------------
 	var bas := HBoxContainer.new()
-	_pied = _texte("", 15, ENCRE_BRUNE)
+	_pied = _texte("", 12, ENCRE_BRUNE)
 	_pied.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bas.add_child(_pied)
-	var fermer := _bouton("Appareiller   Échap", 180)
+	var fermer := _bouton("Appareiller   Échap", 140)
 	fermer.pressed.connect(_fermer)
 	bas.add_child(fermer)
 	vb.add_child(bas)
@@ -454,10 +481,13 @@ func _batir_lignes() -> void:
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = BANDE_LIGNE
 		sb.set_corner_radius_all(6)
-		sb.content_margin_left = 8
-		sb.content_margin_right = 8
-		sb.content_margin_top = 3
-		sb.content_margin_bottom = 3
+		# Rien a gauche : le bandeau part exactement au bord de la vignette. Une
+		# marge l'en faisait deborder, et la ligne semblait commencer avant son
+		# image au lieu d'etre portee par elle.
+		sb.content_margin_left = 0
+		sb.content_margin_right = 6
+		sb.content_margin_top = 2
+		sb.content_margin_bottom = 2
 		# Marges négatives : le bandeau se dessine plus mince que la place qu'il
 		# occupe. Il reste ainsi un filet de lin au-dessus et en dessous, qui
 		# sépare les lignes sans qu'on ait à tracer un trait.
@@ -466,17 +496,30 @@ func _batir_lignes() -> void:
 		fond.add_theme_stylebox_override("panel", sb)
 
 		var h := HBoxContainer.new()
-		h.add_theme_constant_override("separation", 8)
+		h.add_theme_constant_override("separation", SEPARATION)
 		fond.add_child(h)
 
+		# La case garde le gabarit de la ligne ; l'image, elle, sort de ses bords
+		# par des marges negatives. Lui donner directement une taille plus grande
+		# aurait pousse la ligne entiere a grandir avec elle.
+		var case := Control.new()
+		case.custom_minimum_size = Vector2(COL_VIGNETTE, HAUTEUR_VIGNETTE)
+		h.add_child(case)
+
 		var vignette := TextureRect.new()
-		vignette.custom_minimum_size = Vector2(46, 42)
 		vignette.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		vignette.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+		# En haut et en bas SEULEMENT : deborder aussi sur les cotes faisait mordre
+		# l'image sur le nom de la denree, qu'on ne lisait plus. La case est donc
+		# assez large pour que l'image y grandisse sans pousser a droite.
+		vignette.offset_top = -DEBORD_VIGNETTE
+		vignette.offset_bottom = DEBORD_VIGNETTE
 		var chemin := ICONES + cle + ".png"
 		if ResourceLoader.exists(chemin):
 			vignette.texture = load(chemin)
-		h.add_child(vignette)
+		case.add_child(vignette)
 
 		# L'engrenage, en bas à droite de la vignette, marque ce que la ville
 		# FABRIQUE. C'est la question qu'on se pose devant un comptoir : ce
@@ -488,16 +531,16 @@ func _batir_lignes() -> void:
 			marque.texture = load(UI + "produit.png")
 			marque.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			marque.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			marque.size = Vector2(22, 22)
+			marque.size = Vector2(17, 17)
 			marque.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			marque.tooltip_text = "Produit ici"
-			# Posé en coordonnées locales, ancres au coin haut-gauche. Avec un
-			# PRESET_BOTTOM_RIGHT, la position s'ajoute au coin bas-droit et
-			# l'engrenage sortait du cadre de la vignette : invisible.
-			marque.position = Vector2(46 - 22, 42 - 20)
-			vignette.add_child(marque)
+			# Accroche a la CASE et non a l'image : celle-ci deborde de tous
+			# cotes, et l'engrenage aurait suivi le debordement au lieu de rester
+			# au coin de la ligne.
+			marque.position = Vector2(COL_VIGNETTE - 15.0, HAUTEUR_VIGNETTE - 15.0)
+			case.add_child(marque)
 
-		h.add_child(_texte(String(m.get("nom", cle)), 15, ENCRE_BRUNE, 118))
+		h.add_child(_texte(String(m.get("nom", cle)), PT_NOM, ENCRE_BRUNE, COL_NOM))
 
 		var e := {"cle": cle}
 
@@ -505,7 +548,7 @@ func _batir_lignes() -> void:
 		# et le VERT compte le stock. Zéro verte, la ville manque et le cours
 		# est au plafond ; quatre vertes, elle regorge et il est au plancher.
 		var barre := TextureRect.new()
-		barre.custom_minimum_size = Vector2(88, 40)
+		barre.custom_minimum_size = Vector2(COL_BARRE, HAUTEUR_VIGNETTE)
 		barre.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		barre.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		h.add_child(barre)
@@ -514,12 +557,12 @@ func _batir_lignes() -> void:
 		# Le tonnage en ville va dans sa plaque : c'est le chiffre qu'on cherche
 		# des yeux en descendant la liste, et il se perdait entre deux colonnes
 		# de prix alignées comme lui.
-		e["stock"] = _texte("", 14, OR_PALE, 0, HORIZONTAL_ALIGNMENT_CENTER)
-		h.add_child(_plaque_stock(e["stock"], 62))
+		e["stock"] = _texte("", PT_STOCK, OR_PALE, 0, HORIZONTAL_ALIGNMENT_CENTER)
+		h.add_child(_plaque_stock(e["stock"], COL_STOCK))
 
-		e["achat"] = _texte("", 16, ENCRE_BRUNE, 66, HORIZONTAL_ALIGNMENT_RIGHT)
-		e["cale"] = _texte("", 15, ENCRE_PALE, 60, HORIZONTAL_ALIGNMENT_RIGHT)
-		e["vente"] = _texte("", 16, VERT_SOMBRE, 66, HORIZONTAL_ALIGNMENT_RIGHT)
+		e["achat"] = _texte("", PT_PRIX, ENCRE_BRUNE, COL_PRIX, HORIZONTAL_ALIGNMENT_RIGHT)
+		e["cale"] = _texte("", PT_CALE, ENCRE_PALE, COL_CALE, HORIZONTAL_ALIGNMENT_RIGHT)
+		e["vente"] = _texte("", PT_PRIX, VERT_SOMBRE, COL_PRIX, HORIZONTAL_ALIGNMENT_RIGHT)
 		for k in ["achat", "cale", "vente"]:
 			h.add_child(e[k])
 
