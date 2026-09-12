@@ -524,14 +524,22 @@ const CART_FRANGE := 0.16
 # près. Au-delà de 1,5 il écrase l'île qu'il désigne.
 const CART_GROSSI_LOIN := 1.5
 
-# Les navires : l'atlas des trente-deux caps, et la taille d'une vignette en
-# pixels de carte. NAV_ORIGINE est l'angle écran de la case 0.
-const NAV_ATLAS := "res://sprites/navires/atlas.png"
-const NAV_CAPS := 32
-const NAV_COLONNES := 8
+# Les navires. La planche de la pinasse donne neuf vues en grille 3 x 3 : huit
+# orientations autour, la vue de dessus au centre — que la carte n'utilise pas,
+# ses villages étant eux-mêmes vus de biais.
+const NAV_ATLAS := "res://sprites/navires/pinasse_atlas.png"
 const NAV_COTE := 128.0
 const NAV_TAILLE := 78.0
-const NAV_ORIGINE := PI * 0.5
+
+# La case de l'atlas pour chaque cap, du nord et dans le sens des aiguilles :
+# N, NE, E, SE, S, SO, O, NO.
+#
+# L'atlas est rangé dans l'ordre de lecture de la planche, qui n'est pas celui
+# des caps : la vue de face (proue vers nous) montre un navire qui DESCEND vers
+# le sud, et celle de poupe un navire qui monte au nord. La table ci-dessous dit
+# donc où chaque cap se trouve, et c'est le seul endroit à corriger si une vue
+# tombe de travers.
+const NAV_ROSE := [7, 6, 3, 0, 1, 2, 5, 8]
 const CART_MARGE := 23.2         # respiration à gauche et à droite du nom
 # De combien le pavillon mord sur la plaque. Il doit couvrir le filet du haut
 # sans toucher les lettres : c'est ce qui soude les deux en un seul bloc au lieu
@@ -985,8 +993,7 @@ func _dessiner_navire() -> void:
 	_poser_navire(p, a, NAV_TAILLE * e, Color(1, 1, 1, 1))
 
 
-# L'atlas des navires : 32 vues du maillage 3D, une par cap. Voir
-# outils/rendre_navires.gd, qui le fabrique.
+# L'atlas des navires, découpé de la planche par outils/decouper_navire.gd.
 func _atlas_navire() -> Texture2D:
 	if _atlas_nav != null:
 		return _atlas_nav
@@ -995,20 +1002,21 @@ func _atlas_navire() -> Texture2D:
 	return _atlas_nav
 
 
-# Pose la vignette du cap le plus proche. On ne fait pas tourner l'image : une
-# rotation à plat sur un bateau rendu en volume le ferait pivoter comme un
-# carton découpé, l'ombre et le pont tournant avec lui. Choisir la vue, c'est
-# justement ce que l'atlas permet.
+# Pose la vue dont le cap est le plus proche. On ne fait PAS tourner l'image :
+# ces vues sont en volume, et les faire pivoter à plat les retournerait comme des
+# cartons découpés — le pont et l'ombre tournant avec la coque. Choisir la vue,
+# c'est tout l'intérêt d'une planche d'orientations.
 func _poser_navire(p: Vector2, angle: float, cote: float, teinte: Color) -> void:
 	var tex := _atlas_navire()
 	if tex == null:
 		return
-	# Case 0 = étrave vers le bas de l'écran ; les cases tournent ensuite dans le
-	# sens des angles de Godot.
-	var i := int(round((angle - NAV_ORIGINE) / TAU * float(NAV_CAPS)))
-	i = ((i % NAV_CAPS) + NAV_CAPS) % NAV_CAPS
-	var src := Rect2(float(i % NAV_COLONNES) * NAV_COTE,
-					 float(i / NAV_COLONNES) * NAV_COTE, NAV_COTE, NAV_COTE)
+	# L'angle écran a son zéro à l'est et tourne vers le bas ; les caps de la rose
+	# partent du nord. D'où le quart de tour ajouté avant d'arrondir au huitième.
+	var n := NAV_ROSE.size()
+	var t := (angle + PI * 0.5) / TAU * float(n)
+	var k := ((int(round(t)) % n) + n) % n
+	var i: int = NAV_ROSE[k]
+	var src := Rect2(float(i) * NAV_COTE, 0.0, NAV_COTE, NAV_COTE)
 	draw_texture_rect_region(tex,
 		Rect2(p - Vector2(cote, cote) * 0.5, Vector2(cote, cote)), src, teinte)
 
