@@ -1,4 +1,4 @@
-# Port Royale 3D
+# Port Royale : Under the wind
 
 Fan game de *Port Royale* : la carte stratégique des Caraïbes en 3D stylisée,
 avec la simulation économique qui tourne en Lua, à côté du moteur.

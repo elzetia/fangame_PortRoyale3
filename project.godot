@@ -1,4 +1,4 @@
-; Port Royale 3D — projet Godot 4
+; Port Royale : Under the wind — projet Godot 4
 ; La carte stratégique en 3D stylisée ; la simulation économique vit en Lua
 ; dans sim/, indépendante du moteur.
 
@@ -6,7 +6,7 @@ config_version=5
 
 [application]
 
-config/name="Port Royale 3D"
+config/name="Port Royale : Under the wind"
 config/description="Fan game de Port Royale — carte stratégique 3D stylisée"
 run/main_scene="res://scenes/carte.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
