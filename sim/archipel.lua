@@ -166,7 +166,10 @@ function Archipel.mouillageProche(x, z, rayon_max)
       for dx = -r, r do
         if r == 0 or math.max(math.abs(dx), math.abs(dz)) == r then
           local ux, uz = cx + dx, cz + dz
-          if not Carte.terreCase(ux, uz) then
+          -- `dansCarte` d'abord : hors des bornes, `terreCase` dit false, ce qui
+          -- se lit comme de la mer. Le bord de carte passait alors pour un
+          -- mouillage, et la ville disparaissait sous la scene.
+          if Carte.dansCarte(ux, uz) and not Carte.terreCase(ux, uz) then
             for _, d in ipairs(COTES) do
               if Carte.terreCase(ux + d[1], uz + d[2]) then return ux, uz end
             end

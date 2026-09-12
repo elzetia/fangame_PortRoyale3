@@ -897,6 +897,15 @@ Carte.octets = table.concat(morceaux)
 Carte.plages = nil
 
 
+-- Une case existe-t-elle ? `terreCase` repond false aussi bien pour la mer que
+-- pour le hors-carte, et cette confusion a deja coute une ville : le mouillage
+-- de Gibraltar s'etait pose sur z = 866, un cran sous le bord sud, ou il n'y a
+-- ni terre ni mer. Qui cherche un mouillage doit d'abord demander ici.
+function Carte.dansCarte(cx, cz)
+  return cx >= 0 and cz >= 0 and cx < Carte.largeur and cz < Carte.hauteur
+end
+
+
 function Carte.terreCase(cx, cz)
   if cx < 0 or cz < 0 or cx >= Carte.largeur or cz >= Carte.hauteur then
     return false
