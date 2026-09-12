@@ -52,7 +52,10 @@ var _barre_vitesse: BarreVitesse
 # La planche fait 839 × 341 : à moitié, elle tient dans le coin sans écraser la
 # carte, et ses chiffres restent lisibles.
 const ECHELLE_VITESSE := 0.5
-const MARGE_VITESSE := Vector2(10, 6)
+# Collée au bord droit : les feuilles de palmier qui débordent de la planche sont
+# dessinées pour mordre sur le cadre de l'écran, et une marge les laissait flotter
+# au milieu de la mer.
+const MARGE_VITESSE := Vector2(0, 6)
 const MARGE_FICHE := Vector2(12, 10)
 # La planche de la date fait 1311 x 539 : au tiers, l'horloge reste lisible
 # sans que les palmiers mangent le coin de la carte.
