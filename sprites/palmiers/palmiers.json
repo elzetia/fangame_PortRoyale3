@@ -1,0 +1,156 @@
+{
+	"source": "palmiers.png",
+	"ancrage": "pied",
+	"sprites": [
+		{
+			"fichier": "palmiers_00.png",
+			"largeur": 192,
+			"hauteur": 228,
+			"ancrage": [
+				96,
+				227
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "palmiers_01.png",
+			"largeur": 173,
+			"hauteur": 285,
+			"ancrage": [
+				48,
+				284
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "palmiers_02.png",
+			"largeur": 214,
+			"hauteur": 218,
+			"ancrage": [
+				100,
+				217
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "palmiers_03.png",
+			"largeur": 195,
+			"hauteur": 310,
+			"ancrage": [
+				58,
+				309
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "palmiers_04.png",
+			"largeur": 240,
+			"hauteur": 277,
+			"ancrage": [
+				122,
+				276
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "palmiers_05.png",
+			"largeur": 191,
+			"hauteur": 193,
+			"ancrage": [
+				98,
+				192
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "palmiers_06.png",
+			"largeur": 178,
+			"hauteur": 278,
+			"ancrage": [
+				76,
+				277
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "palmiers_07.png",
+			"largeur": 209,
+			"hauteur": 250,
+			"ancrage": [
+				99,
+				249
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "palmiers_08.png",
+			"largeur": 137,
+			"hauteur": 266,
+			"ancrage": [
+				65,
+				265
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "palmiers_09.png",
+			"largeur": 299,
+			"hauteur": 260,
+			"ancrage": [
+				140,
+				259
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "palmiers_10.png",
+			"largeur": 204,
+			"hauteur": 252,
+			"ancrage": [
+				43,
+				251
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "palmiers_11.png",
+			"largeur": 208,
+			"hauteur": 207,
+			"ancrage": [
+				98,
+				206
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "palmiers_12.png",
+			"largeur": 174,
+			"hauteur": 286,
+			"ancrage": [
+				82,
+				285
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "palmiers_13.png",
+			"largeur": 217,
+			"hauteur": 259,
+			"ancrage": [
+				47,
+				258
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "palmiers_14.png",
+			"largeur": 230,
+			"hauteur": 229,
+			"ancrage": [
+				113,
+				228
+			],
+			"quai": "gauche"
+		}
+	]
+}

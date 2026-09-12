@@ -1,0 +1,66 @@
+{
+	"source": "ecueils.png",
+	"ancrage": "pied",
+	"sprites": [
+		{
+			"fichier": "coraux_00.png",
+			"largeur": 110,
+			"hauteur": 91,
+			"ancrage": [
+				39,
+				90
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "coraux_01.png",
+			"largeur": 137,
+			"hauteur": 99,
+			"ancrage": [
+				83,
+				98
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "coraux_02.png",
+			"largeur": 87,
+			"hauteur": 101,
+			"ancrage": [
+				29,
+				100
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "coraux_03.png",
+			"largeur": 101,
+			"hauteur": 75,
+			"ancrage": [
+				47,
+				74
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "coraux_04.png",
+			"largeur": 128,
+			"hauteur": 103,
+			"ancrage": [
+				87,
+				102
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "coraux_05.png",
+			"largeur": 88,
+			"hauteur": 102,
+			"ancrage": [
+				50,
+				101
+			],
+			"quai": "gauche"
+		}
+	]
+}

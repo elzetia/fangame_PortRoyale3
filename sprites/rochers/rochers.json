@@ -1,0 +1,106 @@
+{
+	"source": "rochers.png",
+	"ancrage": "pied",
+	"sprites": [
+		{
+			"fichier": "rochers_00.png",
+			"largeur": 58,
+			"hauteur": 48,
+			"ancrage": [
+				28,
+				47
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "rochers_01.png",
+			"largeur": 80,
+			"hauteur": 68,
+			"ancrage": [
+				43,
+				67
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "rochers_02.png",
+			"largeur": 93,
+			"hauteur": 54,
+			"ancrage": [
+				39,
+				53
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "rochers_03.png",
+			"largeur": 96,
+			"hauteur": 86,
+			"ancrage": [
+				49,
+				85
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "rochers_04.png",
+			"largeur": 88,
+			"hauteur": 73,
+			"ancrage": [
+				54,
+				72
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "rochers_05.png",
+			"largeur": 98,
+			"hauteur": 95,
+			"ancrage": [
+				62,
+				94
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "rochers_06.png",
+			"largeur": 101,
+			"hauteur": 78,
+			"ancrage": [
+				49,
+				77
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "rochers_07.png",
+			"largeur": 132,
+			"hauteur": 103,
+			"ancrage": [
+				50,
+				102
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "rochers_08.png",
+			"largeur": 110,
+			"hauteur": 86,
+			"ancrage": [
+				31,
+				85
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "rochers_09.png",
+			"largeur": 149,
+			"hauteur": 141,
+			"ancrage": [
+				61,
+				140
+			],
+			"quai": "gauche"
+		}
+	]
+}

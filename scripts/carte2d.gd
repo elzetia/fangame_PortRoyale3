@@ -1,0 +1,1290 @@
+# La carte de jeu : l'image cuite, et tout ce qui se pose dessus.
+#
+# Depuis que la carte est un rendu cuit en plongée oblique, la scène n'a plus
+# besoin d'être en 3D. Elle affiche une image, et projette dessus les positions
+# que lui donne la simulation Lua. C'est l'architecture de Port Royale 3 —
+# et elle est bien plus légère que le terrain 3D qu'elle remplace.
+extends Node2D
+
+const CHEMIN_CARTE := "res://carte_cuite.png"
+const CHEMIN_FICHE := "res://carte_cuite.json"
+const CHEMIN_MER := "res://carte_cuite_mer.png"
+const RAYON_CLIC_PORT := 90.0        # en mètres monde
+
+var sim: Sim
+var proj: ProjectionCarte
+var navire := NavireEtat.new()
+var ports: Array = []
+
+var _carte: Sprite2D
+var _mer: Sprite2D
+var _nuages: ColorRect
+var _cam: Camera2D
+var _zoom := 0.55
+var _zoom_min := 0.1
+var _zoom_max := 2.0
+var _vitesse_cam := Vector2.ZERO
+var _port_survole: Dictionary = {}
+var _police: Font
+var _plaque: StyleBoxFlat
+# Ce dont chaque ville manque le plus, et les vignettes de marchandises.
+# Le manque se recalcule par intervalle, pas par image : il demande vingt
+# lignes de marche par ville, et il ne change pas d'une trame a l'autre.
+var _besoins: Dictionary = {}
+var _besoins_delai := 0.0
+var _icones: Dictionary = {}
+# Largeur de plaque par taille de police : le nom le plus long de la carte.
+var _largeurs: Dictionary = {}
+# Une ville est un objet posé sur le terrain : elle grandit avec le zoom, à la
+# différence du pavillon et de l'étiquette, qui restent lisibles à taille fixe.
+# Chargement, stades et emprise vivent dans scripts/villes.gd, que la cuisson
+# relit pour réserver la clairière autour de chaque village.
+var _villes: Villes
+
+
+# HUD
+var _lbl_date: Label
+var _lbl_heure: Label
+var _lbl_statut: Label
+var _lbl_message: Label
+var _boutons: Array[Button] = []
+
+var _glisse := false
+var _clic_depart := Vector2.ZERO
+var _a_glisse := false
+
+# Mode d'édition : F2. Permet de faire glisser les villes sur la carte et de
+# réécrire sim/archipel.lua avec les positions obtenues.
+var _mode_edition := false
+var _port_saisi: Dictionary = {}
+var _saisie_image := false      # on déplace l'image, pas le point réel
+var _rects_villes := {}         # rectangle dessiné de chaque village, pour le saisir
+var _message := ""
+var _message_fin := 0.0
+
+# Le comptoir, ouvert quand le navire est a quai.
+var _comptoir: MarchePanneau
+
+# Les cinq marchands des nations, relus à chaque image : ils bougent tout
+# seuls, y compris pendant que le joueur regarde ailleurs.
+var _marchands: Array = []
+
+
+func _ready() -> void:
+	sim = Sim.new()
+	if not sim.pret:
+		push_error("Simulation Lua absente : %s" % sim.erreur)
+		return
+	sim.preparer_navigation()
+
+	proj = ProjectionCarte.new(CHEMIN_FICHE)
+	if not proj.valide:
+		push_error(proj.erreur + "  (lance d'abord la cuisson de la carte)")
+		return
+
+	_police = ThemeDB.fallback_font
+	# Les vignettes sont réduites d'un facteur 4 environ. Sans mipmap, elles
+	# restent artificiellement piquées et tranchent avec le terrain, qui est
+	# doux. Le filtrage les ramène au même niveau de détail.
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+
+	_villes = Villes.new()
+	_creer_carte()
+	_creer_mer()
+	# Les ports AVANT la caméra : c'est elle qui calcule les bornes de zoom, et
+	# la borne du plus près se mesure sur deux d'entre eux.
+	ports = sim.ports()
+	_creer_camera()
+	_placer_navire()
+	_creer_hud()
+	# Le ressac et la musique. Un noeud a part : il ne dépend de rien d'autre
+	# que de lui-même, et continue de tourner quand le jeu est en pause.
+	add_child(Ambiance.new())
+	_comptoir = MarchePanneau.new()
+	add_child(_comptoir)
+	_diagnostic_marche()
+	_capture_auto()
+
+
+# Outil : `-- --marche [jours]`. Imprime les marchés des cinq villes, puis
+# les réimprime après N jours simulés. C'est la seule façon de voir si
+# l'économie converge ou si elle diverge : un déséquilibre met des semaines de
+# jeu à se manifester, et rien ne se voit sur une capture d'écran.
+func _diagnostic_marche() -> void:
+	var args := OS.get_cmdline_user_args()
+	var i := args.find("--marche")
+	if i < 0:
+		return
+	var jours := 0
+	if i + 1 < args.size() and args[i + 1].is_valid_int():
+		jours = int(args[i + 1])
+
+	if jours > 0:
+		# On passe par la même porte que le jeu — `avancer_temps` en secondes
+		# réelles — plutôt que d'appeler l'économie en direct : c'est le vrai
+		# chemin qu'on veut éprouver, pas un raccourci de test.
+		# 12 s réelles = une journée à vitesse x1 (Calendrier.SECONDES_JOUR).
+		for _j in jours:
+			sim.avancer_temps(12.0)
+
+	var etat := sim.etat_compagnie()
+	print("\n=== %s — %s « %s », %d/%d t, %d or ===" % [
+		sim.etat_temps().get("date", ""), etat.get("classe", ""),
+		etat.get("navire", ""), etat.get("charge", 0), etat.get("capacite", 0),
+		etat.get("or_", 0)])
+
+	for port in ports:
+		var v := sim.etat_ville(str(port["cle"]))
+		print("\n-- %-12s %5d hab.  subsistance %.0f %%" % [
+			port["nom"], v.get("habitants", 0), v.get("subsistance", 0.0) * 100.0])
+		for l in sim.marche(str(port["cle"])):
+			var fleche := "  " if absf(l["solde"]) < 0.05 else ("↑" if l["solde"] > 0 else "↓")
+			print("   %-15s stock %5d /%5d  %s%+6.1f t/j   achat %6.1f   vente %6.1f" % [
+				l["nom"], l["stock"], l["reference"], fleche, l["solde"],
+				l["achat"], l["vente"]])
+	_diagnostic_troc()
+	_diagnostic_marchands()
+	_diagnostic_profondeur()
+	get_tree().quit()
+
+
+# Outil : `-- --marche 0 --profondeur`. De combien le cours bouge-t-il quand on
+# achète une, dix, cinquante tonnes ?
+#
+# C'est LA question de réglage du marché, et elle ne se voit nulle part
+# ailleurs : un entrepôt trop profond fige le prix et la réglette d'abondance
+# sous les doigts du joueur, un entrepôt trop mince rend le prix affiché
+# mensonger. On veut quelques pour cent à dix tonnes, dix à vingt à cinquante.
+# Son corps est plus bas, après le diagnostic des convois.
+
+
+# Outil : `-- --marche <jours> --marchands`. Où sont les cinq convois, que
+# portent-ils, et de quoi chaque ville réclame-t-elle ?
+#
+# C'est le seul moyen de voir s'ils servent vraiment leur port : un convoi qui
+# tourne entre deux villes sans jamais rapporter ce qui manque chez lui
+# passerait inaperçu sur la carte.
+func _diagnostic_marchands() -> void:
+	if not OS.get_cmdline_user_args().has("--marchands"):
+		return
+	print("\n--- les marchands des nations ---")
+	for m in sim.marchands():
+		var ou := "à quai à %s" % m["ville"]
+		if not bool(m["a_quai"]):
+			ou = "en mer, cap sur %s" % m["destination"]
+		print("  %-22s %-28s %6d or   %s" % [
+			m["nom"], ou, int(m["or_"]), m["cargaison"]])
+
+	print("  -- ce que chaque ville reclame --")
+	for d in sim.diag_marchands():
+		if bool(d["trouve"]):
+			print("    %-12s manque de %-12s -> en chercher a %s" % [
+				d["ville"], d["cle"], d["vers"] if str(d["vers"]) != "" else "nulle part"])
+		else:
+			print("    %-12s ne manque de rien" % d["ville"])
+
+
+func _diagnostic_profondeur() -> void:
+	if not OS.get_cmdline_user_args().has("--profondeur"):
+		return
+	print("\n--- profondeur du marche a Port Royale ---")
+	print("  %-15s %6s %8s %8s %8s   ecart 50 t" % ["", "stock", "1 t", "10 t", "50 t"])
+	var un := sim.marche("port_royale", 1)
+	var dix := sim.marche("port_royale", 10)
+	var cinquante := sim.marche("port_royale", 50)
+	for i in un.size():
+		var a1 := float(un[i]["achat_lot"])
+		var a50 := float(cinquante[i]["achat_lot"])
+		print("  %-15s %6d %8.1f %8.1f %8.1f   %+5.1f %%" % [
+			un[i]["nom"], int(un[i]["stock"]), a1,
+			float(dix[i]["achat_lot"]), a50, (a50 / a1 - 1.0) * 100.0])
+
+
+# Outil : `-- --marche [jours] --troc`. Cherche la meilleure route du moment,
+# la parcourt vraiment, et imprime le compte.
+#
+# Le tableau du comptoir peut afficher des chiffres justes sans qu'aucun échange
+# n'aboutisse : seul le solde de la caisse prouve que la chaîne entière tient.
+# Et la route est cherchée plutôt qu'écrite en dur — mon premier essai codait
+# « rhum des Îles Turk vers Cartagène » et perdait 4 344 pièces, parce que le
+# rhum est justement rare à Port Royale ce jour-là. Un test qui doit deviner le
+# bon sens ne teste que la mémoire de celui qui l'a écrit.
+func _diagnostic_troc() -> void:
+	if not OS.get_cmdline_user_args().has("--troc"):
+		return
+
+	# Les marchés sont cotés POUR LA CALE ENTIÈRE, pas à l'unité.
+	#
+	# Ma première version comparait les prix unitaires puis achetait cinquante
+	# tonnes : sur un marché mince l'estimation n'avait aucun rapport avec la
+	# réalité, et l'outil annonçait des routes à +230 la tonne qui se soldaient
+	# par une perte. Un instrument de mesure qui ment est pire que pas d'outil —
+	# j'ai réglé les marchands contre lui pendant deux tours.
+	var tonnage := int(sim.etat_compagnie().get("capacite", 50))
+	var marches := {}
+	for port in ports:
+		marches[str(port["cle"])] = sim.marche(str(port["cle"]), tonnage)
+
+	var meilleure := {"gain": -INF}
+	for depart in marches:
+		for i in (marches[depart] as Array).size():
+			var ici: Dictionary = marches[depart][i]
+			var lot: int = mini(tonnage, int(ici["achat_max"]))
+			if lot <= 0:
+				continue
+			for arrivee in marches:
+				if arrivee == depart:
+					continue
+				var la: Dictionary = marches[arrivee][i]
+				var gain: float = float(la["vente_lot"]) - float(ici["achat_lot"])
+				if gain > float(meilleure["gain"]):
+					meilleure = {"gain": gain, "cle": str(ici["cle"]),
+								 "nom": str(ici["nom"]), "de": depart, "vers": arrivee}
+	if not meilleure.has("cle"):
+		print("
+--- essai de negoce : aucune route praticable ---")
+		return
+
+	var etat := sim.etat_compagnie()
+	var cale := int(etat["capacite"])
+	print("
+--- essai de negoce : %s, %s -> %s (%+.1f /t attendu) ---" % [
+		meilleure["nom"], meilleure["de"], meilleure["vers"], meilleure["gain"]])
+	var avant := int(etat["or_"])
+
+	var achat := sim.acheter(str(meilleure["de"]), str(meilleure["cle"]), cale)
+	print("  achat  : %s  %d t pour %d pieces" % [
+		"ok" if achat["ok"] else "ECHEC (%s)" % achat["message"],
+		achat["quantite"], achat["somme"]])
+	var vente := sim.vendre(str(meilleure["vers"]), str(meilleure["cle"]), cale)
+	print("  vente  : %s  %d t pour %d pieces" % [
+		"ok" if vente["ok"] else "ECHEC (%s)" % vente["message"],
+		vente["quantite"], vente["somme"]])
+
+	var fin := sim.etat_compagnie()
+	print("  cale   : %d / %d t,  caisse %d" % [fin["charge"], fin["capacite"], fin["or_"]])
+	print("  BENEFICE DU VOYAGE : %+d pieces sur %d de capital" % [
+		int(fin["or_"]) - avant, avant])
+
+	# L'echange doit avoir bouge les cours des DEUX villes : c'est la preuve
+	# qu'il a atteint les entrepots, et pas seulement la caisse.
+	for cle in [str(meilleure["de"]), str(meilleure["vers"])]:
+		for l in sim.marche(cle):
+			if str(l["cle"]) == str(meilleure["cle"]):
+				print("  %-14s a %-12s stock %4d   achat %6.1f   vente %6.1f" % [
+					meilleure["nom"], cle, l["stock"], l["achat"], l["vente"]])
+
+
+func _creer_carte() -> void:
+	var tex: Texture2D = load(CHEMIN_CARTE)
+	if tex == null:
+		push_error("carte introuvable : %s" % CHEMIN_CARTE)
+		return
+	_carte = Sprite2D.new()
+	_carte.texture = tex
+	_carte.centered = false
+	_carte.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	add_child(_carte)
+	# Tout le reste se dessine par-dessus
+	_carte.z_index = -10
+
+
+# La nappe animée : elle ne remplace pas la mer peinte, elle l'agite.
+#
+# Son support est la fiche de mer elle-même, étirée aux dimensions de la carte.
+# Ainsi l'UV du shader tombe exactement sur la carte, sans qu'aucune constante
+# de cadrage n'ait à être recopiée d'un fichier à l'autre.
+func _creer_mer() -> void:
+	if not FileAccess.file_exists(CHEMIN_MER):
+		push_warning("fiche de mer absente (recuis la carte) : " + CHEMIN_MER)
+		return
+	var tex: Texture2D = load(CHEMIN_MER)
+	if tex == null:
+		return
+	_mer = Sprite2D.new()
+	_mer.texture = tex
+	_mer.centered = false
+	_mer.scale = Vector2(proj.pixels) / Vector2(tex.get_size())
+	_mer.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/mer_animee.gdshader")
+	mat.set_shader_parameter("taille_monde", proj.vue_taille)
+	mat.set_shader_parameter("zoom", _zoom)
+	_mer.material = mat
+	_mer.z_index = -9
+	# `--sans-mer` retire la nappe animée et ne laisse que l'illustration. C'est
+	# un outil de mesure : l'eau peinte de la carte et l'eau animée se
+	# ressemblent assez pour qu'on ne puisse pas les départager à l'oeil, et la
+	# caméra suit un navire — deux captures à des instants différents ne se
+	# superposent donc pas. À délai égal, avec et sans, elles se superposent.
+	if not OS.get_cmdline_user_args().has("--sans-mer"):
+		add_child(_mer)
+	_creer_nuages()
+
+
+# Les nuages passent AU-DESSUS de tout : terrain, mer, navires, villages. C'est
+# ce que fait Port Royale 3, et c'est la seule place qui se tienne — un nuage
+# qui passerait sous un navire se lirait comme une tache sur la vitre.
+func _creer_nuages() -> void:
+	_nuages = ColorRect.new()
+	_nuages.position = Vector2.ZERO
+	_nuages.size = Vector2(proj.pixels)
+	_nuages.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/nuages.gdshader")
+	mat.set_shader_parameter("taille_monde", proj.vue_taille)
+	_nuages.material = mat
+	_nuages.z_index = 6
+	add_child(_nuages)
+
+
+func _creer_camera() -> void:
+	_cam = Camera2D.new()
+	# Bornes = les bords de l'image : on ne doit jamais voir au-delà de la carte.
+	_cam.limit_left = 0
+	_cam.limit_top = 0
+	_cam.limit_right = proj.pixels.x
+	_cam.limit_bottom = proj.pixels.y
+	_cam.zoom = Vector2(_zoom, _zoom)
+	add_child(_cam)
+	_cam.make_current()
+	_recalculer_zoom_min()
+
+
+# Le dézoom maximal : collée dans le coin nord-ouest, la caméra voit jusqu'à
+# Port Royale, et pas au-delà.
+#
+# Deux réglages ont précédé celui-ci, et tous deux étaient des règles sans
+# repère. Le premier calait le zoom sur la fenêtre — celui qui la remplit tout
+# juste, pour ne jamais voir le vide autour de la carte : bonne règle, mais sur
+# un grand écran elle interdisait de reculer assez. Le second posait un quart de
+# la taille réelle : un chiffre rond, qui ne dit rien de ce qu'on embrasse.
+#
+# Celui-ci se lit sur la carte elle-même : du coin jusqu'à Port Royale, soit à
+# peu près le Golfe, la Floride, Cuba et la Jamaïque d'un seul regard. C'est une
+# portée de navigation, pas une fraction d'image, et elle reste juste si la
+# carte change de taille au prochain recuisson.
+const LOIN_JUSQUA := "port_royale"
+
+# Le pas d'un cran de molette. Il sert aussi à CALER la borne du plus près :
+# la portée voulue n'est presque jamais un multiple entier du pas, et le dernier
+# cran se retrouvait alors rogné par le `clamp` — un palier de plus, à peine
+# différent du précédent, qui donnait l'impression de zoomer pour rien. On
+# descend donc la borne sur le dernier pas ENTIER depuis le dézoom maximal.
+const PAS_ZOOM := 1.12
+
+# Déplacement de la caméra au clavier et à la souris.
+#
+# La vitesse est en PIXELS D'ÉCRAN par seconde, divisée par le zoom au moment de
+# l'appliquer : sans ça on traverserait la carte en une seconde de près et on
+# n'avancerait plus de loin. Ce qui doit rester constant, c'est la sensation —
+# le décor qui file sous les yeux à la même vitesse quelle que soit l'altitude.
+const VITESSE_CAMERA := 620.0
+# Bande, en pixels d'écran, où la souris pousse la vue. Assez large pour être
+# trouvée sans viser, assez fine pour ne pas se déclencher en visant un port.
+const BORD_DEFILEMENT := 22.0
+# Le mou du départ et de l'arrêt. Plus grand = plus sec ; à l'infini on retrouve
+# le à-coup d'une caméra qui démarre et s'arrête au pixel près.
+const INERTIE_CAMERA := 6.5
+
+# --- le cartouche d'un port, en unités de CARTE -------------------------------
+#
+# Rien ici ne dépend du zoom, et c'est tout le principe : le cartouche est un
+# objet posé sur la carte, comme le village qu'il surmonte. On le règle une fois
+# pour le zoom maximal, et il rapetisse ensuite comme le reste — s'éloigner,
+# c'est s'éloigner de tout.
+#
+# Les trois premières versions compensaient le zoom, chacune à sa façon : taille
+# d'écran constante pour le texte, racine du zoom pour le pavillon. Le résultat
+# se tenait pris élément par élément, et se défaisait à l'ensemble — les
+# proportions du cartouche changeaient à chaque cran de molette.
+# EN UNITÉS DE MONDE, et non en pixels de carte. La différence n'était sensible
+# que le jour où la carte a changé de résolution : l'illustration compte quatre
+# fois moins de pixels que la cuisson pour le même monde, et tout le cartouche
+# s'est retrouvé quatre fois trop gros d'un coup. Une taille exprimée en monde
+# ne dépend plus de la finesse de l'image.
+const CART_POLICE := 28.4        # hauteur de police
+const CART_PAVILLON_H := 56.7    # hauteur du pavillon
+const CART_MARGE := 23.2         # respiration à gauche et à droite du nom
+# De combien le pavillon mord sur la plaque. Il doit couvrir le filet du haut
+# sans toucher les lettres : c'est ce qui soude les deux en un seul bloc au lieu
+# de laisser deux objets empilés.
+const CART_CHEVAUCHE := 7.7
+const CART_ICONE := 1.30         # côté de la vignette, en hauteurs de pavillon
+
+# Et au plus près, la vue embrasse à peu près la distance qui sépare Nouvelle
+# Orléans de St-Augustin — d'un bout à l'autre de la côte de Floride.
+#
+# On ne fige pas un chiffre : on MESURE ces deux ports. Ils peuvent être
+# déplacés à l'éditeur, et une constante écrite à la main mentirait dès le
+# premier déplacement. Les clés, elles, ne bougent pas.
+const PRES_DE := "nouvelle_orleans"
+const PRES_A := "st_augustin"
+
+func _recalculer_zoom_min() -> void:
+	var vp := get_viewport_rect().size
+	if ports.is_empty():
+		return
+
+	# Depuis le coin haut-gauche, la vue doit ATTEINDRE ce port : il faut donc
+	# que la fenêtre couvre sa distance au coin, sur les deux axes. On prend le
+	# plus petit des deux rapports — le plus grand n'en couvrirait qu'un.
+	var loin := _port_par_cle(LOIN_JUSQUA)
+	if not loin.is_empty():
+		var rl: Vector3 = loin["rade"]
+		var pl := proj.vers_carte(rl.x, rl.z)
+		if pl.x > 1.0 and pl.y > 1.0:
+			_zoom_min = minf(vp.x / pl.x, vp.y / pl.y)
+
+	# La portée voulue, en pixels de carte, puis le zoom qui la fait tenir dans
+	# la largeur de la fenêtre.
+	var a := _port_par_cle(PRES_DE)
+	var b := _port_par_cle(PRES_A)
+	if a.is_empty() or b.is_empty():
+		return
+	var pa: Vector3 = a["rade"]
+	var pb: Vector3 = b["rade"]
+	var portee := proj.vers_carte(pa.x, pa.z).distance_to(proj.vers_carte(pb.x, pb.z))
+	if portee > 1.0:
+		var vise: float = maxf(_zoom_min, vp.x / portee)
+		var crans: float = floor(log(vise / _zoom_min) / log(PAS_ZOOM))
+		_zoom_max = _zoom_min * pow(PAS_ZOOM, maxf(crans, 0.0))
+	_zoom = maxf(_zoom, _zoom_min)
+	_cam.zoom = Vector2(_zoom, _zoom)
+
+
+func _placer_navire() -> void:
+	var depart := _port_par_cle("port_royale")
+	var rade: Vector3 = depart["rade"]
+	navire.position = Vector2(rade.x, rade.z)
+	navire.vitesse_monde = sim.vitesse_monde(8.0)
+	navire.arrive.connect(_sur_arrivee)
+	_cam.position = proj.vers_carte(navire.position.x, navire.position.y)
+
+
+# --- dessin -------------------------------------------------------------------
+
+func _draw() -> void:
+	if proj == null or not proj.valide:
+		return
+
+	_dessiner_route()
+	for port in ports:
+		_dessiner_port(port)
+	if _mode_edition:
+		_dessiner_reperes_edition()
+	_dessiner_marchands()
+	_dessiner_navire()
+	# Les cartouches passent EN DERNIER, donc au-dessus des navires. Un convoi
+	# qui passe devant l'étiquette de son port la rend illisible juste au moment
+	# où l'on regarde ce port ; derrière, il ne gêne rien et l'on voit quand même
+	# qu'il est là.
+	#
+	# Et EN TROIS PASSES, pas en une par ville : sur une côte serrée les
+	# cartouches se chevauchent, et l'ordre de recouvrement doit être le même
+	# partout. Une seule passe laisserait la marchandise d'un port voisin
+	# recouvrir un nom, ce qui est exactement l'inverse de ce qu'on veut lire.
+	for port in ports:
+		_dessiner_besoin(port)
+	for port in ports:
+		_dessiner_nom(port)
+	for port in ports:
+		_dessiner_pavillon(port)
+
+
+func _dessiner_port(port: Dictionary) -> void:
+	var bourg: Vector3 = port["bourg"]
+	var rade: Vector3 = port["rade"]
+	var p := proj.vers_carte(bourg.x, bourg.z, 14.0)   # un peu au-dessus du sol
+	var r := proj.vers_carte(rade.x, rade.z)
+	var couleur: Color = port["couleur"]
+	var bord: Color = port["couleur_bord"]
+	var e := 1.0 / _zoom                                # taille constante à l'écran
+
+	if _port_survole == port:
+		draw_circle(p, 22 * e, Color(1, 0.95, 0.7, 0.25))
+
+	# Mouillage, au large
+	draw_arc(r, 9 * e, 0, TAU, 20, Color(1, 1, 1, 0.35), 1.5 * e)
+
+	# --- la ville -------------------------------------------------------------
+	if not _villes.vide():
+		var tex: Texture2D = _villes.texture_pour(port)
+		var emprise := _villes.emprise(proj, port)
+		var coin := emprise.position
+		var taille := emprise.size
+		_rects_villes[port["cle"]] = emprise
+
+		# Ombre de contact : un objet qui n'en projette pas a toujours l'air
+		# collé sur l'image. Elle est décalée vers le bas-droite, comme les
+		# ombres du terrain, dont le soleil vient du haut-gauche.
+		var pied := coin + Vector2(taille.x * 0.5, taille.y * 0.94)
+		for k in 3:
+			var rayon := taille.x * (0.46 - 0.11 * k)
+			draw_set_transform(pied + Vector2(taille.x * 0.05, 0.0), 0.0,
+							   Vector2(1.0, 0.34))
+			draw_circle(Vector2.ZERO, rayon, Color(0.05, 0.04, 0.03, 0.13))
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+		# Teinte légèrement rabattue : le rendu généré est plus saturé et plus
+		# contrasté que le terrain cuit, et ressort trop sans ça.
+		draw_texture_rect(tex, Rect2(coin, taille), false, Color(0.93, 0.93, 0.90))
+	else:
+		draw_circle(p, 7 * e, Color(0.10, 0.08, 0.06))
+		draw_circle(p, 5 * e, couleur)
+
+
+
+# Le haut du village, en pixels de carte : c'est de là que pend le cartouche.
+# Les deux passes en ont besoin — celle qui dessine le bourg et celle qui
+# dessine l'étiquette — d'où ce calcul partagé plutôt qu'un champ mémorisé, qui
+# se périmerait au premier déplacement de ville.
+func _haut_bourg(port: Dictionary) -> Vector2:
+	var bourg: Vector3 = port["bourg"]
+	var p := proj.vers_carte(bourg.x, bourg.z, 14.0)
+	if _villes.vide():
+		return p
+	var emprise := _villes.emprise(proj, port)
+	return Vector2(emprise.position.x + emprise.size.x * 0.5, emprise.position.y)
+
+
+# Le cartouche d'un port : pavillon, nom, et ce dont la ville manque le plus.
+# Dessiné dans une passe à part, après les navires — voir `_draw`.
+# La largeur de plaque, la MÊME pour toutes les villes.
+#
+# Ajustée au nom, elle donnait soixante plaques de soixante largeurs : une
+# rangée d'étiquettes dépareillées, où l'oeil lit la longueur du mot avant de
+# lire le mot. On prend donc celle du nom le plus long — « Port-d'Espagne » ou
+# « Nouvelle Orléans » selon la police — et tous les autres flottent dedans.
+# C'est sans conséquence : le fond est un dégradé qui s'efface sur les bords,
+# donc l'espace en trop ne se voit pas.
+func _largeur_plaque(taille_t: int) -> float:
+	if _largeurs.has(taille_t):
+		return _largeurs[taille_t]
+	var maxi := 0.0
+	for port in ports:
+		var l := _police.get_string_size(str(port["nom"]),
+								  HORIZONTAL_ALIGNMENT_LEFT, -1, taille_t).x
+		if l > maxi:
+			maxi = l
+	_largeurs[taille_t] = maxi
+	return maxi
+
+
+# La taille de police À L'ÉCRAN pour un texte haut de `CART_POLICE` sur la carte.
+#
+# On rastérise à la taille affichée, pas à la taille de carte : une police gravée
+# à onze pixels puis agrandie par la caméra est floue, et c'est précisément au
+# zoom maximal — là où l'on lit — que ça se verrait. Le dessin se fait donc dans
+# une transformation inverse, en pixels d'écran, pour un résultat net à tous les
+# crans.
+func _police_ecran() -> int:
+	return int(clampf(CART_POLICE * _par_unite() * _zoom, 6.0, 400.0))
+
+# Pixels de carte par unité de monde. C'est le seul endroit qui sait à quelle
+# finesse la carte est dessinée ; tout le reste raisonne en monde.
+func _par_unite() -> float:
+	if proj == null or proj.vue_taille.x <= 0.0:
+		return 1.0
+	return float(proj.pixels.x) / proj.vue_taille.x
+
+
+func _geometrie_cartouche(port: Dictionary) -> Dictionary:
+	var haut_bourg := _haut_bourg(port)
+	var u := _par_unite()
+	var t_ecran := _police_ecran()
+	# On mesure à l'écran, puis on ramène en pixels de carte.
+	var ht := _police.get_height(t_ecran) / _zoom
+	var lplaque := _largeur_plaque(t_ecran) / _zoom + CART_MARGE * u * 2.0
+	var hp := CART_PAVILLON_H * u
+	var lp := hp * 1.32           # rapport des vignettes de pavillon
+
+	var bas := haut_bourg.y - 4.0 * u
+	var rect_nom := Rect2(haut_bourg.x - lplaque * 0.5, bas - ht, lplaque, ht)
+	var cote := hp * CART_ICONE
+	return {
+		"t_ecran": t_ecran, "ht": ht,
+		"nom": rect_nom,
+		"pavillon": Rect2(haut_bourg.x - lp * 0.5,
+							  rect_nom.position.y - hp + CART_CHEVAUCHE * u, lp, hp),
+		"icone": Rect2(rect_nom.position.x + cote * 0.10,
+						rect_nom.position.y + ht + 2.0 * u, cote, cote),
+	}
+
+# Passe 1 : ce dont la ville manque le plus. C'est l'information qu'un marchand
+# cherche en survolant la carte, et Port Royale 3 la pose là, sous le nom. Elle
+# passe EN DESSOUS des étiquettes : deux ports voisins se chevauchent souvent,
+# et c'est alors le nom qu'il faut pouvoir lire, pas la marchandise du voisin.
+func _dessiner_besoin(port: Dictionary) -> void:
+	var cle_besoin := str(_besoins.get(port["cle"], ""))
+	if cle_besoin == "":
+		return
+	var icone := _icone(cle_besoin)
+	if icone == null:
+		return
+	var g := _geometrie_cartouche(port)
+	var cadre: Rect2 = g["icone"]
+	var u := _par_unite()
+	draw_rect(cadre.grow(1.5 * u), Color(0.03, 0.03, 0.04, 0.66))
+	draw_rect(cadre.grow(1.5 * u), Color(0.86, 0.84, 0.78, 0.55), false, 1.1 * u)
+	draw_texture_rect(icone, cadre, false)
+
+
+# Passe 2 : la plaque et le nom.
+func _dessiner_nom(port: Dictionary) -> void:
+	var g := _geometrie_cartouche(port)
+	var r: Rect2 = g["nom"]
+	var t_ecran: int = g["t_ecran"]
+	var texte: String = port["nom"]
+	_plaque_carte(r, 0.72, Color(0.86, 0.84, 0.78, 0.85), 1.1)
+
+	# Le texte est tracé en pixels d'ÉCRAN, dans une transformation inverse :
+	# c'est ce qui le garde net quel que soit le cran de zoom.
+	var lt := _police.get_string_size(texte, HORIZONTAL_ALIGNMENT_LEFT, -1, t_ecran).x
+	var he := _police.get_height(t_ecran)
+	draw_set_transform(r.position, 0.0, Vector2(1.0 / _zoom, 1.0 / _zoom))
+	draw_string(_police, Vector2((r.size.x * _zoom - lt) * 0.5, he * 0.78),
+				texte, HORIZONTAL_ALIGNMENT_LEFT, -1, t_ecran,
+				Color(1, 0.98, 0.94))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+# Passe 3 : le pavillon, tout au-dessus. Il mord sur le filet supérieur de la
+# plaque — voir CART_CHEVAUCHE.
+func _dessiner_pavillon(port: Dictionary) -> void:
+	var g := _geometrie_cartouche(port)
+	Pavillon.dessiner(self, str(port.get("nation_cle", "")), g["pavillon"])
+
+
+# La plaque de nom, comme dans Port Royale 3 : un fond noir qui s'efface vers
+# la gauche et vers la droite, et deux filets clairs en haut et en bas.
+#
+# Un `StyleBoxFlat` ne sait pas faire ce dégradé horizontal — il n'a qu'une
+# couleur de fond. On pose donc deux quadrilatères à couleurs de sommet :
+# `draw_polygon` interpole entre les quatre coins, et deux quads dos à dos
+# donnent un fondu symétrique sans la moindre texture.
+func _plaque_carte(r: Rect2, alpha: float, bord: Color, ep_bord: float) -> void:
+	var noir := Color(0.03, 0.03, 0.04, alpha)
+	var vide := Color(0.03, 0.03, 0.04, 0.0)
+	var x0 := r.position.x
+	var x1 := r.position.x + r.size.x
+	var xm := x0 + r.size.x * 0.5
+	var y0 := r.position.y
+	var y1 := y0 + r.size.y
+
+	draw_polygon(PackedVector2Array([
+		Vector2(x0, y0), Vector2(xm, y0), Vector2(xm, y1), Vector2(x0, y1)]),
+		PackedColorArray([vide, noir, noir, vide]))
+	draw_polygon(PackedVector2Array([
+		Vector2(xm, y0), Vector2(x1, y0), Vector2(x1, y1), Vector2(xm, y1)]),
+		PackedColorArray([noir, vide, vide, noir]))
+
+	# Les filets s'effacent AVEC le fond : un liseré net sur un fond dégradé
+	# donnerait deux traits qui flottent dans le vide à chaque extrémité.
+	var b0 := Color(bord.r, bord.g, bord.b, 0.0)
+	for y in [y0, y1 - ep_bord]:
+		draw_polygon(PackedVector2Array([
+			Vector2(x0, y), Vector2(xm, y), Vector2(xm, y + ep_bord), Vector2(x0, y + ep_bord)]),
+			PackedColorArray([b0, bord, bord, b0]))
+		draw_polygon(PackedVector2Array([
+			Vector2(xm, y), Vector2(x1, y), Vector2(x1, y + ep_bord), Vector2(xm, y + ep_bord)]),
+			PackedColorArray([bord, b0, b0, bord]))
+
+
+# La vignette de la marchandise qui manque le plus, chargée à la demande.
+func _icone(cle: String) -> Texture2D:
+	if _icones.has(cle):
+		return _icones[cle]
+	var chemin := "res://sprites/marchandises/%s.png" % cle
+	var tex: Texture2D = load(chemin) if ResourceLoader.exists(chemin) else null
+	_icones[cle] = tex
+	return tex
+
+
+func _dessiner_route() -> void:
+	if navire.route.is_empty():
+		return
+	var e := 1.0 / _zoom
+	var pts: Array[Vector2] = [proj.vers_carte(navire.position.x, navire.position.y)]
+	for wp in navire.route:
+		pts.append(proj.vers_carte(wp.x, wp.y))
+
+	var tiret := 14.0 * e
+	var trou := 10.0 * e
+	for i in range(pts.size() - 1):
+		var a: Vector2 = pts[i]
+		var b: Vector2 = pts[i + 1]
+		var lon := a.distance_to(b)
+		if lon < 0.01:
+			continue
+		var u := (b - a) / lon
+		var t := 0.0
+		while t < lon:
+			var t2: float = minf(t + tiret, lon)
+			draw_line(a + u * t, a + u * t2, Color(1, 0.93, 0.72, 0.8), 1.6 * e)
+			t = t2 + trou
+
+
+# Les navires marchands des nations. Même coque que celle du joueur, mais aux
+# couleurs de leur couronne et sans voile : d'un coup d'oeil on sait que ce
+# n'est pas le sien.
+func _dessiner_marchands() -> void:
+	var e := 1.0 / _zoom
+	for m in _marchands:
+		# On les dessine AUSSI à quai, en plus pâle. Les masquer au port les
+		# faisait disparaître la moitié du temps, et l'archipel semblait vide.
+		var quai := bool(m.get("a_quai", false))
+		var pos: Vector2 = m["position"]
+		var p := proj.vers_carte(pos.x, pos.y)
+		var a := proj.angle_ecran(cos(float(m["cap"])), sin(float(m["cap"])))
+
+		# Coque claire, et un halo sous elle : un navire brun foncé sur une mer
+		# bleu nuit ne se voit pas au zoom de la carte.
+		draw_circle(p, 13.0 * e, Color(0, 0, 0, 0.22 if quai else 0.28))
+
+		var coque: Array[Vector2] = [
+			Vector2(12, 0), Vector2(3, 5), Vector2(-9, 4),
+			Vector2(-10, 0), Vector2(-9, -4), Vector2(3, -5),
+		]
+		var pts := PackedVector2Array()
+		for v in coque:
+			pts.append(p + v.rotated(a) * e)
+		draw_colored_polygon(pts, Color(0.44, 0.33, 0.21) if quai
+							 else Color(0.62, 0.47, 0.30))
+		draw_polyline(pts + PackedVector2Array([pts[0]]),
+					  Color(0.14, 0.08, 0.04), 1.5 * e)
+
+		# Pavillon de la nation, planté au milieu de la coque : c'est lui qui
+		# dit à qui on a affaire.
+		var couleur: Color = m["couleur"]
+		var flamme := PackedVector2Array([
+			p + Vector2(-2, -2).rotated(a) * e,
+			p + Vector2(-2, -13).rotated(a) * e,
+			p + Vector2(8, -10).rotated(a) * e,
+		])
+		draw_colored_polygon(flamme, couleur.darkened(0.35) if quai else couleur)
+		draw_polyline(flamme + PackedVector2Array([flamme[0]]),
+					  Color(0.10, 0.06, 0.03), 1.0 * e)
+
+
+func _dessiner_navire() -> void:
+	var p := proj.vers_carte(navire.position.x, navire.position.y)
+	var e := 1.0 / _zoom
+	# Le cap monde ne pointe pas au même endroit à l'écran : la carte est
+	# comprimée nord-sud, donc on passe par la projection.
+	var a := proj.angle_ecran(cos(navire.cap), sin(navire.cap))
+
+	var coque: Array[Vector2] = [
+		Vector2(11, 0), Vector2(2, 5), Vector2(-8, 4),
+		Vector2(-9, 0), Vector2(-8, -4), Vector2(2, -5),
+	]
+	var pts := PackedVector2Array()
+	for v in coque:
+		pts.append(p + v.rotated(a) * e)
+	draw_colored_polygon(pts, Color(0.30, 0.18, 0.09))
+	draw_polyline(pts + PackedVector2Array([pts[0]]), Color(0.12, 0.07, 0.04), 1.0 * e)
+
+	# Voile
+	var voile := PackedVector2Array([
+		p + Vector2(3, 0).rotated(a) * e,
+		p + Vector2(-4, 6).rotated(a) * e,
+		p + Vector2(-4, -6).rotated(a) * e,
+	])
+	draw_colored_polygon(voile, Color(0.97, 0.95, 0.88))
+
+
+# --- boucle -------------------------------------------------------------------
+
+func _process(delta: float) -> void:
+	_besoins_delai -= delta
+	if _besoins_delai <= 0.0:
+		_besoins_delai = 1.5
+		_besoins = sim.besoins_villes()
+	# La nappe indexe la taille de ses paillettes sur le zoom : sans ça elles
+	# disparaissent au dézoom, au moment où l'on voit le plus de mer. On le pousse
+	# ICI et pas dans `_zoomer` : le zoom change aussi au cadrage initial et par
+	# l'outil de capture, et rattraper ces endroits un à un se paie toujours.
+	if _mer != null and _mer.material != null:
+		(_mer.material as ShaderMaterial).set_shader_parameter("zoom", _zoom)
+	if not sim.pret or proj == null or not proj.valide:
+		return
+	_conduire_camera(delta)
+	var vitesse := float(sim.etat_temps()["vitesse"])
+	sim.avancer_temps(delta)
+	navire.avancer(delta * vitesse)
+	_marchands = sim.marchands()
+	_maj_survol()
+	_maj_hud()
+	if _comptoir != null and _comptoir.visible:
+		# Les cours suivent le temps qui passe, meme comptoir ouvert : le
+		# tableau doit donc se relire, sinon il montre des prix perimes.
+		_comptoir.rafraichir()
+		var m := _comptoir.message()
+		if m != "":
+			_noter(m)
+	queue_redraw()
+
+
+func _maj_survol() -> void:
+	_port_survole = {}
+	var monde := proj.vers_monde(get_global_mouse_position())
+	var meilleure := RAYON_CLIC_PORT
+	for port in ports:
+		var b: Vector3 = port["bourg"]
+		var d := monde.distance_to(Vector2(b.x, b.z))
+		if d < meilleure:
+			meilleure = d
+			_port_survole = port
+
+
+# --- entrées ------------------------------------------------------------------
+
+func _unhandled_input(e: InputEvent) -> void:
+	# Comptoir ouvert : la carte ne doit plus reagir derriere lui, ni au clic
+	# ni au clavier. Il gere sa propre touche Echap.
+	if _comptoir != null and _comptoir.visible:
+		return
+	if e is InputEventMouseButton:
+		match e.button_index:
+			MOUSE_BUTTON_WHEEL_UP:
+				_zoomer(PAS_ZOOM)
+			MOUSE_BUTTON_WHEEL_DOWN:
+				_zoomer(1.0 / PAS_ZOOM)
+			MOUSE_BUTTON_LEFT:
+				if e.pressed:
+					# En édition, saisir une ville prend le pas sur tout le reste
+					if _mode_edition:
+						var pris := _saisir(get_global_mouse_position())
+						if not pris.is_empty():
+							_port_saisi = pris
+							return
+					_clic_depart = e.position
+					_a_glisse = false
+					_glisse = true
+				else:
+					if not _port_saisi.is_empty():
+						_port_saisi = {}
+						return
+					_glisse = false
+					if not _a_glisse:
+						_clic_gauche()
+			MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE:
+				_glisse = e.pressed
+				_a_glisse = e.pressed
+	elif e is InputEventMouseMotion and not _port_saisi.is_empty():
+		var m := proj.vers_monde(get_global_mouse_position())
+		var cle: String = _port_saisi["cle"]
+		var ok := false
+		if _saisie_image:
+			# On ne déplace que le dessin : le décalage est la différence entre
+			# la souris et le point réel, en mètres monde.
+			var b: Vector3 = _port_saisi["bourg"]
+			ok = sim.decaler_port(cle, m.x - b.x, m.y - b.z)
+		else:
+			# Le point réel se recale sur la côte la plus proche : impossible
+			# de le poser en pleine mer ou au sommet d'une montagne.
+			ok = sim.deplacer_port(cle, m.x, m.y)
+		if ok:
+			ports = sim.ports()
+			for pt in ports:
+				if pt["cle"] == cle:
+					_port_saisi = pt
+	elif e is InputEventMouseMotion and _glisse:
+		if e.position.distance_to(_clic_depart) > 5.0:
+			_a_glisse = true
+		if _a_glisse:
+			_cam.position -= e.relative / _zoom
+	elif e is InputEventKey and e.pressed and not e.echo:
+		match e.keycode:
+			KEY_SPACE: sim.basculer_pause()
+			KEY_1, KEY_2, KEY_3, KEY_4: sim.definir_vitesse(e.keycode - KEY_0)
+			KEY_R: _cam.position = proj.vers_carte(navire.position.x, navire.position.y)
+			KEY_M:
+				var quai := _port_a_quai()
+				if quai.is_empty():
+					_noter("Il faut être à quai pour visiter le comptoir.")
+				else:
+					_ouvrir_comptoir(quai)
+			KEY_F2:
+				_mode_edition = not _mode_edition
+				_port_saisi = {}
+				_noter("Édition des villes : %s" % ("activée — glisse une ville, Ctrl+S pour enregistrer"
+					if _mode_edition else "désactivée"))
+			KEY_S:
+				if e.ctrl_pressed and _mode_edition:
+					_enregistrer_ports()
+			KEY_ESCAPE: get_tree().quit()
+
+
+# Conduire la vue : WASD (ou les flèches), et la souris contre un bord.
+#
+# On passe par une VITESSE plutôt que par un déplacement direct. Un déplacement
+# direct démarre et s'arrête net, ce qui hache le décor ; une vitesse qu'on
+# ramène doucement vers sa consigne donne le glissé d'une carte qu'on pousse.
+# C'est le même `lerp` à l'aller et au retour, donc l'arrêt est aussi doux que
+# le départ.
+func _conduire_camera(delta: float) -> void:
+	if _cam == null:
+		return
+	var dir := Vector2.ZERO
+	# Touches PHYSIQUES : sur un clavier français, les quatre touches sous la
+	# main gauche restent les mêmes qu'ailleurs, ce que tout jeu fait.
+	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP):
+		dir.y -= 1.0
+	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN):
+		dir.y += 1.0
+	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
+		dir.x -= 1.0
+	if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT):
+		dir.x += 1.0
+
+	# La souris contre un bord pousse la vue de ce côté. On ne le fait que si
+	# elle est DANS la fenêtre : posée ailleurs, sa dernière position connue
+	# ferait défiler la carte toute seule.
+	var vp := get_viewport_rect().size
+	var m := get_viewport().get_mouse_position()
+	if m.x >= 0.0 and m.y >= 0.0 and m.x <= vp.x and m.y <= vp.y:
+		if m.x < BORD_DEFILEMENT:
+			dir.x -= 1.0
+		elif m.x > vp.x - BORD_DEFILEMENT:
+			dir.x += 1.0
+		if m.y < BORD_DEFILEMENT:
+			dir.y -= 1.0
+		elif m.y > vp.y - BORD_DEFILEMENT:
+			dir.y += 1.0
+
+	if dir.length_squared() > 1.0:
+		dir = dir.normalized()
+	var cible := dir * (VITESSE_CAMERA / _zoom)
+	_vitesse_cam = _vitesse_cam.lerp(cible, clampf(INERTIE_CAMERA * delta, 0.0, 1.0))
+	if _vitesse_cam.length_squared() > 0.02:
+		_cam.position += _vitesse_cam * delta
+
+
+func _zoomer(facteur: float) -> void:
+	var avant := get_global_mouse_position()
+	_zoom = clampf(_zoom * facteur, _zoom_min, _zoom_max)
+	_cam.zoom = Vector2(_zoom, _zoom)
+	# On recale pour que le point sous le curseur ne bouge pas
+	var apres := get_global_mouse_position()
+	_cam.position += avant - apres
+
+
+func _clic_gauche() -> void:
+	var cible: Vector2
+	if not _port_survole.is_empty():
+		var rade: Vector3 = _port_survole["rade"]
+		cible = Vector2(rade.x, rade.z)
+		if navire.position.distance_to(cible) < 40.0:
+			return
+	else:
+		cible = proj.vers_monde(get_global_mouse_position())
+		if sim.est_terre(cible.x, cible.y, 30.0):
+			return
+
+	var route := sim.route(Vector3(navire.position.x, 0, navire.position.y),
+						   Vector3(cible.x, 0, cible.y))
+	if route.is_empty():
+		return
+	navire.cap_sur(route, _port_survole)
+
+
+# L'horloge ne s'arrête JAMAIS toute seule, ni à l'arrivée ni à l'ouverture du
+# comptoir. Le monde continue de tourner pendant qu'on négocie — c'est le sens
+# d'avoir des marchands concurrents. La barre d'espace met en panne quand le
+# joueur le décide.
+func _sur_arrivee(port) -> void:
+	if port is Dictionary and not port.is_empty():
+		_ouvrir_comptoir(port)
+
+
+# Le port ou le navire est effectivement a quai, {} s'il est en mer.
+func _port_a_quai() -> Dictionary:
+	if not navire.au_mouillage():
+		return {}
+	var p := _port_le_plus_proche()
+	if p.is_empty():
+		return {}
+	var rade: Vector3 = p["rade"]
+	return p if navire.position.distance_to(Vector2(rade.x, rade.z)) < 70.0 else {}
+
+
+func _ouvrir_comptoir(port: Dictionary) -> void:
+	if _comptoir == null or port.is_empty():
+		return
+	_comptoir.ouvrir(sim, port)
+
+
+# --- HUD ----------------------------------------------------------------------
+
+func _creer_hud() -> void:
+	var couche := CanvasLayer.new()
+	add_child(couche)
+
+	var bois := Color(0.13, 0.09, 0.06, 0.93)
+
+	var cartouche := PanelContainer.new()
+	cartouche.position = Vector2(16, 16)
+	cartouche.custom_minimum_size = Vector2(230, 0)
+	cartouche.add_theme_stylebox_override("panel", _style(bois))
+	couche.add_child(cartouche)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 0)
+	cartouche.add_child(vb)
+
+	_lbl_date = Label.new()
+	_lbl_date.add_theme_font_size_override("font_size", 20)
+	_lbl_date.add_theme_color_override("font_color", Color(0.95, 0.88, 0.72))
+	_lbl_date.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(_lbl_date)
+
+	_lbl_heure = Label.new()
+	_lbl_heure.add_theme_font_size_override("font_size", 13)
+	_lbl_heure.add_theme_color_override("font_color", Color(0.70, 0.62, 0.50))
+	_lbl_heure.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(_lbl_heure)
+
+	_lbl_message = Label.new()
+	_lbl_message.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_lbl_message.offset_top = 14
+	_lbl_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_lbl_message.add_theme_font_size_override("font_size", 16)
+	_lbl_message.add_theme_color_override("font_color", Color(1, 0.92, 0.72))
+	_lbl_message.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_lbl_message.add_theme_constant_override("outline_size", 5)
+	_lbl_message.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	couche.add_child(_lbl_message)
+
+	var barre := PanelContainer.new()
+	barre.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	barre.offset_top = -70
+	barre.add_theme_stylebox_override("panel", _style(bois))
+	couche.add_child(barre)
+
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 18)
+	barre.add_child(hb)
+
+	var infos := VBoxContainer.new()
+	infos.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	infos.add_theme_constant_override("separation", 2)
+	hb.add_child(infos)
+
+	var nom := Label.new()
+	nom.text = "Sloop « Aurore »"
+	nom.add_theme_font_size_override("font_size", 18)
+	nom.add_theme_color_override("font_color", Color(0.95, 0.90, 0.80))
+	infos.add_child(nom)
+
+	_lbl_statut = Label.new()
+	_lbl_statut.add_theme_font_size_override("font_size", 14)
+	_lbl_statut.add_theme_color_override("font_color", Color(0.84, 0.70, 0.32))
+	infos.add_child(_lbl_statut)
+
+	var vit := HBoxContainer.new()
+	vit.alignment = BoxContainer.ALIGNMENT_END
+	vit.add_theme_constant_override("separation", 6)
+	hb.add_child(vit)
+
+	for i in 4:
+		var b := Button.new()
+		b.text = ["II", "x1", "x2", "x4"][i]
+		b.custom_minimum_size = Vector2(46, 36)
+		b.focus_mode = Control.FOCUS_NONE
+		b.pressed.connect(sim.definir_vitesse.bind(i + 1))
+		vit.add_child(b)
+		_boutons.append(b)
+
+
+func _style(couleur: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = couleur
+	sb.border_color = Color(0.32, 0.22, 0.14)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(4)
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14
+	sb.content_margin_top = 6
+	sb.content_margin_bottom = 6
+	return sb
+
+
+func _maj_hud() -> void:
+	var etat := sim.etat_temps()
+	_lbl_date.text = etat["date"]
+	_lbl_heure.text = etat["heure"]
+
+	if navire.au_mouillage():
+		var p := _port_le_plus_proche()
+		var rade: Vector3 = p["rade"]
+		if navire.position.distance_to(Vector2(rade.x, rade.z)) < 70.0:
+			_lbl_statut.text = "À quai - %s (%s)" % [p["nom"], p["nation"]]
+		else:
+			_lbl_statut.text = "En mer - à l'ancre"
+	else:
+		var duree := sim.duree_traversee(navire.distance_restante(), 8.0)
+		var nom: String = navire.destination.get("nom", "")
+		_lbl_statut.text = ("En mer - cap au large, arrivée dans %s" % duree) if nom == "" \
+			else ("En mer - cap sur %s, arrivée dans %s" % [nom, duree])
+
+	for i in _boutons.size():
+		_boutons[i].button_pressed = (int(etat["indice"]) == i + 1)
+
+	var maintenant := Time.get_ticks_msec() / 1000.0
+	if _mode_edition:
+		_lbl_message.text = _message if maintenant < _message_fin 			else "Édition — glisse une ville le long d'une côte, Ctrl+S pour enregistrer, F2 pour sortir"
+	elif maintenant < _message_fin:
+		_lbl_message.text = _message
+	else:
+		_lbl_message.text = ""
+
+
+# --- utilitaires --------------------------------------------------------------
+
+func _port_par_cle(cle: String) -> Dictionary:
+	for p in ports:
+		if p["cle"] == cle:
+			return p
+	# À défaut, le premier port — et rien du tout si la table n'est pas encore
+	# chargée : cette fonction est appelée au démarrage, avant elle.
+	return ports[0] if not ports.is_empty() else {}
+
+
+func _port_le_plus_proche() -> Dictionary:
+	var meilleur: Dictionary = ports[0]
+	var d := INF
+	for p in ports:
+		var rade: Vector3 = p["rade"]
+		var dist := navire.position.distance_to(Vector2(rade.x, rade.z))
+		if dist < d:
+			d = dist
+			meilleur = p
+	return meilleur
+
+
+# Outil : `-- --capture <fichier.png> [secondes]`
+func _notification(quoi: int) -> void:
+	if quoi == NOTIFICATION_WM_SIZE_CHANGED and _cam != null and proj != null and proj.valide:
+		_recalculer_zoom_min()
+
+
+func _capture_auto() -> void:
+	var args := OS.get_cmdline_user_args()
+	var i := args.find("--capture")
+	if i < 0 or i + 1 >= args.size():
+		return
+	var delai := 3.0
+	if i + 2 < args.size() and args[i + 2].is_valid_float():
+		delai = float(args[i + 2])
+	if args.has("--edition"):
+		_mode_edition = true
+	if args.has("--comptoir"):
+		_ouvrir_comptoir(_port_a_quai())
+	var cn := args.find("--comptoir-nu")
+	if cn >= 0 and cn + 1 < args.size():
+		_ouvrir_comptoir(_port_a_quai())
+		await get_tree().process_frame
+		await _comptoir.capturer_plan(args[cn + 1])
+		get_tree().quit()
+		return
+	var z := args.find("--zoom")
+
+	await get_tree().create_timer(delai).timeout
+
+	# Le zoom se pose APRES l'attente, pas avant : la fenêtre s'ouvre puis se
+	# redimensionne, et le redimensionnement recalcule la borne basse et rabote
+	# le zoom au passage. Posé avant, il valait ce qu'il voulait au moment de la
+	# prise — deux captures lancées avec le même argument ne cadraient pas
+	# pareil, ce qui rend toute comparaison entre deux rendus illusoire.
+	if z >= 0 and z + 1 < args.size():
+		_zoom = clampf(float(args[z + 1]), _zoom_min, _zoom_max)
+		_cam.zoom = Vector2(_zoom, _zoom)
+		if _mer != null and _mer.material != null:
+			(_mer.material as ShaderMaterial).set_shader_parameter("zoom", _zoom)
+		queue_redraw()
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	print("[capture] %s (%s)" % [args[i + 1], "ok" if img.save_png(args[i + 1]) == OK else "echec"])
+	get_tree().quit()
+
+
+# --- édition des villes -------------------------------------------------------
+
+func _noter(texte: String) -> void:
+	_message = texte
+	_message_fin = Time.get_ticks_msec() / 1000.0 + 5.0
+
+
+# Réécrit le bloc `Archipel.ports` de sim/archipel.lua avec les positions
+# actuelles. La simulation reste la source de vérité : on n'enregistre pas des
+# pixels, mais des angles de côte.
+func _enregistrer_ports() -> void:
+	# On écrit `villes_reglages.lua` EN ENTIER, et pas un bloc dans
+	# `archipel.lua`. L'ancienne version y remplaçait la table `Archipel.ports`,
+	# qui n'est plus une table littérale mais une boucle sur les données extraites
+	# de Port Royale 3 : la recherche du `}` fermant serait tombée n'importe où.
+	var chemin := "res://sim/villes_reglages.lua"
+	var contenu: String = sim.source_reglages()
+	if contenu == "":
+		_noter("La simulation n'a rien renvoyé")
+		return
+	var sortie := FileAccess.open(chemin, FileAccess.WRITE)
+	if sortie == null:
+		_noter("Écriture impossible : " + chemin)
+		print(contenu)
+		return
+	sortie.store_string(contenu)
+	sortie.close()
+	_noter("Placements enregistrés dans sim/villes_reglages.lua")
+	print("[edition] villes_reglages.lua mis a jour" + char(10) + contenu)
+
+
+# En édition, deux poignées par ville : le réticule est le point RÉEL (celui du
+# mouillage et du clic), le village lui-même est son IMAGE. Un trait les relie
+# quand ils ont été séparés.
+func _dessiner_reperes_edition() -> void:
+	var e := 1.0 / _zoom
+	for port in ports:
+		var b: Vector3 = port["bourg"]
+		var reel := proj.vers_carte(b.x, b.z)
+		var dec: Vector2 = port.get("decalage", Vector2.ZERO)
+		var saisi: bool = (not _port_saisi.is_empty()
+						   and _port_saisi.get("cle", "") == port["cle"])
+
+		if dec.length_squared() > 1.0:
+			var img := proj.vers_carte(b.x + dec.x, b.z + dec.y)
+			var lien := Color(1, 0.85, 0.35, 0.55)
+			var d := reel.distance_to(img)
+			var u := (img - reel) / maxf(d, 0.001)
+			var t := 0.0
+			while t < d:
+				var t2: float = minf(t + 8.0 * e, d)
+				draw_line(reel + u * t, reel + u * t2, lien, 1.2 * e)
+				t = t2 + 6.0 * e
+
+		var couleur := Color(1, 0.85, 0.25) if saisi else Color(1, 1, 1, 0.7)
+		draw_arc(reel, 12 * e, 0, TAU, 24, couleur, 2.0 * e)
+		draw_line(reel - Vector2(7 * e, 0), reel + Vector2(7 * e, 0), couleur, 1.5 * e)
+		draw_line(reel - Vector2(0, 7 * e), reel + Vector2(0, 7 * e), couleur, 1.5 * e)
+
+
+# Que saisit-on sous le curseur ? Le réticule l'emporte sur le village, sinon
+# on ne pourrait plus attraper le point réel d'une ville qui le recouvre.
+func _saisir(pos: Vector2) -> Dictionary:
+	var seuil := 16.0 / _zoom
+
+	for port in ports:
+		var b: Vector3 = port["bourg"]
+		if proj.vers_carte(b.x, b.z).distance_to(pos) <= seuil:
+			_saisie_image = false
+			return port
+
+	for port in ports:
+		var r: Rect2 = _rects_villes.get(port["cle"], Rect2())
+		if r.has_point(pos):
+			_saisie_image = true
+			return port
+
+	return {}

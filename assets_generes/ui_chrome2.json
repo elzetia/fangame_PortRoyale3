@@ -1,0 +1,8 @@
+{
+  "elements": {
+    "titre_bois":    [110, 30, 90, 66],
+    "parchemin_uni": [200, 206, 70, 60],
+    "engrenage_or_petit":   [430, 298, 30, 30],
+    "engrenage_gris_petit": [606, 298, 30, 30]
+  }
+}

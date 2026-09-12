@@ -1,0 +1,15 @@
+{
+  "elements": {
+    "equerre_hg": [20, 16, 70, 70],
+    "equerre_hd": [676, 16, 70, 70],
+    "equerre_bg": [20, 940, 70, 70],
+    "equerre_bd": [676, 940, 70, 70],
+    "bord_gauche": [20, 300, 26, 200],
+    "bord_droit":  [720, 300, 26, 200],
+    "bord_haut":   [280, 16, 200, 26],
+    "bord_bas":    [280, 984, 200, 26],
+    "engrenage_or_petit":   [428, 296, 34, 34],
+    "engrenage_gris_petit": [604, 296, 34, 34],
+    "curseur_lot":          [516, 570, 46, 44]
+  }
+}

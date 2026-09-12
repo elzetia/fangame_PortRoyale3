@@ -1,0 +1,223 @@
+{
+ "source": "trees_separated.zip",
+ "ancrage": "pied",
+ "note": "Coniferes pour les denivelees de montagne. Les treize sapins ENNEIGES de la planche d'origine (tree_24 a tree_36) sont ecartes : il n'y a pas de neige aux Caraibes.",
+ "sprites": [
+  {
+   "fichier": "sapins_00.png",
+   "largeur": 109,
+   "hauteur": 173,
+   "ancrage": [
+    54,
+    172
+   ]
+  },
+  {
+   "fichier": "sapins_01.png",
+   "largeur": 103,
+   "hauteur": 164,
+   "ancrage": [
+    51,
+    163
+   ]
+  },
+  {
+   "fichier": "sapins_02.png",
+   "largeur": 97,
+   "hauteur": 170,
+   "ancrage": [
+    48,
+    169
+   ]
+  },
+  {
+   "fichier": "sapins_03.png",
+   "largeur": 88,
+   "hauteur": 167,
+   "ancrage": [
+    44,
+    166
+   ]
+  },
+  {
+   "fichier": "sapins_04.png",
+   "largeur": 83,
+   "hauteur": 173,
+   "ancrage": [
+    41,
+    172
+   ]
+  },
+  {
+   "fichier": "sapins_05.png",
+   "largeur": 68,
+   "hauteur": 167,
+   "ancrage": [
+    34,
+    166
+   ]
+  },
+  {
+   "fichier": "sapins_06.png",
+   "largeur": 82,
+   "hauteur": 168,
+   "ancrage": [
+    41,
+    167
+   ]
+  },
+  {
+   "fichier": "sapins_07.png",
+   "largeur": 74,
+   "hauteur": 167,
+   "ancrage": [
+    37,
+    166
+   ]
+  },
+  {
+   "fichier": "sapins_08.png",
+   "largeur": 100,
+   "hauteur": 166,
+   "ancrage": [
+    50,
+    165
+   ]
+  },
+  {
+   "fichier": "sapins_09.png",
+   "largeur": 93,
+   "hauteur": 167,
+   "ancrage": [
+    46,
+    166
+   ]
+  },
+  {
+   "fichier": "sapins_10.png",
+   "largeur": 79,
+   "hauteur": 165,
+   "ancrage": [
+    39,
+    164
+   ]
+  },
+  {
+   "fichier": "sapins_11.png",
+   "largeur": 91,
+   "hauteur": 122,
+   "ancrage": [
+    45,
+    121
+   ]
+  },
+  {
+   "fichier": "sapins_12.png",
+   "largeur": 93,
+   "hauteur": 126,
+   "ancrage": [
+    46,
+    125
+   ]
+  },
+  {
+   "fichier": "sapins_13.png",
+   "largeur": 87,
+   "hauteur": 126,
+   "ancrage": [
+    43,
+    125
+   ]
+  },
+  {
+   "fichier": "sapins_14.png",
+   "largeur": 70,
+   "hauteur": 126,
+   "ancrage": [
+    35,
+    125
+   ]
+  },
+  {
+   "fichier": "sapins_15.png",
+   "largeur": 60,
+   "hauteur": 102,
+   "ancrage": [
+    30,
+    101
+   ]
+  },
+  {
+   "fichier": "sapins_16.png",
+   "largeur": 53,
+   "hauteur": 79,
+   "ancrage": [
+    26,
+    78
+   ]
+  },
+  {
+   "fichier": "sapins_17.png",
+   "largeur": 58,
+   "hauteur": 78,
+   "ancrage": [
+    29,
+    77
+   ]
+  },
+  {
+   "fichier": "sapins_18.png",
+   "largeur": 84,
+   "hauteur": 124,
+   "ancrage": [
+    42,
+    123
+   ]
+  },
+  {
+   "fichier": "sapins_19.png",
+   "largeur": 58,
+   "hauteur": 114,
+   "ancrage": [
+    29,
+    113
+   ]
+  },
+  {
+   "fichier": "sapins_20.png",
+   "largeur": 90,
+   "hauteur": 126,
+   "ancrage": [
+    45,
+    125
+   ]
+  },
+  {
+   "fichier": "sapins_21.png",
+   "largeur": 109,
+   "hauteur": 120,
+   "ancrage": [
+    54,
+    119
+   ]
+  },
+  {
+   "fichier": "sapins_22.png",
+   "largeur": 68,
+   "hauteur": 73,
+   "ancrage": [
+    34,
+    72
+   ]
+  },
+  {
+   "fichier": "sapins_23.png",
+   "largeur": 97,
+   "hauteur": 86,
+   "ancrage": [
+    48,
+    85
+   ]
+  }
+ ]
+}

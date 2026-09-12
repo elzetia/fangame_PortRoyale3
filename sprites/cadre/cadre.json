@@ -1,0 +1,69 @@
+{
+	"source": "cadre.png",
+	"ancrage": "centre",
+	"sprites": [
+		{
+			"fichier": "cadre_00.png",
+			"largeur": 458,
+			"hauteur": 376,
+			"ancrage": [
+				229,
+				188
+			]
+		},
+		{
+			"fichier": "cadre_01.png",
+			"largeur": 381,
+			"hauteur": 413,
+			"ancrage": [
+				190,
+				206
+			]
+		},
+		{
+			"fichier": "cadre_02.png",
+			"largeur": 255,
+			"hauteur": 250,
+			"ancrage": [
+				127,
+				125
+			]
+		},
+		{
+			"fichier": "cadre_03.png",
+			"largeur": 380,
+			"hauteur": 341,
+			"ancrage": [
+				190,
+				170
+			]
+		},
+		{
+			"fichier": "cadre_04.png",
+			"largeur": 286,
+			"hauteur": 250,
+			"ancrage": [
+				143,
+				125
+			]
+		},
+		{
+			"fichier": "cadre_05.png",
+			"largeur": 229,
+			"hauteur": 511,
+			"ancrage": [
+				114,
+				255
+			]
+		},
+		{
+			"fichier": "cadre_06.png",
+			"largeur": 767,
+			"hauteur": 228,
+			"ancrage": [
+				383,
+				114
+			]
+		}
+	]
+}

@@ -1,0 +1,180 @@
+{
+  "source": "maquettes 5.png et asstes.png",
+  "elements": {
+    "bandeau_titre": {
+      "fichier": "bandeau_titre.png",
+      "largeur": 981,
+      "hauteur": 119
+    },
+    "onglet_inactif": {
+      "fichier": "onglet_inactif.png",
+      "largeur": 314,
+      "hauteur": 69
+    },
+    "picto_ville": {
+      "fichier": "picto_ville.png",
+      "largeur": 123,
+      "hauteur": 73
+    },
+    "picto_or": {
+      "fichier": "picto_or.png",
+      "largeur": 78,
+      "hauteur": 78
+    },
+    "picto_entrepot": {
+      "fichier": "picto_entrepot.png",
+      "largeur": 91,
+      "hauteur": 78
+    },
+    "picto_rendement": {
+      "fichier": "picto_rendement.png",
+      "largeur": 72,
+      "hauteur": 71
+    },
+    "indicateur_ville_navire": {
+      "fichier": "indicateur_ville_navire.png",
+      "largeur": 313,
+      "hauteur": 75
+    },
+    "indicateur_maison_navire": {
+      "fichier": "indicateur_maison_navire.png",
+      "largeur": 306,
+      "hauteur": 74
+    },
+    "indicateur_ville_maison": {
+      "fichier": "indicateur_ville_maison.png",
+      "largeur": 308,
+      "hauteur": 75
+    },
+    "reglette": {
+      "fichier": "reglette.png",
+      "largeur": 182,
+      "hauteur": 51
+    },
+    "pastille_stock": {
+      "fichier": "pastille_stock.png",
+      "largeur": 105,
+      "hauteur": 65
+    },
+    "pastille_prix": {
+      "fichier": "pastille_prix.png",
+      "largeur": 109,
+      "hauteur": 67
+    },
+    "pastille_cale": {
+      "fichier": "pastille_cale.png",
+      "largeur": 233,
+      "hauteur": 67
+    },
+    "pastille_valeur": {
+      "fichier": "pastille_valeur.png",
+      "largeur": 108,
+      "hauteur": 67
+    },
+    "icone_bois_nue": {
+      "fichier": "icone_bois_nue.png",
+      "largeur": 90,
+      "hauteur": 87
+    },
+    "bouton_info": {
+      "fichier": "bouton_info.png",
+      "largeur": 95,
+      "hauteur": 100
+    },
+    "bouton_fermer": {
+      "fichier": "bouton_fermer.png",
+      "largeur": 96,
+      "hauteur": 99
+    },
+    "icone_briques_nue": {
+      "fichier": "icone_briques_nue.png",
+      "largeur": 88,
+      "hauteur": 78
+    },
+    "engrenage_or": {
+      "fichier": "engrenage_or.png",
+      "largeur": 82,
+      "hauteur": 80
+    },
+    "fleche_verte": {
+      "fichier": "fleche_verte.png",
+      "largeur": 89,
+      "hauteur": 61
+    },
+    "bouton_maison": {
+      "fichier": "bouton_maison.png",
+      "largeur": 86,
+      "hauteur": 76
+    },
+    "bouton_navire_petit": {
+      "fichier": "bouton_navire_petit.png",
+      "largeur": 69,
+      "hauteur": 71
+    },
+    "pastille_lot_curseur": {
+      "fichier": "pastille_lot_curseur.png",
+      "largeur": 234,
+      "hauteur": 66
+    },
+    "barre_defilement": {
+      "fichier": "barre_defilement.png",
+      "largeur": 32,
+      "hauteur": 730
+    },
+    "bouton_navire": {
+      "fichier": "bouton_navire.png",
+      "largeur": 86,
+      "hauteur": 80
+    },
+    "bouton_village": {
+      "fichier": "bouton_village.png",
+      "largeur": 93,
+      "hauteur": 68
+    },
+    "bouton_village_actif": {
+      "fichier": "bouton_village_actif.png",
+      "largeur": 130,
+      "hauteur": 79
+    },
+    "vignette_bananes": {
+      "fichier": "vignette_bananes.png",
+      "source": "5.png"
+    },
+    "vignette_ble": {
+      "fichier": "vignette_ble.png",
+      "source": "5.png"
+    },
+    "vignette_bois": {
+      "fichier": "vignette_bois.png",
+      "source": "5.png"
+    },
+    "vignette_briques": {
+      "fichier": "vignette_briques.png",
+      "source": "5.png"
+    },
+    "vignette_chanvre": {
+      "fichier": "vignette_chanvre.png",
+      "source": "5.png"
+    },
+    "vignette_coton": {
+      "fichier": "vignette_coton.png",
+      "source": "5.png"
+    },
+    "vignette_mais": {
+      "fichier": "vignette_mais.png",
+      "source": "5.png"
+    },
+    "vignette_metal": {
+      "fichier": "vignette_metal.png",
+      "source": "5.png"
+    },
+    "vignette_sel": {
+      "fichier": "vignette_sel.png",
+      "source": "5.png"
+    },
+    "vignette_tissu": {
+      "fichier": "vignette_tissu.png",
+      "source": "5.png"
+    }
+  }
+}

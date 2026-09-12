@@ -1,0 +1,76 @@
+{
+	"source": "bourgs.png",
+	"ancrage": "pied",
+	"sprites": [
+		{
+			"fichier": "bourgs_00.png",
+			"largeur": 340,
+			"hauteur": 193,
+			"ancrage": [
+				187,
+				192
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "bourgs_01.png",
+			"largeur": 362,
+			"hauteur": 231,
+			"ancrage": [
+				169,
+				230
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "bourgs_02.png",
+			"largeur": 350,
+			"hauteur": 299,
+			"ancrage": [
+				59,
+				298
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "bourgs_03.png",
+			"largeur": 340,
+			"hauteur": 211,
+			"ancrage": [
+				273,
+				210
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "bourgs_04.png",
+			"largeur": 382,
+			"hauteur": 300,
+			"ancrage": [
+				84,
+				299
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "bourgs_05.png",
+			"largeur": 359,
+			"hauteur": 266,
+			"ancrage": [
+				168,
+				265
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "bourgs_06.png",
+			"largeur": 342,
+			"hauteur": 206,
+			"ancrage": [
+				275,
+				205
+			],
+			"quai": "droite"
+		}
+	]
+}

@@ -1,0 +1,23 @@
+# --- Cache et artefacts Godot ---
+.godot/
+/android/
+export_presets.cfg
+
+# --- Sauvegardes et fichiers de travail ---
+*.sauv
+*.tmp
+*.bak
+
+# --- Références extraites de Port Royale 3 ---
+# Textures © Kalypso / Gaming Minds, extraites de la copie installée du jeu.
+# Servent de référence artistique en local : pas de redistribution.
+# Voir reference_pr3/LISEZMOI.md pour les regénérer depuis ta propre copie.
+reference_pr3/
+
+# --- lua-gdextension : binaires précompilés ---
+# L'addon livre ~209 Mo de binaires pour toutes les plateformes.
+# On ne versionne que Windows + la bibliothèque jit de LuaJIT.
+# Pour les autres plateformes : https://github.com/gilzoide/lua-gdextension
+addons/lua-gdextension/build/*
+!addons/lua-gdextension/build/jit/
+!addons/lua-gdextension/build/*.windows.*.dll

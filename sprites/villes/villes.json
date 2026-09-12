@@ -1,0 +1,56 @@
+{
+	"source": "villes.png",
+	"ancrage": "pied",
+	"sprites": [
+		{
+			"fichier": "villes_00.png",
+			"largeur": 409,
+			"hauteur": 327,
+			"ancrage": [
+				195,
+				326
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "villes_01.png",
+			"largeur": 394,
+			"hauteur": 334,
+			"ancrage": [
+				189,
+				333
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "villes_02.png",
+			"largeur": 397,
+			"hauteur": 344,
+			"ancrage": [
+				196,
+				343
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "villes_03.png",
+			"largeur": 400,
+			"hauteur": 408,
+			"ancrage": [
+				196,
+				407
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "villes_04.png",
+			"largeur": 393,
+			"hauteur": 453,
+			"ancrage": [
+				197,
+				452
+			],
+			"quai": "gauche"
+		}
+	]
+}

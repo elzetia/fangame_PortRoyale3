@@ -1,0 +1,76 @@
+{
+	"source": "ecueils.png",
+	"ancrage": "pied",
+	"sprites": [
+		{
+			"fichier": "ecueils_00.png",
+			"largeur": 107,
+			"hauteur": 82,
+			"ancrage": [
+				53,
+				81
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "ecueils_01.png",
+			"largeur": 64,
+			"hauteur": 58,
+			"ancrage": [
+				37,
+				57
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "ecueils_02.png",
+			"largeur": 70,
+			"hauteur": 54,
+			"ancrage": [
+				40,
+				53
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "ecueils_03.png",
+			"largeur": 74,
+			"hauteur": 51,
+			"ancrage": [
+				57,
+				50
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "ecueils_04.png",
+			"largeur": 79,
+			"hauteur": 50,
+			"ancrage": [
+				14,
+				49
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "ecueils_05.png",
+			"largeur": 46,
+			"hauteur": 63,
+			"ancrage": [
+				18,
+				62
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "ecueils_06.png",
+			"largeur": 93,
+			"hauteur": 67,
+			"ancrage": [
+				39,
+				66
+			],
+			"quai": "droite"
+		}
+	]
+}

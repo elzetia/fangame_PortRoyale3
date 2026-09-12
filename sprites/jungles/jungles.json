@@ -1,0 +1,76 @@
+{
+	"source": "jungles.png",
+	"ancrage": "pied",
+	"sprites": [
+		{
+			"fichier": "jungles_00.png",
+			"largeur": 103,
+			"hauteur": 104,
+			"ancrage": [
+				46,
+				103
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "jungles_01.png",
+			"largeur": 131,
+			"hauteur": 124,
+			"ancrage": [
+				69,
+				123
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "jungles_02.png",
+			"largeur": 147,
+			"hauteur": 145,
+			"ancrage": [
+				70,
+				144
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "jungles_03.png",
+			"largeur": 183,
+			"hauteur": 167,
+			"ancrage": [
+				90,
+				166
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "jungles_04.png",
+			"largeur": 211,
+			"hauteur": 177,
+			"ancrage": [
+				102,
+				176
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "jungles_05.png",
+			"largeur": 237,
+			"hauteur": 210,
+			"ancrage": [
+				93,
+				209
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "jungles_06.png",
+			"largeur": 277,
+			"hauteur": 234,
+			"ancrage": [
+				126,
+				233
+			],
+			"quai": "gauche"
+		}
+	]
+}

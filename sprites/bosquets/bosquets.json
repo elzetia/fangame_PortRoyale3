@@ -1,0 +1,156 @@
+{
+	"source": "ecueils.png",
+	"ancrage": "pied",
+	"sprites": [
+		{
+			"fichier": "bosquets_00.png",
+			"largeur": 138,
+			"hauteur": 96,
+			"ancrage": [
+				94,
+				95
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "bosquets_01.png",
+			"largeur": 102,
+			"hauteur": 100,
+			"ancrage": [
+				53,
+				99
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "bosquets_02.png",
+			"largeur": 91,
+			"hauteur": 84,
+			"ancrage": [
+				57,
+				83
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "bosquets_03.png",
+			"largeur": 107,
+			"hauteur": 69,
+			"ancrage": [
+				70,
+				68
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "bosquets_04.png",
+			"largeur": 91,
+			"hauteur": 84,
+			"ancrage": [
+				51,
+				83
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "bosquets_05.png",
+			"largeur": 101,
+			"hauteur": 81,
+			"ancrage": [
+				56,
+				80
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "bosquets_06.png",
+			"largeur": 70,
+			"hauteur": 55,
+			"ancrage": [
+				37,
+				54
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "bosquets_07.png",
+			"largeur": 86,
+			"hauteur": 76,
+			"ancrage": [
+				56,
+				75
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "bosquets_08.png",
+			"largeur": 117,
+			"hauteur": 114,
+			"ancrage": [
+				80,
+				113
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "bosquets_09.png",
+			"largeur": 185,
+			"hauteur": 114,
+			"ancrage": [
+				74,
+				113
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "bosquets_10.png",
+			"largeur": 91,
+			"hauteur": 102,
+			"ancrage": [
+				50,
+				101
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "bosquets_11.png",
+			"largeur": 114,
+			"hauteur": 130,
+			"ancrage": [
+				53,
+				129
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "bosquets_12.png",
+			"largeur": 96,
+			"hauteur": 103,
+			"ancrage": [
+				41,
+				102
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "bosquets_13.png",
+			"largeur": 91,
+			"hauteur": 73,
+			"ancrage": [
+				63,
+				72
+			],
+			"quai": "droite"
+		},
+		{
+			"fichier": "bosquets_14.png",
+			"largeur": 100,
+			"hauteur": 92,
+			"ancrage": [
+				69,
+				91
+			],
+			"quai": "gauche"
+		}
+	]
+}

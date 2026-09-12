@@ -1,0 +1,217 @@
+{
+  "elements": {
+    "cadre_fenetre": [
+      22,
+      18,
+      722,
+      990
+    ],
+    "bandeau_titre": [
+      33,
+      26,
+      700,
+      74
+    ],
+    "bouton_info": [
+      44,
+      30,
+      56,
+      56
+    ],
+    "bouton_fermer": [
+      664,
+      30,
+      56,
+      56
+    ],
+    "equerre_haut_gauche": [
+      22,
+      18,
+      62,
+      62
+    ],
+    "equerre_haut_droite": [
+      682,
+      18,
+      62,
+      62
+    ],
+    "equerre_bas_gauche": [
+      22,
+      944,
+      62,
+      62
+    ],
+    "equerre_bas_droite": [
+      682,
+      944,
+      62,
+      62
+    ],
+    "onglet_inactif": [
+      54,
+      100,
+      212,
+      40
+    ],
+    "onglet_actif": [
+      274,
+      98,
+      216,
+      44
+    ],
+    "onglet_icone_navire": [
+      70,
+      106,
+      40,
+      30
+    ],
+    "onglet_icone_ballot": [
+      292,
+      104,
+      44,
+      32
+    ],
+    "onglet_icone_boussole": [
+      538,
+      102,
+      46,
+      36
+    ],
+    "indicateur_1": [
+      54,
+      146,
+      212,
+      46
+    ],
+    "indicateur_2": [
+      276,
+      146,
+      212,
+      46
+    ],
+    "indicateur_3": [
+      498,
+      146,
+      212,
+      46
+    ],
+    "fleche_verte": [
+      150,
+      156,
+      44,
+      26
+    ],
+    "entete_ville": [
+      286,
+      216,
+      66,
+      54
+    ],
+    "entete_or": [
+      370,
+      216,
+      66,
+      54
+    ],
+    "entete_cale": [
+      494,
+      216,
+      66,
+      54
+    ],
+    "entete_valeur": [
+      620,
+      216,
+      60,
+      54
+    ],
+    "barre_defilement": [
+      682,
+      276,
+      32,
+      706
+    ],
+    "curseur_lot": [
+      500,
+      566,
+      70,
+      46
+    ],
+    "fond_parchemin": [
+      62,
+      206,
+      200,
+      62
+    ],
+    "fond_bois": [
+      112,
+      34,
+      140,
+      56
+    ],
+    "reglette_vide": [
+      148,
+      350,
+      126,
+      40
+    ],
+    "titre_gravure": [
+      270,
+      34,
+      230,
+      52
+    ]
+  },
+  "grille": {
+    "lignes": 10,
+    "haut": 280,
+    "pas": 69.7,
+    "hauteur": 63,
+    "noms": [
+      "bois",
+      "briques",
+      "ble",
+      "bananes",
+      "mais",
+      "sel",
+      "chanvre",
+      "tissu",
+      "metal",
+      "coton"
+    ],
+    "une_seule": [
+      "reglette",
+      "pastille_stock",
+      "pastille_prix",
+      "pastille_cale",
+      "pastille_valeur"
+    ],
+    "colonnes": {
+      "vignette": [
+        50,
+        96
+      ],
+      "reglette": [
+        148,
+        126
+      ],
+      "pastille_stock": [
+        286,
+        68
+      ],
+      "pastille_prix": [
+        360,
+        100
+      ],
+      "pastille_cale": [
+        462,
+        134
+      ],
+      "pastille_valeur": [
+        598,
+        82
+      ]
+    }
+  }
+}

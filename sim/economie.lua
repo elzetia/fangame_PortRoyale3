@@ -1,0 +1,587 @@
+-- L'économie des villes : stocks, production, consommation, prix.
+--
+-- Le modèle est celui de Port Royale 1, le plus simple des trois et celui sur
+-- lequel les deux autres se sont construits : chaque ville produit quelques
+-- marchandises, les consomme toutes en proportion de sa population, et son prix
+-- ne dépend que de ce qu'il lui en reste en entrepôt. Aucun marché mondial,
+-- aucun cours de référence : c'est la pénurie locale qui fait le prix, et c'est
+-- l'écart entre deux villes qui fait le métier de marchand.
+--
+-- Lua pur : ce fichier ne connaît pas Godot.
+
+local Archipel     = require("sim.archipel")
+local Marchandises = require("sim.marchandises")
+
+local Economie = {}
+
+-- Une ville garde en réserve de quoi tenir ce nombre de jours. C'est ce chiffre
+-- qui fixe la PROFONDEUR du marché : la quantité qu'un navire peut écouler
+-- sans effondrer le cours.
+--
+-- C'est un équilibre à deux dangers. Trop peu, et une seule escale retourne le
+-- cours : le prix payé n'a plus de rapport avec celui affiché. Trop, et le
+-- contraire arrive — à 90 jours, les entrepôts tenaient huit cents tonnes, la
+-- cale d'un sloop n'y changeait rien de visible, ni le prix ni la réglette
+-- d'abondance ne bougeaient sous les doigts du joueur, et le marché devenait
+-- un décor.
+--
+-- 18 jours place une cargaison de cinquante tonneaux à un bon tiers de
+-- l'entrepôt d'une denrée courante : le geste se voit, sans faire la loi.
+--
+-- C'était 42, et les entrepôts d'un bourg de douze cents âmes tenaient trois
+-- cent tonnes de blé — cent jours de pain d'avance. Un chiffre juste pour les
+-- grandes villes du premier réglage (jusqu'à 3 300 habitants) devient absurde
+-- pour cinq colonies naissantes : elles n'ont ni les bras ni les hangars pour
+-- ça. La réserve se compte désormais en semaines, pas en saisons.
+local JOURS_RESERVE = 30
+
+-- Écart entre le prix d'achat et le prix de vente. Le marchand ne gagne donc
+-- jamais rien à revendre sur place : il faut déplacer la marchandise.
+local MARGE = 0.09
+
+-- Bornes du facteur de prix, et donc MARGE MAXIMALE DU JEU : entre acheter au
+-- plancher et vendre au plafond il y a un rapport de MAX/MIN, moins deux fois
+-- la commission du courtier. Tout le reste du réglage en découle.
+--
+-- Celles de Port Royale 3 : on n'y vend jamais en dessous de 100 % du cours de
+-- base, et on n'y achète jamais au-dessus de 200 %. La bande utile fait donc
+-- du simple au double, pas davantage.
+--
+-- Deux erreurs successives ici, chacune d'un ordre de grandeur :
+--   3,0 / 0,40 — mes valeurs devinées — donnaient des routes à +460 %, et la
+--   première traversée d'un sloop rapportait plus que le capital de départ ;
+--   puis 2,00 / 0,80, où j'avais pris pour plancher le prix affiché à quatre
+--   barres. C'est le cours interne de la ville, pas celui qu'elle consent au
+--   marchand : elle ne descend pas sous le prix de revient.
+local FACTEUR_MAX = 2.00
+local FACTEUR_MIN = 1.00
+
+-- Production quotidienne, en tonnes.
+--
+-- Ce n'est plus une quantité acquise mais une CAPACITÉ : ce que la ville
+-- produirait si elle avait de quoi. Depuis que les recettes existent, un
+-- atelier sans intrants chôme.
+--
+-- Les chiffres ont été recalculés à l'arrivée des recettes, par une méthode
+-- plutôt qu'à la main : chaque ville produit d'abord 65 % de ses PROPRES
+-- intrants — un atelier qui dépend entièrement de l'import chôme dès que le
+-- navire a du retard — puis les totaux de l'archipel sont relevés pour couvrir
+-- la demande des habitants ET celle de l'industrie, avec six pour cent de
+-- marge. Sans cette seconde passe, l'archipel s'effondrait en un an : les
+-- ateliers dévoraient des matières premières que personne ne produisait.
+--
+-- LES VOCATIONS SONT CELLES DE PORT ROYALE 3, et elles ne sont plus ecrites a
+-- la main : chaque ville de `sim/villes_pr3.lua` porte les CINQ marchandises
+-- que le jeu lui fait produire, relevees dans son `ini/constdata.dat`. La
+-- Havane fait coton, ble, briques, rhum et tabac ; New Orleans sucre, tissu,
+-- briques, pain et teintures. Rien de tout cela n'est de mon invention, et
+-- c'est ce qui donne a la carte sa structure : le golfe ne produit pas ce que
+-- produisent les Petites Antilles.
+--
+-- Ce qui reste a moi, ce sont les DEBITS. PR3 les fait dependre des batiments
+-- que le joueur construit, ce que ce jeu-ci ne simule pas encore ; on les
+-- calcule donc, et par la meme methode qu'avant :
+--
+--   1. on remonte la chaine de fabrication A L'ENVERS pour connaitre la
+--      demande totale de la carte -- celle des habitants PLUS celle des
+--      ateliers, qui mangent des intrants que quelqu'un doit produire ;
+--   2. on ajoute la marge, et de quoi croitre ;
+--   3. on repartit ce total entre les villes qui produisent la marchandise,
+--      AU PRORATA DE LEUR POPULATION -- une grande ville produit plus.
+--
+-- La regle a ne pas casser : sur la carte entiere, la production de chaque
+-- marchandise couvre a peu pres sa consommation. Une seule denree durablement
+-- deficitaire et tout le monde s'affame, ce qu'aucune manoeuvre du joueur ne
+-- peut redresser. C'est la raison d'etre du calcul : a soixante villes, aucune
+-- table ecrite a la main ne tiendrait cette propriete apres une retouche.
+--
+-- En revanche AUCUNE ville n'est autosuffisante, et c'est voulu : cinq
+-- marchandises sur vingt. C'est cet ecart, et lui seul, qui fait le metier de
+-- marchand.
+
+-- De quoi croitre. Sans cette marge, les villes butent des le premier mois sur
+-- le plafond demographique et ne grandissent jamais -- or c'est la seule
+-- recompense visible du travail du joueur.
+local CROISSANCE = 1.20
+local MARGE_CHAINE = 1.06
+
+-- La demographie ne regarde que le PIRE des quatre vivres : au point fixe, la
+-- denree vitale la moins pourvue tombe donc a zero dans toutes les villes a la
+-- fois, et sa ligne meurt au comptoir. On choisit laquelle -- les fruits, la
+-- plus consommee -- en donnant aux autres de quoi garder du stock, donc un
+-- cours qui bouge et une route qui vit.
+local AISANCE = { viande = 1.25, pain = 1.20 }
+
+local PRODUCTIONS
+do
+  local population = 0
+  for _, port in ipairs(Archipel.ports) do population = population + port.habitants end
+
+  -- Qui consomme quoi, et en quelle quantite, pour remonter la chaine.
+  local consommateurs = {}
+  for _, m in ipairs(Marchandises.liste) do
+    for _, ing in ipairs(m.recette or {}) do
+      consommateurs[ing[1]] = consommateurs[ing[1]] or {}
+      consommateurs[ing[1]][#consommateurs[ing[1]] + 1] = { m.cle, ing[2] }
+    end
+  end
+
+  -- A l'envers de l'ordre de fabrication : le rhum avant le sucre, sinon on ne
+  -- saurait pas combien de sucre il faut.
+  local cible = {}
+  for i = #Marchandises.ordreFabrication, 1, -1 do
+    local m = Marchandises.ordreFabrication[i]
+    local besoin = m.conso * population * CROISSANCE / 1000.0
+    for _, c in ipairs(consommateurs[m.cle] or {}) do
+      besoin = besoin + (cible[c[1]] or 0) * c[2]
+    end
+    cible[m.cle] = besoin * MARGE_CHAINE * (AISANCE[m.cle] or 1.0)
+  end
+
+  -- LE SOCLE VIVRIER. Les cinq marchandises de PR3 sont la production
+  -- COMMERCIALE d'une ville, pas son potager : aucune colonie ne vivait de ce
+  -- qu'elle vendait seulement. Sans ce socle, une ville qui n'a aucun vivre
+  -- dans ses cinq n'en produit pas un gramme et fond jusqu'au plancher de cent
+  -- vingt ames en cinq ans -- ce qui est arrive aux deux tiers de la carte au
+  -- premier essai.
+  --
+  -- Chaque ville couvre donc cette part de ses PROPRES besoins vitaux. Le
+  -- reglage est auto-stabilisant : la production est fixe, la consommation
+  -- suit la population, donc une ville jamais ravitaillee decroit jusqu'a
+  -- cette part de sa taille et s'y arrete. Elle ne meurt pas, elle attend le
+  -- marchand -- et les quarante pour cent qui manquent sont sa demande
+  -- permanente, donc une route qui ne se tarit jamais.
+  -- Quatre-vingt-cinq pour cent : une ville jamais ravitaillee se stabilise a
+  -- 88 % de sa taille, ce qui est une gene, pas une agonie. A 60 % elle perdait
+  -- les deux cinquiemes de ses habitants avant que le premier convoi ait fait
+  -- deux tours -- la logistique d'une carte de soixante ports est trop lente
+  -- pour une chute aussi raide.
+  local AUTONOMIE_VIVRES = 0.85
+
+  -- Le socle doit couvrir les INTRANTS de ses propres ateliers vitaux, pas
+  -- seulement ce que les habitants mangent. La viande se fait avec deux mais,
+  -- le pain avec un ble et un mais : une ville a qui l'on donne 85 % de sa
+  -- viande sans lui donner le mais qui la fait n'en produit pas un gramme.
+  -- C'est ce qui est arrive au premier essai -- Corpus Christi gardait mille
+  -- tonnes de ble au plafond de son entrepot et zero viande, zero pain,
+  -- subsistance nulle. Les vivres se remontent donc a l'envers, comme le reste.
+  local socle = {}
+  for _, port in ipairs(Archipel.ports) do
+    local t = {}
+    for _, cle in ipairs(Marchandises.vitales) do
+      t[cle] = AUTONOMIE_VIVRES * Marchandises.get(cle).conso * port.habitants / 1000.0
+    end
+    for i = #Marchandises.ordreFabrication, 1, -1 do
+      local m = Marchandises.ordreFabrication[i]
+      if t[m.cle] then
+        for _, ing in ipairs(m.recette or {}) do
+          if t[ing[1]] then t[ing[1]] = t[ing[1]] + t[m.cle] * ing[2] end
+        end
+      end
+    end
+    socle[port.cle] = t
+  end
+
+  -- Ce que le socle couvre deja se retranche de la cible : sinon on produirait
+  -- deux fois le meme ble et la carte croulerait sous les vivres.
+  local deja = {}
+  for _, port in ipairs(Archipel.ports) do
+    for cle, q in pairs(socle[port.cle]) do deja[cle] = (deja[cle] or 0) + q end
+  end
+
+  -- Le reste, au prorata de la population des villes qui la produisent.
+  local poids = {}
+  for _, port in ipairs(Archipel.ports) do
+    for _, cle in ipairs(port.produits or {}) do
+      poids[cle] = (poids[cle] or 0) + port.habitants
+    end
+  end
+
+  PRODUCTIONS = {}
+  for _, port in ipairs(Archipel.ports) do
+    local t = {}
+    for cle, q in pairs(socle[port.cle]) do t[cle] = q end
+    for _, cle in ipairs(port.produits or {}) do
+      if poids[cle] and poids[cle] > 0 then
+        local reste = cible[cle] - (deja[cle] or 0)
+        if reste < 0 then reste = 0 end
+        t[cle] = (t[cle] or 0) + reste * port.habitants / poids[cle]
+      end
+    end
+    PRODUCTIONS[port.cle] = t
+  end
+end
+
+Economie.villes = {}
+local reste_jour = 0.0
+
+
+local function borner(v, mini, maxi)
+  if v < mini then return mini end
+  if v > maxi then return maxi end
+  return v
+end
+
+
+-- Consommation quotidienne d'une ville pour une marchandise, en tonnes.
+local function consommation(ville, m)
+  return m.conso * ville.habitants / 1000.0
+end
+
+
+-- Stock que la ville cherche à tenir. Une ville qui produit garde aussi de quoi
+-- charger les navires : sans ça, un port exportateur serait toujours à sec et
+-- son cours ne descendrait jamais.
+local function reference(ville, m)
+  local c = consommation(ville, m) * JOURS_RESERVE
+  local p = (ville.production[m.cle] or 0) * JOURS_RESERVE * 0.55
+  local r = c + p
+  if r < 12 then r = 12 end
+  return r
+end
+
+
+-- Le facteur de prix, selon le remplissage de l'entrepôt.
+--
+-- Calé sur Port Royale 3, dont le barème est documenté ainsi : le prix de base
+-- vaut 100 %, une ville normalement approvisionnée — deux barres vertes — vend
+-- à **120 %**, un entrepôt vide monte à 200 %, un entrepôt plein tombe à 80 %.
+--
+--   f(0) = 2.00   pénurie
+--   f(1) = 1.20   stock normal, deux barres : le cours courant du jeu
+--   f(2.25) = 0.80  surplus, plancher
+--
+-- Ma première courbe donnait 1.00 à stock normal, c'est-à-dire qu'elle vendait
+-- au prix de revient : toute la grille était décalée d'un cinquième vers le bas.
+-- La forme a/(b+r) passe par les deux points voulus d'un coup et reste monotone,
+-- ce qu'un polynôme ajusté à la main ne garantit jamais.
+local function facteur(ratio)
+  if ratio < 0 then ratio = 0 end
+  return borner(3.0 / (1.5 + ratio), FACTEUR_MIN, FACTEUR_MAX)
+end
+
+
+-- Nombre de barres d'abondance, de 0 à 4, selon le barème de Port Royale 3 :
+--
+--   0 barre  : 180 a 200 %      3 barres : 100 a 120 %
+--   1 barre  : 120 a 180 %      4 barres : 100 %
+--   2 barres : 120 %
+--
+-- Ce sont des PALIERS, pas une droite. Ma première version interpolait
+-- linéairement entre 200 % et 80 %, ce qui plaçait 120 % à trois barres au lieu
+-- de deux — la jauge annonçait une ville mieux fournie qu'elle ne l'était.
+--
+-- On classe par le point d'ancrage le plus proche : 190, 150, 120, 110, 100.
+-- Les paliers hauts sont larges, les bas serrés — c'est la forme du barème,
+-- pas une commodité : entre trois et quatre barres il n'y a que vingt points
+-- de pourcentage, contre soixante entre zéro et une.
+local PALIERS = { 1.70, 1.35, 1.15, 1.05 }
+
+function Economie.barres(cle_ville, cle_m)
+  local ville = Economie.ville(cle_ville)
+  local m = Marchandises.get(cle_m)
+  if not ville or not m then return 0 end
+  -- Déduit du FACTEUR DE PRIX, jamais du stock directement : ainsi la jauge et
+  -- le cours ne peuvent pas se contredire à l'écran.
+  local f = facteur((ville.stock[cle_m] or 0) / reference(ville, m))
+  for n, seuil in ipairs(PALIERS) do
+    if f >= seuil then return n - 1 end
+  end
+  return 4
+end
+
+
+function Economie.reinitialiser()
+  Economie.villes = {}
+  reste_jour = 0.0
+  for _, port in ipairs(Archipel.ports) do
+    local ville = {
+      cle = port.cle,
+      nom = port.nom,
+      habitants = port.habitants,
+      production = PRODUCTIONS[port.cle] or {},
+      stock = {},
+    }
+    -- On démarre chaque entrepôt à son niveau de référence, avec un écart
+    -- déterministe d'une marchandise à l'autre : une partie qui commence à
+    -- l'équilibre parfait n'offre aucune occasion, et il n'y aurait rien à
+    -- faire au premier jour.
+    -- La graine du bourg. Elle était tirée de la LONGUEUR de sa clé, ce qui a
+    -- fini par se payer : `cartagene` et `iles_turk` font neuf lettres, donc
+    -- partaient avec exactement les mêmes entrepôts, aux mêmes cours, et deux
+    -- des cinq villes n'offraient aucune occasion l'une par rapport à l'autre.
+    -- Un vrai condensé des lettres n'a pas ce défaut.
+    local graine = 0
+    for k = 1, string.len(port.cle) do
+      graine = (graine * 31 + string.byte(port.cle, k)) % 997
+    end
+
+    for i, m in ipairs(Marchandises.liste) do
+      -- Écart de départ volontairement LARGE. Resserré autour de la référence
+      -- (0,75 à 1,25), il donnait quatre barres vertes sur presque toutes les
+      -- lignes au premier jour : l'écran était uniforme, et rien n'indiquait au
+      -- joueur où aller. De 0,30 à 1,35, la jauge parle dès l'ouverture — et
+      -- c'est cet écart, bien plus que la production, qui fait qu'une route
+      -- rapporte au premier matin.
+      local biais = 0.30 + 1.05 * (((i * 37 + graine) % 100) / 100.0)
+      if ville.production[m.cle] then biais = biais + 0.40 end
+      ville.stock[m.cle] = reference(ville, m) * biais
+    end
+    Economie.villes[port.cle] = ville
+  end
+end
+
+
+function Economie.ville(cle)
+  if not next(Economie.villes) then Economie.reinitialiser() end
+  return Economie.villes[cle]
+end
+
+
+-- Prix unitaire moyen d'une transaction.
+--
+-- On évalue le cours au stock MOYEN pendant l'échange, et non au stock de
+-- départ : vider un entrepôt fait monter le prix au fur et à mesure, et c'est
+-- ce qui empêche d'emporter mille tonnes au cours de la première.
+function Economie.cotation(cle_ville, cle_m, quantite, sens)
+  local ville = Economie.ville(cle_ville)
+  local m = Marchandises.get(cle_m)
+  if not ville or not m then return nil end
+
+  quantite = quantite or 0
+  local stock = ville.stock[cle_m] or 0
+  local moyen = stock
+  if sens == "achat" then
+    moyen = stock - quantite * 0.5          -- le joueur achète : le stock baisse
+  elseif sens == "vente" then
+    moyen = stock + quantite * 0.5
+  end
+  if moyen < 0 then moyen = 0 end
+
+  local base = m.prix * facteur(moyen / reference(ville, m))
+  if sens == "achat" then
+    return base * (1 + MARGE)
+  elseif sens == "vente" then
+    return base * (1 - MARGE)
+  end
+  return base
+end
+
+
+-- Tableau du marché d'une ville : une ligne par marchandise.
+-- `lot` est la quantité que le joueur envisage d'échanger. Les colonnes de
+-- prix sont données pour l'unité ET pour ce lot : c'est le second chiffre qu'il
+-- paiera vraiment, et l'écart entre les deux est la profondeur du marché.
+-- L'etat d'UNE ligne, sans construire les vingt autres.
+--
+-- `Economie.marche` batit un tableau complet : vingt lignes, quatre cotations
+-- chacune. C'etait sans consequence a cinq villes ; a soixante, un convoi qui
+-- cherche ou acheter son ble interrogeait soixante marches entiers, soit sept
+-- mille evaluations de prix pour une seule decision. Cinq annees de jeu
+-- prenaient deux minutes. Cette porte-ci en coute trois.
+function Economie.ligne(cle_ville, cle_m)
+  local ville = Economie.ville(cle_ville)
+  local m = Marchandises.get(cle_m)
+  if not ville or not m then return nil end
+  local stock = ville.stock[cle_m] or 0
+  local ref = reference(ville, m)
+  local f = facteur(stock / ref)
+  local barres = 4
+  for n, seuil in ipairs(PALIERS) do
+    if f >= seuil then barres = n - 1 break end
+  end
+  local prod = ville.production[cle_m] or 0
+  return {
+    cle = cle_m,
+    stock = stock,
+    reference = ref,
+    barres = barres,
+    production = prod,
+    solde = ((ville.rendement or {})[cle_m] or prod) - consommation(ville, m),
+  }
+end
+
+
+function Economie.marche(cle_ville, lot)
+  local ville = Economie.ville(cle_ville)
+  if not ville then return nil end
+  lot = lot or 1
+  if lot < 1 then lot = 1 end
+  local lignes = {}
+  for _, m in ipairs(Marchandises.liste) do
+    local prod = ville.production[m.cle] or 0
+    lignes[#lignes + 1] = {
+      cle = m.cle,
+      nom = m.nom,
+      categorie = m.categorie,
+      stock = ville.stock[m.cle] or 0,
+      reference = reference(ville, m),
+      production = prod,
+      consommation = consommation(ville, m),
+      achat = Economie.cotation(cle_ville, m.cle, 1, "achat"),
+      vente = Economie.cotation(cle_ville, m.cle, 1, "vente"),
+      achat_lot = Economie.cotation(cle_ville, m.cle, lot, "achat"),
+      vente_lot = Economie.cotation(cle_ville, m.cle, lot, "vente"),
+      -- Tendance : ce que la ville gagne ou perd chaque jour. C'est elle qui
+      -- dit au joueur si le cours va monter, bien plus que le prix seul.
+      -- Le solde affiché part du rendement RÉEL de la veille, pas de la
+      -- capacité : un atelier à l'arrêt faute d'intrants doit se voir.
+      solde = ((ville.rendement or {})[m.cle] or prod) - consommation(ville, m),
+      capacite = prod,
+      barres = Economie.barres(cle_ville, m.cle),
+    }
+  end
+  return lignes
+end
+
+
+-- Retire de la marchandise à la ville. Renvoie la quantité réellement servie et
+-- la somme due. La ville garde toujours un fond de cale : sans ce plancher, un
+-- joueur pourrait affamer une ville en une seule escale.
+function Economie.acheter(cle_ville, cle_m, quantite)
+  local ville = Economie.ville(cle_ville)
+  local m = Marchandises.get(cle_m)
+  if not ville or not m or quantite <= 0 then return 0, 0 end
+
+  local plancher = reference(ville, m) * 0.08
+  local dispo = (ville.stock[cle_m] or 0) - plancher
+  if dispo <= 0 then return 0, 0 end
+  if quantite > dispo then quantite = dispo end
+
+  local prix = Economie.cotation(cle_ville, cle_m, quantite, "achat")
+  ville.stock[cle_m] = ville.stock[cle_m] - quantite
+  return quantite, prix * quantite
+end
+
+
+-- Vend à la ville. Renvoie la quantité acceptée et la somme perçue.
+function Economie.vendre(cle_ville, cle_m, quantite)
+  local ville = Economie.ville(cle_ville)
+  local m = Marchandises.get(cle_m)
+  if not ville or not m or quantite <= 0 then return 0, 0 end
+
+  local prix = Economie.cotation(cle_ville, cle_m, quantite, "vente")
+  ville.stock[cle_m] = (ville.stock[cle_m] or 0) + quantite
+  return quantite, prix * quantite
+end
+
+
+-- Une journée de vie économique.
+--
+-- L'ORDRE des trois étapes est le coeur du modèle :
+--
+--   1. les récoltes et les mines livrent — elles ne dépendent de rien ;
+--   2. les habitants se servent ;
+--   3. les ateliers transforment CE QUI RESTE.
+--
+-- Mettre les ateliers avant les habitants paraissait plus naturel, et faisait
+-- mourir New Orléans en un an : sa boulangerie mangeait le blé de ses propres
+-- gens. Une ville ne doit pas pouvoir s'affamer en bâtissant un four. Les
+-- ateliers vivent du surplus, jamais du nécessaire.
+local function jour(ville)
+  ville.rendement = ville.rendement or {}
+
+  -- 1. Ce qui sort de terre.
+  for _, m in ipairs(Marchandises.ordreFabrication) do
+    if not m.recette then
+      local capacite = ville.production[m.cle] or 0
+      ville.stock[m.cle] = (ville.stock[m.cle] or 0) + capacite
+      ville.rendement[m.cle] = capacite
+    end
+  end
+
+  -- 2. Les habitants.
+  local pire = 1.0
+  for _, m in ipairs(Marchandises.liste) do
+    local dispo = ville.stock[m.cle] or 0
+    local demande = consommation(ville, m)
+    local servi = demande
+    if servi > dispo then servi = dispo end
+
+    -- La subsistance se mesure sur les besoins RÉELLEMENT SERVIS dans la
+    -- journée, pas sur le niveau des entrepôts. Mesurée sur le stock, une
+    -- ville en équilibre de flux mais aux réserves minces se lit comme
+    -- affamée, et décline sans fin alors qu'elle mange à sa faim tous les
+    -- jours. Le stock, lui, fait le prix — c'est son seul rôle.
+    if m.vitale and demande > 0 then
+      local part = servi / demande
+      if part < pire then pire = part end
+    end
+    ville.stock[m.cle] = dispo - servi
+  end
+
+  -- 3. Les ateliers, sur le surplus, dans l'ordre des dépendances. Ils gardent
+  --    une réserve de sécurité : un atelier qui racle l'entrepôt jusqu'au fond
+  --    laisserait la ville sans rien à vendre le lendemain matin.
+  for _, m in ipairs(Marchandises.ordreFabrication) do
+    if m.recette then
+      local capacite = ville.production[m.cle] or 0
+      local sortie = capacite
+      if sortie > 0 then
+        for _, ing in ipairs(m.recette) do
+          local garde = consommation(ville, Marchandises.get(ing[1])) * 3.0
+          local dispo = (ville.stock[ing[1]] or 0) - garde
+          local possible = dispo / ing[2]
+          if possible < sortie then sortie = possible end
+        end
+        if sortie < 0 then sortie = 0 end
+        for _, ing in ipairs(m.recette) do
+          ville.stock[ing[1]] = (ville.stock[ing[1]] or 0) - sortie * ing[2]
+        end
+        ville.stock[m.cle] = (ville.stock[m.cle] or 0) + sortie
+      end
+      -- Le rendement réel sert au tableau du comptoir : une ville dont
+      -- l'atelier chôme faute d'intrants doit le dire, sinon le joueur ne sait
+      -- pas quoi lui apporter.
+      ville.rendement[m.cle] = sortie
+    end
+  end
+
+  -- 4. Les entrepôts débordent : au-delà du triple de leur référence, le
+  --    surplus est perdu. Sans ce plafond, une ville productrice accumulerait
+  --    sans fin et son cours resterait collé au plancher pour toujours.
+  for _, m in ipairs(Marchandises.liste) do
+    local s2 = ville.stock[m.cle] or 0
+    local plafond = reference(ville, m) * 3.0
+    if s2 > plafond then s2 = plafond end
+    if s2 < 0 then s2 = 0 end
+    ville.stock[m.cle] = s2
+  end
+
+  -- 5. Démographie. Il faut couvrir 97 % des besoins vitaux pour gagner des
+  -- habitants ; en dessous la ville se vide, d'autant plus vite que la disette
+  -- est profonde. Les deux vitesses ne sont pas symétriques : on repeuple une
+  -- colonie lentement, on la vide en une saison.
+  local taux = borner((pire - 0.97) * 0.010, -0.0050, 0.0008)
+  ville.habitants = borner(ville.habitants * (1 + taux), 120, 12000)
+  ville.subsistance = pire
+end
+
+
+-- Avance l'économie de `heures` heures de jeu. Les journées entamées sont
+-- reportées : à x4 comme à x1, une journée produit exactement la même chose.
+function Economie.avancer(heures)
+  if not next(Economie.villes) then Economie.reinitialiser() end
+  reste_jour = reste_jour + (heures or 0) / 24.0
+  local n = math.floor(reste_jour)
+  if n <= 0 then return 0 end
+  if n > 30 then n = 30 end          -- garde-fou si le jeu est resté suspendu
+  reste_jour = reste_jour - n
+  for _ = 1, n do
+    for _, ville in pairs(Economie.villes) do
+      jour(ville)
+    end
+  end
+  -- La population commande les stades de croissance du village : on la recopie
+  -- dans l'archipel, qui reste la table que le rendu interroge.
+  for _, port in ipairs(Archipel.ports) do
+    local v = Economie.villes[port.cle]
+    if v then port.habitants = math.floor(v.habitants + 0.5) end
+  end
+  return n
+end
+
+
+Economie.reinitialiser()
+
+return Economie

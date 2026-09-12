@@ -1,0 +1,66 @@
+{
+	"source": "montagnes.png",
+	"ancrage": "pied",
+	"sprites": [
+		{
+			"fichier": "montagnes_00.png",
+			"largeur": 152,
+			"hauteur": 99,
+			"ancrage": [
+				78,
+				98
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "montagnes_01.png",
+			"largeur": 178,
+			"hauteur": 159,
+			"ancrage": [
+				90,
+				158
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "montagnes_02.png",
+			"largeur": 197,
+			"hauteur": 152,
+			"ancrage": [
+				113,
+				151
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "montagnes_03.png",
+			"largeur": 212,
+			"hauteur": 177,
+			"ancrage": [
+				94,
+				176
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "montagnes_04.png",
+			"largeur": 250,
+			"hauteur": 210,
+			"ancrage": [
+				113,
+				209
+			],
+			"quai": "gauche"
+		},
+		{
+			"fichier": "montagnes_05.png",
+			"largeur": 286,
+			"hauteur": 308,
+			"ancrage": [
+				147,
+				307
+			],
+			"quai": "gauche"
+		}
+	]
+}

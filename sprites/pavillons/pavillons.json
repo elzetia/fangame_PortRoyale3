@@ -1,0 +1,11 @@
+{
+	"source": "flags.png",
+	"note": "Pavillons fournis, detoures par outils/decouper_pavillons.py.",
+	"sprites": [
+		{ "nation": "portugal", "fichier": "portugal.png", "largeur": 259, "hauteur": 198 },
+		{ "nation": "espagne", "fichier": "espagne.png", "largeur": 259, "hauteur": 198 },
+		{ "nation": "hollande", "fichier": "hollande.png", "largeur": 258, "hauteur": 194 },
+		{ "nation": "france", "fichier": "france.png", "largeur": 258, "hauteur": 196 },
+		{ "nation": "angleterre", "fichier": "angleterre.png", "largeur": 260, "hauteur": 196 }
+	]
+}
