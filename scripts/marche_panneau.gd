@@ -73,6 +73,9 @@ const COL_CALE := 27.0
 const HAUTEUR_PLAQUE := 19.0
 const SEPARATION := 4
 
+# Ce que vaut le comptoir a l'ecran, une fois bati. Deux tiers.
+const ECHELLE_MENU := 0.667
+
 # La vignette, elle, ne retrecit PAS : elle grandit. Sa case reste etroite mais
 # l'image deborde du bandeau en haut et en bas, ce qui la pose sur la ligne au
 # lieu de l'y enfermer — c'est elle qu'on cherche des yeux en parcourant la
@@ -295,6 +298,15 @@ func _batir() -> void:
 	racine.offset_right = LARGEUR * 0.5
 	racine.offset_bottom = HAUTEUR * 0.5
 	racine.mouse_filter = Control.MOUSE_FILTER_STOP
+	# Le comptoir entier est mis a l'echelle plutot que chacune de ses mesures.
+	# Ses polices sont deja au plus bas de ce qui se lit — les diviser encore
+	# rendrait les chiffres illisibles — alors qu'une echelle posee ici reduit le
+	# panneau d'un bloc, bandeau et equerres compris, sans rien decaler.
+	racine.scale = Vector2(ECHELLE_MENU, ECHELLE_MENU)
+	# Le pivot au centre : pose au coin, le panneau retreci se serait decale vers
+	# le haut a gauche au lieu de rester au milieu de l'ecran.
+	racine.resized.connect(func() -> void:
+		racine.pivot_offset = racine.size * 0.5)
 	add_child(racine)
 
 	var fenetre := PanelContainer.new()

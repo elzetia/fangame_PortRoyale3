@@ -49,7 +49,7 @@ var _lbl_statut: Label
 var _lbl_message: Label
 var _barre_vitesse: BarreVitesse
 
-const ECHELLE_VITESSE := 0.25
+const ECHELLE_VITESSE := 0.36
 # Collée au bord droit : les feuilles de palmier qui débordent de la planche sont
 # dessinées pour mordre sur le cadre de l'écran, et une marge les laissait flotter
 # au milieu de la mer.
@@ -57,7 +57,7 @@ const MARGE_VITESSE := Vector2(0, 6)
 const MARGE_FICHE := Vector2(12, 10)
 # Les deux planches du HUD sont decoratives : elles doivent se lire d'un coup
 # d'oeil sans disputer la carte, qui est ce qu'on est venu regarder.
-const ECHELLE_DATE := 0.17
+const ECHELLE_DATE := 0.25
 const MARGE_DATE := Vector2(6, 2)
 
 var _glisse := false
