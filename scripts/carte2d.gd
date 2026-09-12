@@ -529,17 +529,25 @@ const CART_GROSSI_LOIN := 1.5
 # ses villages étant eux-mêmes vus de biais.
 const NAV_ATLAS := "res://sprites/navires/pinasse_atlas.png"
 const NAV_COTE := 128.0
-const NAV_TAILLE := 78.0
+# Le côté d'une vignette en UNITÉS DE MONDE, et non en pixels d'écran. Mesuré à
+# l'écran, le navire gardait la même taille à tous les zooms : il grossissait
+# donc sur la carte à mesure qu'on s'éloignait, jusqu'à couvrir une île entière
+# au plan large. Mesuré en monde, il a une taille sur l'eau — on le voit
+# simplement de plus loin.
+const NAV_TAILLE := 62.0
 
 # La case de l'atlas pour chaque cap, du nord et dans le sens des aiguilles :
 # N, NE, E, SE, S, SO, O, NO.
 #
 # L'atlas est rangé dans l'ordre de lecture de la planche, qui n'est pas celui
-# des caps : la vue de face (proue vers nous) montre un navire qui DESCEND vers
-# le sud, et celle de poupe un navire qui monte au nord. La table ci-dessous dit
-# donc où chaque cap se trouve, et c'est le seul endroit à corriger si une vue
-# tombe de travers.
-const NAV_ROSE := [7, 6, 3, 0, 1, 2, 5, 8]
+# des caps. Deux pièges s'y cachent. La vue de face — proue vers nous — montre un
+# navire qui DESCEND vers le sud, et celle de poupe un navire qui monte au nord.
+# Et surtout, une planche d'orientations nomme ses profils du côté du BATEAU
+# qu'on regarde : le « profil gauche » montre le flanc bâbord, donc une proue qui
+# pointe à GAUCHE de l'écran, soit un cap à l'ouest. Lire ces deux vues à
+# l'envers revient à mettre toute la rose en miroir, et chaque navire croise
+# alors la route qu'il devrait suivre.
+const NAV_ROSE := [7, 8, 5, 2, 1, 0, 3, 6]
 const CART_MARGE := 23.2         # respiration à gauche et à droite du nom
 # De combien le pavillon mord sur la plaque. Il doit couvrir le filet du haut
 # sans toucher les lettres : c'est ce qui soude les deux en un seul bloc au lieu
@@ -729,6 +737,15 @@ func _par_unite() -> float:
 	if proj == null or proj.vue_taille.x <= 0.0:
 		return 1.0
 	return float(proj.pixels.x) / proj.vue_taille.x * _grossissement()
+
+
+# Pixels de carte par unité de monde, SANS le grossissement des cartouches. Les
+# étiquettes ont besoin de rester lisibles au loin ; un navire, lui, est un objet
+# posé sur l'eau et doit garder sa taille au milieu des îles.
+func _par_unite_brut() -> float:
+	if proj == null or proj.vue_taille.x <= 0.0:
+		return 1.0
+	return float(proj.pixels.x) / proj.vue_taille.x
 
 
 # Les cartouches grossissent quand on s'éloigne.
@@ -953,8 +970,9 @@ func _dessiner_marchands() -> void:
 
 		# Un halo sous la coque : un navire brun foncé sur une mer bleu nuit ne se
 		# voit pas au zoom de la carte.
-		draw_circle(p, NAV_TAILLE * 0.18 * e, Color(0, 0, 0, 0.18 if quai else 0.24))
-		_poser_navire(p, a, NAV_TAILLE * 0.88 * e,
+		var u := _par_unite_brut()
+		draw_circle(p, NAV_TAILLE * 0.18 * u, Color(0, 0, 0, 0.18 if quai else 0.24))
+		_poser_navire(p, a, NAV_TAILLE * 0.88 * u,
 			Color(1, 1, 1, 0.55) if quai else Color(1, 1, 1, 1))
 		continue
 
@@ -989,8 +1007,9 @@ func _dessiner_navire() -> void:
 	# Le cap monde ne pointe pas au même endroit à l'écran : la carte est
 	# comprimée nord-sud, donc on passe par la projection.
 	var a := proj.angle_ecran(cos(navire.cap), sin(navire.cap))
-	draw_circle(p, NAV_TAILLE * 0.20 * e, Color(0, 0, 0, 0.22))
-	_poser_navire(p, a, NAV_TAILLE * e, Color(1, 1, 1, 1))
+	var u := _par_unite_brut()
+	draw_circle(p, NAV_TAILLE * 0.20 * u, Color(0, 0, 0, 0.22))
+	_poser_navire(p, a, NAV_TAILLE * u, Color(1, 1, 1, 1))
 
 
 # L'atlas des navires, découpé de la planche par outils/decouper_navire.gd.
