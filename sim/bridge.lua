@@ -154,6 +154,7 @@ function Bridge.etat_temps()
   local d = Dictionary()
   d.date       = Calendrier.dateTexte()
   d.heure      = Calendrier.heureTexte()
+  d.heure_num  = Calendrier.heure or 0
   d.vitesse    = Calendrier.vitesse()
   d.indice     = Calendrier.indiceVitesse
   d.en_pause   = Calendrier.enPause()

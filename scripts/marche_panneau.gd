@@ -44,7 +44,6 @@ var _port: Dictionary = {}
 var _messages: Array[String] = []
 
 var _bandeau: BandeauTitre
-var _sous_titre: Label
 var _pied: Label
 var _colonne: VBoxContainer
 var _lignes: Array = []
@@ -226,10 +225,6 @@ func _batir() -> void:
 	_bandeau.ferme.connect(_fermer)
 	_bandeau.infos.connect(func() -> void: infos_demandees.emit(_port))
 	vb.add_child(_bandeau)
-
-	_sous_titre = _texte("", 13, ENCRE, 0, HORIZONTAL_ALIGNMENT_CENTER)
-	_sous_titre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vb.add_child(_sous_titre)
 
 	# --- trois boutons, en ligne ----------------------------------------------
 	var onglets := HBoxContainer.new()
@@ -420,11 +415,6 @@ func rafraichir() -> void:
 	var v: Dictionary = _sim.etat_ville(ville)
 
 	_bandeau.poser(String(_port.get("nom", "")))
-	# Ni la nation ni la population ici : elles vivent dans « Infos ville », et
-	# les répéter au comptoir donnait deux chiffres à tenir d'accord pour rien.
-	# Ce qui reste est ce qu'on vient chercher au comptoir — l'état du garde-manger,
-	# qui dit si les prix vont monter.
-	_sous_titre.text = "vivres %d %%" % roundi(float(v.get("subsistance", 1.0)) * 100.0)
 	_pied.text = "%s pièces d'or      cale %d / %d tonneaux" % [
 		_nombre(int(c.get("or_", 0))), int(c.get("charge", 0)),
 		int(c.get("capacite", 0))]

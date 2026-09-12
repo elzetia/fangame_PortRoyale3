@@ -50,7 +50,6 @@ var _port: Dictionary = {}
 var _villes: Villes = null
 
 var _bandeau: BandeauTitre
-var _sous_titre: Label
 var _vignette: TextureRect
 var _pavillon: TextureRect
 var _lbl_habitants: Label
@@ -204,10 +203,6 @@ func _batir() -> void:
 	_bandeau.griser_infos(true)
 	col.add_child(_bandeau)
 
-	_sous_titre = _texte("", 15, OR, 0.0, HORIZONTAL_ALIGNMENT_CENTER)
-	_sous_titre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.add_child(_sous_titre)
-
 	col.add_child(_onglets())
 	col.add_child(_blason())
 	col.add_child(_ligne_habitants())
@@ -339,7 +334,6 @@ func rafraichir() -> void:
 		_bouton_denrees.disabled = not _convoi_a_quai
 		_bouton_denrees.tooltip_text = ("Le comptoir de la ville"
 			if _convoi_a_quai else "Il faut un convoi à quai pour commercer")
-	_sous_titre.text = String(_port.get("nation", ""))
 
 	var habitants := int(_port.get("habitants", 0))
 	var tendance := 0

@@ -44,8 +44,7 @@ var _villes: Villes
 
 
 # HUD
-var _lbl_date: Label
-var _lbl_heure: Label
+var _panneau_date: PanneauDate
 var _lbl_statut: Label
 var _lbl_message: Label
 var _barre_vitesse: BarreVitesse
@@ -55,6 +54,10 @@ var _barre_vitesse: BarreVitesse
 const ECHELLE_VITESSE := 0.5
 const MARGE_VITESSE := Vector2(10, 6)
 const MARGE_FICHE := Vector2(12, 10)
+# La planche de la date fait 1311 x 539 : au tiers, l'horloge reste lisible
+# sans que les palmiers mangent le coin de la carte.
+const ECHELLE_DATE := 0.34
+const MARGE_DATE := Vector2(6, 2)
 
 var _glisse := false
 var _clic_depart := Vector2.ZERO
@@ -1311,27 +1314,13 @@ func _creer_hud() -> void:
 
 	var bois := Color(0.13, 0.09, 0.06, 0.93)
 
-	var cartouche := PanelContainer.new()
-	cartouche.position = Vector2(16, 16)
-	cartouche.custom_minimum_size = Vector2(230, 0)
-	cartouche.add_theme_stylebox_override("panel", _style(bois))
-	couche.add_child(cartouche)
-
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 0)
-	cartouche.add_child(vb)
-
-	_lbl_date = Label.new()
-	_lbl_date.add_theme_font_size_override("font_size", 20)
-	_lbl_date.add_theme_color_override("font_color", Color(0.95, 0.88, 0.72))
-	_lbl_date.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(_lbl_date)
-
-	_lbl_heure = Label.new()
-	_lbl_heure.add_theme_font_size_override("font_size", 13)
-	_lbl_heure.add_theme_color_override("font_color", Color(0.70, 0.62, 0.50))
-	_lbl_heure.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(_lbl_heure)
+	# Le cartouche du temps : une planche avec son horloge, dont l'aiguille tourne.
+	# Voir scripts/panneau_date.gd.
+	_panneau_date = PanneauDate.new()
+	_panneau_date.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_panneau_date.size = Vector2(PanneauDate.TAILLE_SOURCE) * ECHELLE_DATE
+	_panneau_date.position = MARGE_DATE
+	couche.add_child(_panneau_date)
 
 	_lbl_message = Label.new()
 	_lbl_message.set_anchors_preset(Control.PRESET_TOP_WIDE)
@@ -1409,8 +1398,9 @@ func _style(couleur: Color) -> StyleBoxFlat:
 
 func _maj_hud() -> void:
 	var etat := sim.etat_temps()
-	_lbl_date.text = etat["date"]
-	_lbl_heure.text = etat["heure"]
+	if _panneau_date != null:
+		_panneau_date.poser(String(etat["date"]),
+			float(etat.get("heure_num", 0.0)))
 
 	if navire.au_mouillage():
 		var p := _port_le_plus_proche()
