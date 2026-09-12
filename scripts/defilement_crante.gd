@@ -33,8 +33,12 @@ func poser_colonne(c: Container) -> void:
 func _pas() -> float:
 	if _colonne == null:
 		return PAS_DEFAUT
+	# On cherche une LIGNE, pas le premier enfant venu : la colonne commence par
+	# une reserve d'air qui laisse deborder la vignette du haut, et la prendre
+	# pour une ligne donnait un pas de dix pixels — le crantage ne servait plus
+	# a rien.
 	for enfant in _colonne.get_children():
-		var c := enfant as Control
+		var c := enfant as LigneMarchandise
 		if c != null and c.size.y > 1.0:
 			var sep := 0.0
 			if _colonne is BoxContainer:

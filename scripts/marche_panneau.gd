@@ -76,6 +76,13 @@ const SEPARATION := 6
 # Ce que vaut le comptoir a l'ecran, une fois bati. Deux tiers.
 const ECHELLE_MENU := 0.667
 
+# L'air entre deux lignes, et le nombre qu'on veut voir d'un coup. La zone de
+# defilement fait exactement ce nombre de pas : sans quoi la derniere ligne
+# affleure le bord et se montre coupee en deux, ce qu'aucun crantage ne rattrape
+# — il fait glisser la liste d'un cran, pas changer la hauteur de sa fenetre.
+const ESPACE_LIGNES := 9
+const LIGNES_VISIBLES := 10
+
 # La vignette, elle, ne retrecit PAS : elle grandit. Sa case reste etroite mais
 # l'image deborde du bandeau en haut et en bas, ce qui la pose sur la ligne au
 # lieu de l'y enfermer — c'est elle qu'on cherche des yeux en parcourant la
@@ -410,13 +417,18 @@ func _batir() -> void:
 	# Défilement cranté : une marchandise par cran, jamais de ligne coupée en
 	# deux. Voir scripts/defilement_crante.gd.
 	var defilement := DefilementCrante.new()
-	defilement.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Hauteur imposee, et non etiree : c'est elle qui garantit qu'aucune ligne
+	# n'est coupee. La reserve d'air du haut s'y ajoute, sinon la dixieme ligne
+	# perdrait la place que la premiere vignette lui prend en debordant.
+	var pas := (HAUTEUR_VIGNETTE + 4.0) + float(ESPACE_LIGNES)
+	defilement.custom_minimum_size.y = pas * float(LIGNES_VISIBLES) + DEBORD_VIGNETTE
+	defilement.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	defilement.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	vb.add_child(defilement)
 
 	_colonne = VBoxContainer.new()
 	_colonne.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_colonne.add_theme_constant_override("separation", 3)
+	_colonne.add_theme_constant_override("separation", ESPACE_LIGNES)
 	defilement.add_child(_colonne)
 	# Il mesure la hauteur d'un cran sur la première ligne réellement dessinée.
 	defilement.poser_colonne(_colonne)
