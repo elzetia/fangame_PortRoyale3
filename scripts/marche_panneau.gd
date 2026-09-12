@@ -65,13 +65,13 @@ const BANDE_FINESSE := 3.0
 # Gabarit d'une ligne. Tout est au trois quarts de ce qu'il valait : le comptoir
 # mangeait trop d'ecran pour ce qu'il montre, et une liste de vingt denrees se
 # lit d'autant mieux qu'on en voit beaucoup d'un coup.
-const COL_NOM := 70.0
-const COL_BARRE := 54.0
-const COL_STOCK := 45.0
-const COL_PRIX := 42.0
-const COL_CALE := 36.0
-const HAUTEUR_PLAQUE := 25.0
-const SEPARATION := 5
+const COL_NOM := 91.0
+const COL_BARRE := 70.0
+const COL_STOCK := 58.0
+const COL_PRIX := 55.0
+const COL_CALE := 47.0
+const HAUTEUR_PLAQUE := 32.0
+const SEPARATION := 6
 
 # Ce que vaut le comptoir a l'ecran, une fois bati. Deux tiers.
 const ECHELLE_MENU := 0.667
@@ -80,14 +80,14 @@ const ECHELLE_MENU := 0.667
 # l'image deborde du bandeau en haut et en bas, ce qui la pose sur la ligne au
 # lieu de l'y enfermer — c'est elle qu'on cherche des yeux en parcourant la
 # liste, pas la colonne qui la contient.
-const COL_VIGNETTE := 40.0
-const HAUTEUR_VIGNETTE := 27.0
-const DEBORD_VIGNETTE := 8.0
+const COL_VIGNETTE := 52.0
+const HAUTEUR_VIGNETTE := 37.0
+const DEBORD_VIGNETTE := 10.0
 
-const PT_NOM := 12
-const PT_PRIX := 13
-const PT_CALE := 12
-const PT_STOCK := 11
+const PT_NOM := 15
+const PT_PRIX := 16
+const PT_CALE := 15
+const PT_STOCK := 14
 const ENCRE      := Color(0.58, 0.52, 0.44)
 const VERT       := Color(0.45, 0.72, 0.35)
 const ROUGE      := Color(0.84, 0.42, 0.34)
@@ -198,10 +198,10 @@ func _plaque_stock(etiquette: Label, largeur: float) -> Control:
 		# tels quels. A 16 sur une plaque haute de 26, les coins du haut et du bas
 		# se chevauchaient et la plaque se dessinait en losange écrasé. La texture
 		# a donc été réduite de moitié, et les marges avec elle.
-		st.texture_margin_left = 8
-		st.texture_margin_right = 8
-		st.texture_margin_top = 8
-		st.texture_margin_bottom = 8
+		st.texture_margin_left = 10
+		st.texture_margin_right = 10
+		st.texture_margin_top = 10
+		st.texture_margin_bottom = 10
 		st.content_margin_left = 4
 		st.content_margin_right = 4
 		boite.add_theme_stylebox_override("panel", st)
@@ -223,7 +223,7 @@ func _picto(fichier: String, largeur: float, infobulle: String,
 	var chemin := UI + fichier
 	if ResourceLoader.exists(chemin):
 		t.texture = load(chemin)
-	t.custom_minimum_size = Vector2(26, 22)
+	t.custom_minimum_size = Vector2(34, 29)
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	t.tooltip_text = infobulle
@@ -547,13 +547,13 @@ func _batir_lignes() -> void:
 			marque.texture = load(UI + "produit.png")
 			marque.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			marque.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			marque.size = Vector2(15, 15)
+			marque.size = Vector2(19, 19)
 			marque.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			marque.tooltip_text = "Produit ici"
 			# Accroche a la CASE et non a l'image : celle-ci deborde de tous
 			# cotes, et l'engrenage aurait suivi le debordement au lieu de rester
 			# au coin de la ligne.
-			marque.position = Vector2(COL_VIGNETTE - 13.0, HAUTEUR_VIGNETTE - 12.0)
+			marque.position = Vector2(COL_VIGNETTE - 17.0, HAUTEUR_VIGNETTE - 16.0)
 			case.add_child(marque)
 
 		h.add_child(_texte(String(m.get("nom", cle)), PT_NOM, ENCRE_BRUNE, COL_NOM))
