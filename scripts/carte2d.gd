@@ -81,6 +81,7 @@ var _charge := false         # le démarrage est-il terminé ?
 var _tex_ombre: ImageTexture
 var _rects_villes := {}         # rectangle dessiné de chaque village, pour le saisir
 var _sceaux := {}               # couronne et bague, chargées une fois
+var _atlas_nav: Texture2D       # les trente-deux caps du navire
 var _message := ""
 var _message_fin := 0.0
 
@@ -522,6 +523,15 @@ const CART_FRANGE := 0.16
 # Ce que vaut le cartouche au dézoom maximal, par rapport à sa taille au plus
 # près. Au-delà de 1,5 il écrase l'île qu'il désigne.
 const CART_GROSSI_LOIN := 1.5
+
+# Les navires : l'atlas des trente-deux caps, et la taille d'une vignette en
+# pixels de carte. NAV_ORIGINE est l'angle écran de la case 0.
+const NAV_ATLAS := "res://sprites/navires/atlas.png"
+const NAV_CAPS := 32
+const NAV_COLONNES := 8
+const NAV_COTE := 128.0
+const NAV_TAILLE := 78.0
+const NAV_ORIGINE := PI * 0.5
 const CART_MARGE := 23.2         # respiration à gauche et à droite du nom
 # De combien le pavillon mord sur la plaque. Il doit couvrir le filet du haut
 # sans toucher les lettres : c'est ce qui soude les deux en un seul bloc au lieu
@@ -933,9 +943,12 @@ func _dessiner_marchands() -> void:
 		var p := proj.vers_carte(pos.x, pos.y)
 		var a := proj.angle_ecran(cos(float(m["cap"])), sin(float(m["cap"])))
 
-		# Coque claire, et un halo sous elle : un navire brun foncé sur une mer
-		# bleu nuit ne se voit pas au zoom de la carte.
-		draw_circle(p, 13.0 * e, Color(0, 0, 0, 0.22 if quai else 0.28))
+		# Un halo sous la coque : un navire brun foncé sur une mer bleu nuit ne se
+		# voit pas au zoom de la carte.
+		draw_circle(p, NAV_TAILLE * 0.18 * e, Color(0, 0, 0, 0.18 if quai else 0.24))
+		_poser_navire(p, a, NAV_TAILLE * 0.88 * e,
+			Color(1, 1, 1, 0.55) if quai else Color(1, 1, 1, 1))
+		continue
 
 		var coque: Array[Vector2] = [
 			Vector2(12, 0), Vector2(3, 5), Vector2(-9, 4),
@@ -968,24 +981,36 @@ func _dessiner_navire() -> void:
 	# Le cap monde ne pointe pas au même endroit à l'écran : la carte est
 	# comprimée nord-sud, donc on passe par la projection.
 	var a := proj.angle_ecran(cos(navire.cap), sin(navire.cap))
+	draw_circle(p, NAV_TAILLE * 0.20 * e, Color(0, 0, 0, 0.22))
+	_poser_navire(p, a, NAV_TAILLE * e, Color(1, 1, 1, 1))
 
-	var coque: Array[Vector2] = [
-		Vector2(11, 0), Vector2(2, 5), Vector2(-8, 4),
-		Vector2(-9, 0), Vector2(-8, -4), Vector2(2, -5),
-	]
-	var pts := PackedVector2Array()
-	for v in coque:
-		pts.append(p + v.rotated(a) * e)
-	draw_colored_polygon(pts, Color(0.30, 0.18, 0.09))
-	draw_polyline(pts + PackedVector2Array([pts[0]]), Color(0.12, 0.07, 0.04), 1.0 * e)
 
-	# Voile
-	var voile := PackedVector2Array([
-		p + Vector2(3, 0).rotated(a) * e,
-		p + Vector2(-4, 6).rotated(a) * e,
-		p + Vector2(-4, -6).rotated(a) * e,
-	])
-	draw_colored_polygon(voile, Color(0.97, 0.95, 0.88))
+# L'atlas des navires : 32 vues du maillage 3D, une par cap. Voir
+# outils/rendre_navires.gd, qui le fabrique.
+func _atlas_navire() -> Texture2D:
+	if _atlas_nav != null:
+		return _atlas_nav
+	if ResourceLoader.exists(NAV_ATLAS):
+		_atlas_nav = load(NAV_ATLAS)
+	return _atlas_nav
+
+
+# Pose la vignette du cap le plus proche. On ne fait pas tourner l'image : une
+# rotation à plat sur un bateau rendu en volume le ferait pivoter comme un
+# carton découpé, l'ombre et le pont tournant avec lui. Choisir la vue, c'est
+# justement ce que l'atlas permet.
+func _poser_navire(p: Vector2, angle: float, cote: float, teinte: Color) -> void:
+	var tex := _atlas_navire()
+	if tex == null:
+		return
+	# Case 0 = étrave vers le bas de l'écran ; les cases tournent ensuite dans le
+	# sens des angles de Godot.
+	var i := int(round((angle - NAV_ORIGINE) / TAU * float(NAV_CAPS)))
+	i = ((i % NAV_CAPS) + NAV_CAPS) % NAV_CAPS
+	var src := Rect2(float(i % NAV_COLONNES) * NAV_COTE,
+					 float(i / NAV_COLONNES) * NAV_COTE, NAV_COTE, NAV_COTE)
+	draw_texture_rect_region(tex,
+		Rect2(p - Vector2(cote, cote) * 0.5, Vector2(cote, cote)), src, teinte)
 
 
 # --- boucle -------------------------------------------------------------------
