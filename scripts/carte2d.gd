@@ -80,6 +80,7 @@ var _saisie_image := false      # on déplace l'image, pas le point réel
 var _charge := false         # le démarrage est-il terminé ?
 var _tex_ombre: ImageTexture
 var _rects_villes := {}         # rectangle dessiné de chaque village, pour le saisir
+var _sceaux := {}               # couronne et bague, chargées une fois
 var _message := ""
 var _message_fin := 0.0
 
@@ -521,6 +522,12 @@ const CART_MARGE := 23.2         # respiration à gauche et à droite du nom
 const CART_CHEVAUCHE := 7.7
 const CART_ICONE := 1.30         # côté de la vignette, en hauteurs de pavillon
 
+const UI_CARTE := "res://sprites/ui_pr/"
+# Le sceau du dignitaire : sa taille en hauteurs de pavillon, et la part de
+# lui-même qui déborde hors du drapeau.
+const DIGNITAIRE_TAILLE := 0.62
+const DIGNITAIRE_MORD := 0.42
+
 # Et au plus près, la vue embrasse à peu près la distance qui sépare Nouvelle
 # Orléans de St-Augustin — d'un bout à l'autre de la côte de Floride.
 #
@@ -760,7 +767,48 @@ func _dessiner_nom(port: Dictionary) -> void:
 # plaque — voir CART_CHEVAUCHE.
 func _dessiner_pavillon(port: Dictionary) -> void:
 	var g := _geometrie_cartouche(port)
-	Pavillon.dessiner(self, str(port.get("nation_cle", "")), g["pavillon"])
+	var rect: Rect2 = g["pavillon"]
+	Pavillon.dessiner(self, str(port.get("nation_cle", "")), rect)
+	_dessiner_dignitaire(port, rect)
+
+
+# La couronne des capitales, la bague des villes de gouverneur.
+#
+# Aucune donnée à ajouter : `taille` porte déjà le rang. PR3 compte cinq villes
+# de taille 3 — une par nation, exactement ses capitales — et sept de taille 2.
+# Le vice-roi siège donc dans les premières, un gouverneur dans les secondes.
+#
+# L'icône mord sur le coin du pavillon plutôt que de se poser à côté : à l'échelle
+# de la carte, deux petits objets séparés se lisent comme deux marques sans
+# rapport, alors que celle-ci doit se lire comme un sceau APPOSÉ sur le drapeau.
+func _sceau(rang: int) -> Texture2D:
+	var nom := "viceroi" if rang >= 3 else "gouverneur"
+	if _sceaux.has(nom):
+		return _sceaux[nom]
+	var chemin := UI_CARTE + nom + ".png"
+	var tex: Texture2D = load(chemin) if ResourceLoader.exists(chemin) else null
+	_sceaux[nom] = tex
+	return tex
+
+
+func _dessiner_dignitaire(port: Dictionary, pavillon: Rect2) -> void:
+	var rang := int(port.get("taille", 1))
+	if rang < 2:
+		return
+	# La texture vient du cache et n'est PAS chargée ici. `load()` appelé dans un
+	# `_draw()` rend la première fois une texture encore vide : le sceau se
+	# dessinait en carré blanc, et rien ne le corrigeait puisque le dessin ne
+	# revient qu'au prochain redessin. C'est aussi une lecture de disque par
+	# image, pour un fichier qui ne change jamais.
+	var tex: Texture2D = _sceau(rang)
+	if tex == null:
+		return
+	var cote := pavillon.size.y * DIGNITAIRE_TAILLE
+	# Ancrée au coin haut-gauche du pavillon, décalée vers l'extérieur de la
+	# moitié de son débord : elle chevauche le drapeau sans le couvrir.
+	var coin := pavillon.position + Vector2(-cote * DIGNITAIRE_MORD,
+											-cote * DIGNITAIRE_MORD)
+	draw_texture_rect(tex, Rect2(coin, Vector2(cote, cote)), false)
 
 
 # La plaque de nom, comme dans Port Royale 3 : un fond noir qui s'efface vers

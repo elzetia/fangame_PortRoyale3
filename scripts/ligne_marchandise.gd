@@ -45,11 +45,15 @@ var max_achat := 0            # ce que la caisse, la cale et la ville permettent
 var texte_prix := ""          # écrit par le comptoir, à chaque aperçu
 
 var hauteur_ligne := 34.0
+# L'abscisse du cours, dans la ligne. La jauge s'y centre : c'est le chiffre
+# qu'on regarde en tirant, et la course doit se lire par rapport a lui.
+var x_prix := 0.0
 
 var _survol := false
 var _ouverte := false
 var _depart_x := 0.0
 var _quantite := 0
+var _origine_souris := 0.0
 
 
 func _init() -> void:
@@ -78,7 +82,12 @@ func _gui_input(e: InputEvent) -> void:
 		if max_vente <= 0 and max_achat <= 0:
 			return
 		_ouverte = true
-		_depart_x = get_global_mouse_position().x
+		# Le zero est la COLONNE DU COURS, pas le point ou le doigt s'est pose :
+		# la jauge doit rester sous le prix qu'elle fait varier, sinon la meme
+		# quantite se lit a un endroit different d'une ligne a l'autre selon
+		# l'endroit ou l'on a appuye.
+		_depart_x = global_position.x + x_prix
+		_origine_souris = get_global_mouse_position().x
 		_quantite = 0
 		texte_prix = ""
 		_ajuster()
@@ -94,7 +103,7 @@ func _input(e: InputEvent) -> void:
 		return
 
 	if e is InputEventMouseMotion:
-		var q := _quantite_pour(get_global_mouse_position().x - _depart_x)
+		var q := _quantite_pour(get_global_mouse_position().x - _origine_souris)
 		if q != _quantite:
 			_quantite = q
 			apercu.emit(q)
@@ -187,8 +196,9 @@ func _dessiner_liseré() -> void:
 
 
 # La jauge, sous la ligne : un rail, un curseur, et le prix au milieu. Le zéro
-# est là où le doigt s'est posé, pas au centre de la ligne — c'est ce qui rend le
-# geste lisible quel que soit l'endroit où l'on a appuyé.
+# tombe sur la COLONNE DU COURS, pas sous le doigt : la jauge doit rester sous le
+# chiffre qu'elle fait varier, sinon la même quantité se lirait à un endroit
+# différent d'une ligne à l'autre selon l'endroit où l'on a appuyé.
 func _dessiner_jauge() -> void:
 	var y := hauteur_ligne + HAUTEUR_JAUGE * 0.5
 	var zero := _depart_x - global_position.x
@@ -207,8 +217,9 @@ func _dessiner_jauge() -> void:
 
 	if texte_prix == "" or police == null:
 		return
-	# Le texte est centré sur le ZERO : c'est le prix à l'unité qu'on lit en
-	# tirant, et il doit rester sous le doigt plutôt que de courir avec lui.
+	# Le texte est centré sur le ZERO, donc sur la colonne du cours : c'est le
+	# prix à l'unité qu'on lit en tirant, et il ne doit pas courir avec le
+	# curseur.
 	var taille := police.get_string_size(texte_prix, HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0, 12)
 	var pos := Vector2(zero - taille.x * 0.5, y - RAIL - 4.0)

@@ -230,7 +230,11 @@ func _picto(fichier: String, largeur: float, infobulle: String,
 	var chemin := UI + fichier
 	if ResourceLoader.exists(chemin):
 		t.texture = load(chemin)
-	t.custom_minimum_size = Vector2(34, 29)
+	# Un peu plus grand que les vignettes qu'il coiffe — celles-ci font
+	# HAUTEUR_VIGNETTE plus deux fois leur debord — pour que l'en-tete se lise
+	# comme un titre et non comme une denree de plus.
+	var cote := HAUTEUR_VIGNETTE + DEBORD_VIGNETTE * 2.0 + 8.0
+	t.custom_minimum_size = Vector2(cote, cote * 0.85)
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	t.tooltip_text = infobulle
@@ -516,6 +520,10 @@ func _batir_lignes() -> void:
 		fond.pointe = COL_VIGNETTE * 0.55
 		fond.hauteur_ligne = HAUTEUR_VIGNETTE + 4.0
 		fond.police = _police()
+		# Le centre de la colonne du cours d'achat, mesure sur le meme gabarit que
+		# la rangee : c'est la que la jauge plantera son zero.
+		fond.x_prix = (COL_VIGNETTE + COL_NOM + COL_BARRE + COL_STOCK
+			+ float(SEPARATION) * 4.0 + COL_PRIX * 0.5)
 
 		var h := HBoxContainer.new()
 		h.add_theme_constant_override("separation", SEPARATION)
