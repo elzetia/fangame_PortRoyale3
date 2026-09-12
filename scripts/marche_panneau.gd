@@ -21,6 +21,7 @@ signal infos_demandees(port: Dictionary)
 
 const ICONES := "res://sprites/marchandises/"
 const BARRES := "res://sprites/barres/"
+const UI := "res://sprites/ui_pr/"
 const POLICE := "res://polices/serif_gras.ttf"
 
 const LARGEUR := 640
@@ -42,7 +43,7 @@ var _sim: Object = null
 var _port: Dictionary = {}
 var _messages: Array[String] = []
 
-var _titre: Label
+var _bandeau: BandeauTitre
 var _sous_titre: Label
 var _pied: Label
 var _colonne: VBoxContainer
@@ -121,6 +122,74 @@ func _texte(contenu: String, taille: int, teinte: Color,
 	return l
 
 
+# Les pictos qui coiffent les colonnes. Ils reprennent au pixel près les largeurs
+# de `_batir_lignes` — vignette 46, nom 118, barre 88, stock 54… — et la même
+# séparation de 8 : une rangée d'en-têtes qui glisse d'un cran par rapport à ses
+# colonnes est pire que pas d'en-têtes du tout, elle désigne la mauvaise.
+func _picto(fichier: String, largeur: float, infobulle: String,
+			a_droite := false) -> Control:
+	# Les chiffres de prix sont ferrés à droite dans leur case : un picto centré
+	# au-dessus flotte visiblement à côté de la colonne qu'il coiffe. On le cale
+	# donc comme la donnée, pas comme la case.
+	var boite := BoxContainer.new()
+	boite.alignment = (BoxContainer.ALIGNMENT_END if a_droite
+		else BoxContainer.ALIGNMENT_CENTER)
+	boite.custom_minimum_size.x = largeur
+	var t := TextureRect.new()
+	var chemin := UI + fichier
+	if ResourceLoader.exists(chemin):
+		t.texture = load(chemin)
+	t.custom_minimum_size = Vector2(38, 32)
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	t.tooltip_text = infobulle
+	boite.add_child(t)
+	return boite
+
+
+func _entetes() -> Control:
+	# Le MÊME gabarit qu'une ligne de marchandise : un PanelContainer aux mêmes
+	# marges, un HBox à la même séparation, et des cases aux mêmes largeurs.
+	# Bâtie à part, la rangée dérivait de quelques pixels et chaque picto
+	# désignait la colonne d'à côté.
+	var cadre := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 0
+	sb.content_margin_bottom = 0
+	cadre.add_theme_stylebox_override("panel", sb)
+
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 8)
+	cadre.add_child(h)
+
+	# Rien au-dessus de la vignette ni du nom : ils se passent d'étiquette.
+	for largeur in [46.0, 118.0]:
+		var vide := Control.new()
+		vide.custom_minimum_size.x = largeur
+		h.add_child(vide)
+
+	# La barre d'abondance et le tonnage disent la même chose — ce que la ville
+	# a en magasin — donc un seul picto les coiffe tous les deux.
+	h.add_child(_picto("stock.png", 88, "Ce que la ville tient en magasin"))
+	var t := Control.new()
+	t.custom_minimum_size.x = 54
+	h.add_child(t)
+
+	h.add_child(_picto("prix.png", 66, "Le cours du jour", true))
+	for largeur in [60.0, 66.0]:
+		var vide2 := Control.new()
+		vide2.custom_minimum_size.x = largeur
+		h.add_child(vide2)
+
+	var reste := Control.new()
+	reste.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(reste)
+	return cadre
+
+
 # --- construction -------------------------------------------------------------
 
 func _batir() -> void:
@@ -153,9 +222,10 @@ func _batir() -> void:
 	fenetre.add_child(vb)
 
 	# --- titre : le nom du port ------------------------------------------------
-	_titre = _texte("", 30, OR_PALE, 0, HORIZONTAL_ALIGNMENT_CENTER)
-	_titre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vb.add_child(_titre)
+	_bandeau = BandeauTitre.new()
+	_bandeau.ferme.connect(_fermer)
+	_bandeau.infos.connect(func() -> void: infos_demandees.emit(_port))
+	vb.add_child(_bandeau)
 
 	_sous_titre = _texte("", 13, ENCRE, 0, HORIZONTAL_ALIGNMENT_CENTER)
 	_sous_titre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -190,6 +260,9 @@ func _batir() -> void:
 		barre.add_child(b)
 		_boutons_lot.append(b)
 	vb.add_child(barre)
+
+	# --- en-têtes de colonnes --------------------------------------------------
+	vb.add_child(_entetes())
 
 	# --- la colonne des marchandises ------------------------------------------
 	var defilement := ScrollContainer.new()
@@ -255,6 +328,8 @@ func _batir_lignes() -> void:
 	_lignes.clear()
 
 	var pair := true
+	# Les cinq marchandises du cru, telles que l'archipel les donne.
+	var produits: Array = _port.get("produits", [])
 	for m in _sim.marche(String(_port.get("cle", "")), 1):
 		var cle := String(m.get("cle", ""))
 		var fond := PanelContainer.new()
@@ -280,6 +355,25 @@ func _batir_lignes() -> void:
 		if ResourceLoader.exists(chemin):
 			vignette.texture = load(chemin)
 		h.add_child(vignette)
+
+		# L'engrenage, en bas à droite de la vignette, marque ce que la ville
+		# FABRIQUE. C'est la question qu'on se pose devant un comptoir : ce
+		# tonneau est-il du cru — donc bon marché et renouvelé chaque jour — ou
+		# de passage ? Le prix seul ne le dit pas : une ville peut brader ce
+		# qu'elle vient de recevoir.
+		if cle in produits:
+			var marque := TextureRect.new()
+			marque.texture = load(UI + "produit.png")
+			marque.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			marque.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			marque.size = Vector2(22, 22)
+			marque.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			marque.tooltip_text = "Produit ici"
+			# Posé en coordonnées locales, ancres au coin haut-gauche. Avec un
+			# PRESET_BOTTOM_RIGHT, la position s'ajoute au coin bas-droit et
+			# l'engrenage sortait du cadre de la vignette : invisible.
+			marque.position = Vector2(46 - 22, 42 - 20)
+			vignette.add_child(marque)
 
 		h.add_child(_texte(String(m.get("nom", cle)), 15, PARCHEMIN, 118))
 
@@ -325,7 +419,7 @@ func rafraichir() -> void:
 	var c: Dictionary = _sim.etat_compagnie()
 	var v: Dictionary = _sim.etat_ville(ville)
 
-	_titre.text = String(_port.get("nom", ""))
+	_bandeau.poser(String(_port.get("nom", "")))
 	# Ni la nation ni la population ici : elles vivent dans « Infos ville », et
 	# les répéter au comptoir donnait deux chiffres à tenir d'accord pour rien.
 	# Ce qui reste est ce qu'on vient chercher au comptoir — l'état du garde-manger,

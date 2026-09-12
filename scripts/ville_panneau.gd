@@ -24,7 +24,9 @@ const VILLES := "res://sprites/villes/"
 const PAVILLONS := "res://sprites/pavillons/"
 const POLICE := "res://polices/serif_gras.ttf"
 
-const LARGEUR := 520
+# Même largeur qu'au comptoir : le bandeau porte deux boutons ronds de taille
+# fixe, et sur une plaque étroite ils mangeaient la moitié de la planche.
+const LARGEUR := 640
 const HAUTEUR := 560
 
 # Le pavillon passe DERRIÈRE la vignette et déborde d'elle : il se lit comme une
@@ -47,7 +49,7 @@ var _sim: Object = null
 var _port: Dictionary = {}
 var _villes: Villes = null
 
-var _titre: Label
+var _bandeau: BandeauTitre
 var _sous_titre: Label
 var _vignette: TextureRect
 var _pavillon: TextureRect
@@ -195,9 +197,12 @@ func _batir() -> void:
 	col.add_theme_constant_override("separation", 10)
 	plaque.add_child(col)
 
-	_titre = _texte("", 26, OR_PALE, 0.0, HORIZONTAL_ALIGNMENT_CENTER)
-	_titre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.add_child(_titre)
+	_bandeau = BandeauTitre.new()
+	_bandeau.ferme.connect(_fermer)
+	# On est déjà sur la page d'infos : le « i » du bandeau n'a nulle part où
+	# mener.
+	_bandeau.griser_infos(true)
+	col.add_child(_bandeau)
 
 	_sous_titre = _texte("", 15, OR, 0.0, HORIZONTAL_ALIGNMENT_CENTER)
 	_sous_titre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -329,7 +334,7 @@ func rafraichir() -> void:
 	if _port.is_empty():
 		return
 
-	_titre.text = String(_port.get("nom", "?"))
+	_bandeau.poser(String(_port.get("nom", "?")))
 	if _bouton_denrees != null:
 		_bouton_denrees.disabled = not _convoi_a_quai
 		_bouton_denrees.tooltip_text = ("Le comptoir de la ville"
