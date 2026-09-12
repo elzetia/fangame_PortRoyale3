@@ -54,7 +54,15 @@ local MARGE = 0.09
 --   barres. C'est le cours interne de la ville, pas celui qu'elle consent au
 --   marchand : elle ne descend pas sous le prix de revient.
 local FACTEUR_MAX = 2.00
-local FACTEUR_MIN = 1.00
+-- 0.80, et non 1.00 : un entrepôt plein descend à 80 % du prix de base.
+--
+-- La borne était à 1.00, ce qui clouait le cours au prix de base dès que le
+-- stock atteignait 1,5 fois la réserve visée. Toute la moitié BASSE de la
+-- courbe était donc morte : inonder un port de 800 tonnes ou de 6 400 donnait
+-- rigoureusement le même prix, et une ville gorgée de marchandise ne bradait
+-- jamais. La courbe, elle, passait déjà par 0,80 — c'est la borne qui la
+-- coupait.
+local FACTEUR_MIN = 0.80
 
 -- Production quotidienne, en tonnes.
 --
@@ -263,9 +271,12 @@ end
 
 -- Nombre de barres d'abondance, de 0 à 4, selon le barème de Port Royale 3 :
 --
---   0 barre  : 180 a 200 %      3 barres : 100 a 120 %
---   1 barre  : 120 a 180 %      4 barres : 100 %
+--   0 barre  : 180 a 200 %      3 barres : 80 a 120 %
+--   1 barre  : 120 a 180 %      4 barres : 80 %
 --   2 barres : 120 %
+--
+-- Ce tableau disait 100 % pour les deux dernieres lignes, la ou la prose
+-- ci-dessus et la courbe disent 80. `FACTEUR_MIN` avait suivi le tableau.
 --
 -- Ce sont des PALIERS, pas une droite. Ma première version interpolait
 -- linéairement entre 200 % et 80 %, ce qui plaçait 120 % à trois barres au lieu
@@ -275,7 +286,29 @@ end
 -- Les paliers hauts sont larges, les bas serrés — c'est la forme du barème,
 -- pas une commodité : entre trois et quatre barres il n'y a que vingt points
 -- de pourcentage, contre soixante entre zéro et une.
-local PALIERS = { 1.70, 1.35, 1.15, 1.05 }
+-- Seuils de facteur, du plus cher au moins cher. `barres` rend n-1 au premier
+-- seuil franchi, donc 0 barre au plus cher et 4 au moins cher.
+--
+-- Les bornes du barème se lisent comme des POIDS DE BASCULE : 180 % sépare
+-- zéro barre d'une barre, si bien que 193 % donne zéro barre. On les reprend
+-- telles quelles pour le haut (1.80) et pour le bas.
+--
+-- Deux endroits demandent pourtant un écart au barème, et tous deux sont
+-- mesurés, pas devinés.
+--
+-- 1. Au MILIEU, la table se contredit : elle donne « 1 barre : 120 à 180 » et
+--    « 3 barres : 120 à 80 », deux plages qui se touchent À 120, ne laissant
+--    aux deux barres qu'une valeur unique. Lu littéralement (1.80/1.20/1.20/
+--    0.80), l'état « deux barres » ne s'affiche JAMAIS : mesuré sur les 1 200
+--    couples ville-denrée, 52 % à une barre, 48 % à trois, 0 % à deux. On
+--    serre donc une bande autour du point nominal, ce qui lui rend 21 %.
+--
+-- 2. Le DERNIER palier est à 0.85 et non à 0.80, alors que le plancher est à
+--    0.80. Ce n'est pas une approximation : le facteur étant borné à 0.80, la
+--    condition `f >= 0.80` est toujours vraie, et quatre barres deviendrait
+--    inatteignable. À 0.85, le plateau borné tombe dans leur bande — un
+--    entrepôt gorgé affiche bien quatre barres.
+local PALIERS = { 1.80, 1.25, 1.15, 0.85 }
 
 -- `delta` déplace le stock avant le calcul, sans rien changer à la ville : le
 -- comptoir s'en sert pour montrer, pendant qu'on tire la jauge, l'abondance que
