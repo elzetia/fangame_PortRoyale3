@@ -257,6 +257,11 @@ func _fermer() -> void:
 	ferme.emit()
 
 
+func fermer() -> void:
+	if visible:
+		_fermer()
+
+
 func rafraichir() -> void:
 	if _port.is_empty():
 		return

@@ -15,6 +15,10 @@ extends CanvasLayer
 
 signal ferme
 
+# Le comptoir ne sait pas ouvrir d'autres panneaux, et n'a pas à le savoir : il
+# annonce que le joueur veut voir la ville, la carte décide de la suite.
+signal infos_demandees(port: Dictionary)
+
 const ICONES := "res://sprites/marchandises/"
 const BARRES := "res://sprites/barres/"
 const POLICE := "res://polices/serif_gras.ttf"
@@ -164,6 +168,13 @@ func _batir() -> void:
 		var b := _bouton(libelle)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.custom_minimum_size.y = 38
+		if libelle == "Infos ville":
+			b.pressed.connect(func() -> void: infos_demandees.emit(_port))
+		else:
+			# Les deux autres attendent leur écran. Grisés plutôt que muets :
+			# un bouton qui répond au clic sans rien faire se lit comme une panne.
+			b.disabled = true
+			b.tooltip_text = "Pas encore en place"
 		onglets.add_child(b)
 	vb.add_child(onglets)
 
@@ -225,6 +236,14 @@ func ouvrir(sim_obj: Object, port_dict: Dictionary) -> void:
 func _fermer() -> void:
 	visible = false
 	ferme.emit()
+
+
+# Fermeture demandée du dehors, quand un autre panneau prend la place. Le signal
+# part quand même : qui écoutait la sortie du comptoir doit l'apprendre, que le
+# joueur ait cliqué « fermer » ou ouvert les infos de la ville.
+func fermer() -> void:
+	if visible:
+		_fermer()
 
 
 # Une ligne par marchandise : vignette, nom, stock, prix d'achat, ce qu'on en
@@ -307,9 +326,11 @@ func rafraichir() -> void:
 	var v: Dictionary = _sim.etat_ville(ville)
 
 	_titre.text = String(_port.get("nom", ""))
-	_sous_titre.text = "%s   ·   %s habitants   ·   vivres %d %%" % [
-		_port.get("nation", ""), _nombre(int(v.get("habitants", 0))),
-		roundi(float(v.get("subsistance", 1.0)) * 100.0)]
+	# Ni la nation ni la population ici : elles vivent dans « Infos ville », et
+	# les répéter au comptoir donnait deux chiffres à tenir d'accord pour rien.
+	# Ce qui reste est ce qu'on vient chercher au comptoir — l'état du garde-manger,
+	# qui dit si les prix vont monter.
+	_sous_titre.text = "vivres %d %%" % roundi(float(v.get("subsistance", 1.0)) * 100.0)
 	_pied.text = "%s pièces d'or      cale %d / %d tonneaux" % [
 		_nombre(int(c.get("or_", 0))), int(c.get("charge", 0)),
 		int(c.get("capacite", 0))]

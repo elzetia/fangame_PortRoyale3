@@ -135,6 +135,10 @@ func _ready() -> void:
 	_infos_ville = VillePanneau.new()
 	add_child(_infos_ville)
 	_infos_ville.poser_villes(_villes)
+	# Le bouton « Infos ville » du comptoir passe par ici : c'est la carte qui
+	# arbitre lequel des deux panneaux est à l'écran.
+	_comptoir.infos_demandees.connect(func(port: Dictionary) -> void:
+		_ouvrir_infos_ville(port))
 
 	await ecran.avancer("Prêt", 8, ETAPES)
 	ecran.queue_free()
@@ -1175,9 +1179,15 @@ func _port_a_quai() -> Dictionary:
 	return p if navire.position.distance_to(Vector2(rade.x, rade.z)) < 70.0 else {}
 
 
+# Comptoir et infos ville ne cohabitent pas : ce sont deux vues de la même
+# ville, pas deux fenêtres. Empilées, fermer celle du dessus reposait le joueur
+# sur celle du dessous sans qu'il l'ait demandé — on croyait quitter le dock et
+# on y restait.
 func _ouvrir_comptoir(port: Dictionary) -> void:
 	if _comptoir == null or port.is_empty():
 		return
+	if _infos_ville != null:
+		_infos_ville.fermer()
 	_comptoir.ouvrir(sim, port)
 
 
@@ -1196,6 +1206,8 @@ func _ouvrir_infos_ville(port: Dictionary) -> void:
 	if port.is_empty():
 		_noter("Aucune ville en vue.")
 		return
+	if _comptoir != null:
+		_comptoir.fermer()
 	_infos_ville.ouvrir(sim, port)
 
 
