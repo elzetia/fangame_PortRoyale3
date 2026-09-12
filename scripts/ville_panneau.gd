@@ -42,15 +42,17 @@ const OR         := Color(0.86, 0.71, 0.36)
 const OR_PALE    := Color(0.98, 0.92, 0.76)
 const PARCHEMIN  := Color(0.90, 0.86, 0.78)
 # Même lin qu'au comptoir : les deux écrans sont deux pages d'un même dossier.
-const LIN         := Color(0.906, 0.866, 0.784)
+# Uni, et sans trame : la tuile de parchemin ne se raccordait pas et rayait le
+# fond de lignes tous les soixante pixels. Un aplat crème tient mieux qu'un
+# grain qu'il faut affaiblir jusqu'à l'invisible pour qu'il cesse de gêner.
+const LIN         := Color(0.945, 0.919, 0.855)
 const UI          := "res://sprites/ui_pr/"
-const RETRAIT_FOND := 8.0
+const RETRAIT_FOND := 20.0
 const DESCENTE_FOND := 46.0
-# La tuile du lin fait 70 x 60 et ses bords ne se raccordent pas tout a fait :
-# a pleine force, la repetition dessine des lignes horizontales tous les
-# soixante pixels. A cette opacite le grain reste, le quadrillage disparait.
-const OPACITE_TRAME := 0.30
 const HAUTEUR_BAS := 64.0
+# De combien les équerres passent sous la plaque. Alignées sur elle, le lin
+# affleurait leur base et se voyait dépasser entre les deux coins.
+const DEBORD_BAS := 12.0
 const MARGE_EQUERRE := 70
 const ENCRE_BRUNE := Color(0.24, 0.16, 0.09)
 const ENCRE_PALE  := Color(0.44, 0.36, 0.28)
@@ -220,14 +222,6 @@ func _batir() -> void:
 	plaque.mouse_filter = Control.MOUSE_FILTER_STOP
 	racine.add_child(plaque)
 
-	var trame := TextureRect.new()
-	var ct := UI + "parchemin_uni.png"
-	if ResourceLoader.exists(ct):
-		trame.texture = load(ct)
-	trame.stretch_mode = TextureRect.STRETCH_TILE
-	trame.modulate = Color(1, 1, 1, OPACITE_TRAME)
-	trame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	plaque.add_child(trame)
 
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
@@ -330,7 +324,7 @@ func _replacer_bandeau() -> void:
 							BandeauTitre.HAUTEUR)
 	if _bas != null:
 		_bas.position = Vector2(_plaque.position.x - RETRAIT_FOND,
-			_plaque.position.y + _plaque.size.y - HAUTEUR_BAS)
+			_plaque.position.y + _plaque.size.y - HAUTEUR_BAS + DEBORD_BAS)
 		_bas.size = Vector2(_plaque.size.x + RETRAIT_FOND * 2.0, HAUTEUR_BAS)
 
 

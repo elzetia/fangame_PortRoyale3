@@ -39,16 +39,18 @@ const PARCHEMIN  := Color(0.90, 0.86, 0.78)
 # teinte, l'or et le parchemin des textes ne se lisent plus — le contenu passe
 # donc à l'encre brune, et seuls les éléments de bois (bandeau, onglets, plaques
 # de tonnage) gardent leurs couleurs claires, puisqu'ils portent leur propre fond.
-const LIN        := Color(0.906, 0.866, 0.784)
+# Uni, et sans trame : la tuile de parchemin ne se raccordait pas et rayait le
+# fond de lignes tous les soixante pixels. Un aplat crème tient mieux qu'un
+# grain qu'il faut affaiblir jusqu'à l'invisible pour qu'il cesse de gêner.
+const LIN        := Color(0.945, 0.919, 0.855)
 # De combien la plaque se rentre sous la planche du titre, de chaque côté et
 # par le haut.
-const RETRAIT_FOND := 8.0
+const RETRAIT_FOND := 20.0
 const DESCENTE_FOND := 46.0
-# La tuile du lin fait 70 x 60 et ses bords ne se raccordent pas tout a fait :
-# a pleine force, la repetition dessine des lignes horizontales tous les
-# soixante pixels. A cette opacite le grain reste, le quadrillage disparait.
-const OPACITE_TRAME := 0.30
 const HAUTEUR_BAS := 64.0
+# De combien les équerres passent sous la plaque. Alignées sur elle, le lin
+# affleurait leur base et se voyait dépasser entre les deux coins.
+const DEBORD_BAS := 12.0
 const MARGE_EQUERRE := 70
 const ENCRE_BRUNE := Color(0.24, 0.16, 0.09)
 const ENCRE_PALE  := Color(0.44, 0.36, 0.28)
@@ -271,8 +273,6 @@ func _batir() -> void:
 	fenetre.offset_left = RETRAIT_FOND
 	fenetre.offset_right = -RETRAIT_FOND
 	fenetre.offset_top = DESCENTE_FOND
-	# Les coins sont arrondis : sans découpe, la trame du lin déborderait dans
-	# les angles, là où le fond ne va pas.
 	fenetre.clip_contents = true
 	var sb := _cadre(LIN, 10, 3)
 	sb.content_margin_left = 0
@@ -282,16 +282,6 @@ func _batir() -> void:
 	fenetre.add_theme_stylebox_override("panel", sb)
 	racine.add_child(fenetre)
 
-	# La trame du lin, répétée. Elle vient AVANT le contenu : l'ordre des enfants
-	# fait la profondeur, et un PanelContainer les dimensionne tous pareil.
-	var trame := TextureRect.new()
-	var ct := UI + "parchemin_uni.png"
-	if ResourceLoader.exists(ct):
-		trame.texture = load(ct)
-	trame.stretch_mode = TextureRect.STRETCH_TILE
-	trame.modulate = Color(1, 1, 1, OPACITE_TRAME)
-	trame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	fenetre.add_child(trame)
 
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
@@ -408,7 +398,7 @@ func _replacer_bandeau() -> void:
 							BandeauTitre.HAUTEUR)
 	if _bas != null:
 		_bas.position = Vector2(_fenetre.position.x - RETRAIT_FOND,
-			_fenetre.position.y + _fenetre.size.y - HAUTEUR_BAS)
+			_fenetre.position.y + _fenetre.size.y - HAUTEUR_BAS + DEBORD_BAS)
 		_bas.size = Vector2(_fenetre.size.x + RETRAIT_FOND * 2.0, HAUTEUR_BAS)
 
 
