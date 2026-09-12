@@ -15,6 +15,10 @@ extends CanvasLayer
 
 signal ferme
 
+# Comme le comptoir, ce panneau n'ouvre rien lui-même : il dit ce que le joueur
+# a demandé, la carte arbitre.
+signal denrees_demandees(port: Dictionary)
+
 const ICONES := "res://sprites/marchandises/"
 const VILLES := "res://sprites/villes/"
 const PAVILLONS := "res://sprites/pavillons/"
@@ -53,6 +57,8 @@ var _lbl_fabriques: Label
 var _lbl_maisons: Label
 var _lbl_occupation: Label
 var _rang_produits: HBoxContainer
+var _bouton_denrees: Button
+var _convoi_a_quai := false
 
 
 func _init() -> void:
@@ -105,6 +111,61 @@ func _texte(contenu: String, taille: int, teinte: Color,
 	return l
 
 
+func _bouton(texte: String) -> Button:
+	var b := Button.new()
+	b.text = texte
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 15)
+	b.add_theme_color_override("font_color", OR_PALE)
+	b.add_theme_color_override("font_hover_color", Color(1, 0.97, 0.86))
+	b.add_theme_color_override("font_pressed_color", OR)
+	b.add_theme_color_override("font_disabled_color", ENCRE.darkened(0.2))
+	var f := _police()
+	if f != null:
+		b.add_theme_font_override("font", f)
+	for etat in ["normal", "hover", "pressed", "disabled"]:
+		var fond := BOIS_CLAIR
+		if etat == "hover":
+			fond = BOIS_CLAIR.lightened(0.12)
+		elif etat == "pressed":
+			fond = BOIS
+		elif etat == "disabled":
+			fond = BOIS_CLAIR.darkened(0.35)
+		b.add_theme_stylebox_override(etat, _cadre(fond, 4))
+	return b
+
+
+# La même rangée qu'au comptoir : les deux écrans sont deux pages d'un même
+# dossier de ville, et une barre qui change de place ou de contenu d'une page à
+# l'autre se lit comme deux fenêtres sans rapport.
+#
+# « Liste denrées » ne s'allume que si le joueur a un convoi à quai ICI. On peut
+# regarder une ville de loin — c'est même le principal usage de cet écran — mais
+# on ne commerce qu'au port, et un bouton actif qui mène à un comptoir vide
+# ferait promettre à l'écran ce que la règle refuse.
+func _onglets() -> Control:
+	var ligne := HBoxContainer.new()
+	ligne.add_theme_constant_override("separation", 8)
+	for libelle in ["Infos ville", "Liste denrées", "Équiper"]:
+		var b := _bouton(libelle)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size.y = 38
+		match libelle:
+			"Infos ville":
+				# La page courante : montrée enfoncée, et sans effet au clic.
+				b.disabled = true
+				b.add_theme_stylebox_override("disabled", _cadre(BOIS, 4))
+				b.add_theme_color_override("font_disabled_color", OR)
+			"Liste denrées":
+				_bouton_denrees = b
+				b.pressed.connect(func() -> void: denrees_demandees.emit(_port))
+			_:
+				b.disabled = true
+				b.tooltip_text = "Pas encore en place"
+		ligne.add_child(b)
+	return ligne
+
+
 # --- construction -------------------------------------------------------------
 
 func _batir() -> void:
@@ -142,6 +203,7 @@ func _batir() -> void:
 	_sous_titre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_child(_sous_titre)
 
+	col.add_child(_onglets())
 	col.add_child(_blason())
 	col.add_child(_ligne_habitants())
 	col.add_child(_separateur())
@@ -245,9 +307,10 @@ func _section_production() -> Control:
 
 # --- remplissage --------------------------------------------------------------
 
-func ouvrir(sim_obj: Object, port_dict: Dictionary) -> void:
+func ouvrir(sim_obj: Object, port_dict: Dictionary, convoi_a_quai := false) -> void:
 	_sim = sim_obj
 	_port = port_dict
+	_convoi_a_quai = convoi_a_quai
 	visible = true
 	rafraichir()
 
@@ -267,6 +330,10 @@ func rafraichir() -> void:
 		return
 
 	_titre.text = String(_port.get("nom", "?"))
+	if _bouton_denrees != null:
+		_bouton_denrees.disabled = not _convoi_a_quai
+		_bouton_denrees.tooltip_text = ("Le comptoir de la ville"
+			if _convoi_a_quai else "Il faut un convoi à quai pour commercer")
 	_sous_titre.text = String(_port.get("nation", ""))
 
 	var habitants := int(_port.get("habitants", 0))

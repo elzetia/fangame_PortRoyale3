@@ -139,6 +139,8 @@ func _ready() -> void:
 	# arbitre lequel des deux panneaux est à l'écran.
 	_comptoir.infos_demandees.connect(func(port: Dictionary) -> void:
 		_ouvrir_infos_ville(port))
+	_infos_ville.denrees_demandees.connect(func(port: Dictionary) -> void:
+		_ouvrir_comptoir(port))
 
 	await ecran.avancer("Prêt", 8, ETAPES)
 	ecran.queue_free()
@@ -975,6 +977,8 @@ func _unhandled_input(e: InputEvent) -> void:
 	# ni au clavier. Il gere sa propre touche Echap.
 	if _comptoir != null and _comptoir.visible:
 		return
+	if _infos_ville != null and _infos_ville.visible:
+		return
 	if e is InputEventMouseButton:
 		match e.button_index:
 			MOUSE_BUTTON_WHEEL_UP:
@@ -999,7 +1003,20 @@ func _unhandled_input(e: InputEvent) -> void:
 					_glisse = false
 					if not _a_glisse:
 						_clic_gauche()
-			MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE:
+			# Le clic DROIT commande le navire, comme dans Port Royale 3 :
+			# « Cliquez avec le bouton droit sur votre destination pour faire
+			# partir votre convoi. » Le gauche sert alors à désigner — une ville
+			# qu'on veut regarder — et les deux gestes cessent de se disputer le
+			# même bouton : on consultait un port en appareillant vers lui.
+			MOUSE_BUTTON_RIGHT:
+				# Pas de `_a_glisse` ici : ce drapeau appartient au glissé du
+				# bouton gauche, qui ne le rabaisse qu'à sa propre pression
+				# suivante. Le consulter faisait avaler le premier ordre donné
+				# après chaque déplacement de la carte — le navire ne bougeait
+				# pas, une fois sur deux, sans que rien ne l'explique.
+				if not e.pressed:
+					_clic_droit()
+			MOUSE_BUTTON_MIDDLE:
 				_glisse = e.pressed
 				_a_glisse = e.pressed
 	# Le trackpad ne parle PAS la langue de la molette. Sur macOS, Godot rend
@@ -1120,7 +1137,21 @@ func _zoomer(facteur: float) -> void:
 	_cam.position += avant - apres
 
 
+# Clic gauche : on DÉSIGNE. Une ville sous le curseur ouvre son écran ; ailleurs
+# il ne se passe rien, et c'est voulu — le bouton qui fait bouger la flotte est
+# le droit, et un ordre d'appareillage donné par mégarde coûte des jours de mer.
 func _clic_gauche() -> void:
+	var port := _port_survole
+	if port.is_empty():
+		var monde := proj.vers_monde(get_global_mouse_position())
+		port = _port_proche(monde, RAYON_CLIC_PORT)
+	if not port.is_empty():
+		_ouvrir_infos_ville(port)
+
+
+# Clic droit : on COMMANDE. Le navire met le cap sur la mer cliquée, ou sur la
+# rade du port visé.
+func _clic_droit() -> void:
 	var port := _port_survole
 	var cible := Vector2.ZERO
 
@@ -1208,7 +1239,13 @@ func _ouvrir_infos_ville(port: Dictionary) -> void:
 		return
 	if _comptoir != null:
 		_comptoir.fermer()
-	_infos_ville.ouvrir(sim, port)
+	# Le comptoir n'est ouvrable que là où le joueur a un navire. On compare les
+	# clés plutôt que les distances : être à quai à Tortuga n'ouvre pas le
+	# comptoir de Port Royale, même si on regarde Port Royale.
+	var quai := _port_a_quai()
+	var ici: bool = (not quai.is_empty()
+		and String(quai.get("cle", "")) == String(port.get("cle", "")))
+	_infos_ville.ouvrir(sim, port, ici)
 
 
 # --- HUD ----------------------------------------------------------------------
