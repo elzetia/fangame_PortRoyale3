@@ -53,6 +53,10 @@ const MARGE_EQUERRE := 70
 const ENCRE_BRUNE := Color(0.24, 0.16, 0.09)
 const ENCRE_PALE  := Color(0.44, 0.36, 0.28)
 const VERT_SOMBRE := Color(0.20, 0.42, 0.18)
+# Le bandeau que chaque ligne pose sur le lin, et de combien il s'amincit par
+# rapport à la hauteur qu'elle occupe.
+const BANDE_LIGNE := Color(0.42, 0.32, 0.18, 0.13)
+const BANDE_FINESSE := 4.0
 const ENCRE      := Color(0.58, 0.52, 0.44)
 const VERT       := Color(0.45, 0.72, 0.35)
 const ROUGE      := Color(0.84, 0.42, 0.34)
@@ -369,7 +373,9 @@ func _batir() -> void:
 	vb.add_child(_entetes())
 
 	# --- la colonne des marchandises ------------------------------------------
-	var defilement := ScrollContainer.new()
+	# Défilement cranté : une marchandise par cran, jamais de ligne coupée en
+	# deux. Voir scripts/defilement_crante.gd.
+	var defilement := DefilementCrante.new()
 	defilement.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	defilement.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	vb.add_child(defilement)
@@ -378,6 +384,8 @@ func _batir() -> void:
 	_colonne.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_colonne.add_theme_constant_override("separation", 3)
 	defilement.add_child(_colonne)
+	# Il mesure la hauteur d'un cran sur la première ligne réellement dessinée.
+	defilement.poser_colonne(_colonne)
 
 	# --- pied : caisse et cale -------------------------------------------------
 	var bas := HBoxContainer.new()
@@ -443,21 +451,27 @@ func _batir_lignes() -> void:
 		enfant.queue_free()
 	_lignes.clear()
 
-	var pair := true
 	# Les cinq marchandises du cru, telles que l'archipel les donne.
 	var produits: Array = _port.get("produits", [])
 	for m in _sim.marche(String(_port.get("cle", "")), 1):
 		var cle := String(m.get("cle", ""))
 		var fond := PanelContainer.new()
+		# Toutes les lignes portent le MÊME bandeau. L'alternance une ligne sur
+		# deux découpait la liste en paquets de deux et donnait à lire un rythme
+		# qui ne veut rien dire — il n'y a pas deux sortes de marchandises.
 		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0, 0, 0, 0.0) if pair else Color(0.36, 0.26, 0.14, 0.10)
-		sb.set_corner_radius_all(4)
+		sb.bg_color = BANDE_LIGNE
+		sb.set_corner_radius_all(6)
 		sb.content_margin_left = 8
 		sb.content_margin_right = 8
 		sb.content_margin_top = 3
 		sb.content_margin_bottom = 3
+		# Marges négatives : le bandeau se dessine plus mince que la place qu'il
+		# occupe. Il reste ainsi un filet de lin au-dessus et en dessous, qui
+		# sépare les lignes sans qu'on ait à tracer un trait.
+		sb.expand_margin_top = -BANDE_FINESSE
+		sb.expand_margin_bottom = -BANDE_FINESSE
 		fond.add_theme_stylebox_override("panel", sb)
-		pair = not pair
 
 		var h := HBoxContainer.new()
 		h.add_theme_constant_override("separation", 8)
