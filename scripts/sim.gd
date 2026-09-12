@@ -70,6 +70,20 @@ func marche(cle_ville: String, lot := 1) -> Array:
 	return r if r is Array else []
 
 
+# Le cours à l'unité pour un lot de cette taille. Deux appels voisins donnent
+# le coût marginal : ce que coûte réellement la tonne suivante.
+func cotation(cle_ville: String, cle_m: String, quantite: int, sens: String) -> float:
+	var r = _appel("cotation", [cle_ville, cle_m, quantite, sens])
+	return float(r) if r != null else 0.0
+
+
+# Les barres d'abondance, le stock de la ville décalé de `delta` : négatif si le
+# joueur achète (la ville se vide), positif s'il vend.
+func barres(cle_ville: String, cle_m: String, delta := 0) -> int:
+	var r = _appel("barres", [cle_ville, cle_m, delta])
+	return int(r) if r != null else 0
+
+
 func etat_compagnie() -> Dictionary:
 	var r = _appel("etat_compagnie", [])
 	return r if r is Dictionary else {"or_": 0, "capacite": 0, "charge": 0, "libre": 0}

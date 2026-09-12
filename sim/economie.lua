@@ -277,13 +277,20 @@ end
 -- de pourcentage, contre soixante entre zéro et une.
 local PALIERS = { 1.70, 1.35, 1.15, 1.05 }
 
-function Economie.barres(cle_ville, cle_m)
+-- `delta` déplace le stock avant le calcul, sans rien changer à la ville : le
+-- comptoir s'en sert pour montrer, pendant qu'on tire la jauge, l'abondance que
+-- l'échange LAISSERAIT. Le décalage passe par ici, et pas par un calcul refait
+-- côté panneau, pour que la prévision suive exactement le même barème que
+-- l'affichage au repos.
+function Economie.barres(cle_ville, cle_m, delta)
   local ville = Economie.ville(cle_ville)
   local m = Marchandises.get(cle_m)
   if not ville or not m then return 0 end
   -- Déduit du FACTEUR DE PRIX, jamais du stock directement : ainsi la jauge et
   -- le cours ne peuvent pas se contredire à l'écran.
-  local f = facteur((ville.stock[cle_m] or 0) / reference(ville, m))
+  local stock = (ville.stock[cle_m] or 0) + (delta or 0)
+  if stock < 0 then stock = 0 end
+  local f = facteur(stock / reference(ville, m))
   for n, seuil in ipairs(PALIERS) do
     if f >= seuil then return n - 1 end
   end
