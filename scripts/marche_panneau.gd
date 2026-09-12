@@ -42,7 +42,7 @@ const PARCHEMIN  := Color(0.90, 0.86, 0.78)
 # Uni, et sans trame : la tuile de parchemin ne se raccordait pas et rayait le
 # fond de lignes tous les soixante pixels. Un aplat crème tient mieux qu'un
 # grain qu'il faut affaiblir jusqu'à l'invisible pour qu'il cesse de gêner.
-const LIN        := Color(0.945, 0.919, 0.855)
+const LIN        := Color(0.921, 0.888, 0.812)
 # De combien la plaque se rentre sous la planche du titre, de chaque côté et
 # par le haut.
 # Le bois doit border le crème, pas flotter autour : à vingt pixels le cadre
@@ -60,18 +60,18 @@ const VERT_SOMBRE := Color(0.20, 0.42, 0.18)
 # Le bandeau que chaque ligne pose sur le lin, et de combien il s'amincit par
 # rapport à la hauteur qu'elle occupe.
 const BANDE_LIGNE := Color(0.42, 0.32, 0.18, 0.13)
-const BANDE_FINESSE := 2.0
+const BANDE_FINESSE := 3.0
 
 # Gabarit d'une ligne. Tout est au trois quarts de ce qu'il valait : le comptoir
 # mangeait trop d'ecran pour ce qu'il montre, et une liste de vingt denrees se
 # lit d'autant mieux qu'on en voit beaucoup d'un coup.
-const COL_NOM := 52.0
-const COL_BARRE := 40.0
-const COL_STOCK := 35.0
-const COL_PRIX := 31.0
-const COL_CALE := 27.0
-const HAUTEUR_PLAQUE := 19.0
-const SEPARATION := 4
+const COL_NOM := 70.0
+const COL_BARRE := 54.0
+const COL_STOCK := 45.0
+const COL_PRIX := 42.0
+const COL_CALE := 36.0
+const HAUTEUR_PLAQUE := 25.0
+const SEPARATION := 5
 
 # Ce que vaut le comptoir a l'ecran, une fois bati. Deux tiers.
 const ECHELLE_MENU := 0.667
@@ -80,14 +80,14 @@ const ECHELLE_MENU := 0.667
 # l'image deborde du bandeau en haut et en bas, ce qui la pose sur la ligne au
 # lieu de l'y enfermer — c'est elle qu'on cherche des yeux en parcourant la
 # liste, pas la colonne qui la contient.
-const COL_VIGNETTE := 30.0
-const HAUTEUR_VIGNETTE := 20.0
-const DEBORD_VIGNETTE := 6.0
+const COL_VIGNETTE := 40.0
+const HAUTEUR_VIGNETTE := 27.0
+const DEBORD_VIGNETTE := 8.0
 
-const PT_NOM := 9
-const PT_PRIX := 10
-const PT_CALE := 9
-const PT_STOCK := 8
+const PT_NOM := 12
+const PT_PRIX := 13
+const PT_CALE := 12
+const PT_STOCK := 11
 const ENCRE      := Color(0.58, 0.52, 0.44)
 const VERT       := Color(0.45, 0.72, 0.35)
 const ROUGE      := Color(0.84, 0.42, 0.34)
@@ -198,10 +198,10 @@ func _plaque_stock(etiquette: Label, largeur: float) -> Control:
 		# tels quels. A 16 sur une plaque haute de 26, les coins du haut et du bas
 		# se chevauchaient et la plaque se dessinait en losange écrasé. La texture
 		# a donc été réduite de moitié, et les marges avec elle.
-		st.texture_margin_left = 6
-		st.texture_margin_right = 6
-		st.texture_margin_top = 6
-		st.texture_margin_bottom = 6
+		st.texture_margin_left = 8
+		st.texture_margin_right = 8
+		st.texture_margin_top = 8
+		st.texture_margin_bottom = 8
 		st.content_margin_left = 4
 		st.content_margin_right = 4
 		boite.add_theme_stylebox_override("panel", st)
@@ -223,7 +223,7 @@ func _picto(fichier: String, largeur: float, infobulle: String,
 	var chemin := UI + fichier
 	if ResourceLoader.exists(chemin):
 		t.texture = load(chemin)
-	t.custom_minimum_size = Vector2(20, 17)
+	t.custom_minimum_size = Vector2(26, 22)
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	t.tooltip_text = infobulle
@@ -303,8 +303,11 @@ func _batir() -> void:
 	# rendrait les chiffres illisibles — alors qu'une echelle posee ici reduit le
 	# panneau d'un bloc, bandeau et equerres compris, sans rien decaler.
 	racine.scale = Vector2(ECHELLE_MENU, ECHELLE_MENU)
-	# Le pivot au centre : pose au coin, le panneau retreci se serait decale vers
-	# le haut a gauche au lieu de rester au milieu de l'ecran.
+	# Le pivot au centre, pose TOUT DE SUITE. Le laisser au signal `resized`
+	# suffisait en theorie, mais la racine nait deja a sa taille definitive : le
+	# signal n'arrivait jamais, le pivot restait au coin, et le panneau retreci
+	# se decalait vers le haut a gauche au lieu de rester au milieu de l'ecran.
+	racine.pivot_offset = Vector2(LARGEUR, HAUTEUR) * 0.5
 	racine.resized.connect(func() -> void:
 		racine.pivot_offset = racine.size * 0.5)
 	add_child(racine)
@@ -376,7 +379,7 @@ func _batir() -> void:
 	for libelle in ["Infos ville", "Liste denrées", "Équiper"]:
 		var b := _bouton(libelle)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.custom_minimum_size.y = 24
+		b.custom_minimum_size.y = 30
 		if libelle == "Infos ville":
 			b.pressed.connect(func() -> void: infos_demandees.emit(_port))
 		else:
@@ -547,13 +550,13 @@ func _batir_lignes() -> void:
 			marque.texture = load(UI + "produit.png")
 			marque.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			marque.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			marque.size = Vector2(11, 11)
+			marque.size = Vector2(15, 15)
 			marque.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			marque.tooltip_text = "Produit ici"
 			# Accroche a la CASE et non a l'image : celle-ci deborde de tous
 			# cotes, et l'engrenage aurait suivi le debordement au lieu de rester
 			# au coin de la ligne.
-			marque.position = Vector2(COL_VIGNETTE - 10.0, HAUTEUR_VIGNETTE - 9.0)
+			marque.position = Vector2(COL_VIGNETTE - 13.0, HAUTEUR_VIGNETTE - 12.0)
 			case.add_child(marque)
 
 		h.add_child(_texte(String(m.get("nom", cle)), PT_NOM, ENCRE_BRUNE, COL_NOM))

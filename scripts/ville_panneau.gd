@@ -24,10 +24,13 @@ const VILLES := "res://sprites/villes/"
 const PAVILLONS := "res://sprites/pavillons/"
 const POLICE := "res://polices/serif_gras.ttf"
 
-# Même largeur qu'au comptoir : le bandeau porte deux boutons ronds de taille
-# fixe, et sur une plaque étroite ils mangeaient la moitié de la planche.
+# Rigoureusement le gabarit du comptoir : meme largeur, meme hauteur, meme
+# echelle, meme ancrage. Ce sont deux pages d'un meme dossier, et passer de
+# l'une a l'autre ne doit ni deplacer le cadre ni le faire changer de taille --
+# sinon l'ecran sautille a chaque aller-retour entre les onglets.
 const LARGEUR := 640
-const HAUTEUR := 560
+const HAUTEUR := 800
+const ECHELLE_MENU := 0.667
 
 # Le pavillon passe DERRIÈRE la vignette et déborde d'elle : il se lit comme une
 # couleur de fond, pas comme un blason posé à côté. À pleine opacité il mangeait
@@ -45,7 +48,7 @@ const PARCHEMIN  := Color(0.90, 0.86, 0.78)
 # Uni, et sans trame : la tuile de parchemin ne se raccordait pas et rayait le
 # fond de lignes tous les soixante pixels. Un aplat crème tient mieux qu'un
 # grain qu'il faut affaiblir jusqu'à l'invisible pour qu'il cesse de gêner.
-const LIN         := Color(0.945, 0.919, 0.855)
+const LIN         := Color(0.921, 0.888, 0.812)
 const UI          := "res://sprites/ui_pr/"
 # Le bois doit border le crème, pas flotter autour : à vingt pixels le cadre
 # se décollait du fond, à huit il ne se voyait plus déborder du tout.
@@ -203,6 +206,10 @@ func _batir() -> void:
 	var racine := Control.new()
 	racine.set_anchors_preset(Control.PRESET_CENTER)
 	racine.mouse_filter = Control.MOUSE_FILTER_STOP
+	racine.scale = Vector2(ECHELLE_MENU, ECHELLE_MENU)
+	racine.pivot_offset = Vector2(LARGEUR, HAUTEUR) * 0.5
+	racine.resized.connect(func() -> void:
+		racine.pivot_offset = racine.size * 0.5)
 	add_child(racine)
 	racine.offset_left = -LARGEUR / 2.0
 	racine.offset_top = -HAUTEUR / 2.0
