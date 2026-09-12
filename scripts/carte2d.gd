@@ -514,7 +514,14 @@ const INERTIE_CAMERA := 6.5
 # s'est retrouvé quatre fois trop gros d'un coup. Une taille exprimée en monde
 # ne dépend plus de la finesse de l'image.
 const CART_POLICE := 28.4        # hauteur de police
-const CART_PAVILLON_H := 56.7    # hauteur du pavillon
+const CART_PAVILLON_H := 76.0    # hauteur du pavillon
+# L'epaisseur des filets qui bordent la plaque du nom, et la part de sa largeur
+# sur laquelle le fond s'efface a chaque bout.
+const CART_FILET := 0.55
+const CART_FRANGE := 0.16
+# Ce que vaut le cartouche au dézoom maximal, par rapport à sa taille au plus
+# près. Au-delà de 1,5 il écrase l'île qu'il désigne.
+const CART_GROSSI_LOIN := 1.5
 const CART_MARGE := 23.2         # respiration à gauche et à droite du nom
 # De combien le pavillon mord sur la plaque. Il doit couvrir le filet du haut
 # sans toucher les lettres : c'est ce qui soude les deux en un seul bloc au lieu
@@ -524,9 +531,9 @@ const CART_ICONE := 1.30         # côté de la vignette, en hauteurs de pavillo
 
 const UI_CARTE := "res://sprites/ui_pr/"
 # Le sceau du dignitaire : sa taille en hauteurs de pavillon, et la part de
-# lui-même qui déborde hors du drapeau.
-const DIGNITAIRE_TAILLE := 0.62
-const DIGNITAIRE_MORD := 0.42
+# lui-même qui passe au-dessus de l'arête du drapeau.
+const DIGNITAIRE_TAILLE := 0.58
+const DIGNITAIRE_MORD := 0.62
 
 # Et au plus près, la vue embrasse à peu près la distance qui sépare Nouvelle
 # Orléans de St-Augustin — d'un bout à l'autre de la côte de Floride.
@@ -700,7 +707,22 @@ func _police_ecran() -> int:
 func _par_unite() -> float:
 	if proj == null or proj.vue_taille.x <= 0.0:
 		return 1.0
-	return float(proj.pixels.x) / proj.vue_taille.x
+	return float(proj.pixels.x) / proj.vue_taille.x * _grossissement()
+
+
+# Les cartouches grossissent quand on s'éloigne.
+#
+# Mesurés en unités de monde, ils gardent une taille constante SUR LA CARTE : ils
+# rapetissent donc à l'écran à mesure qu'on dézoome, et c'est précisément au plan
+# large — quand on cherche où aller — qu'on a le plus besoin de les lire. On leur
+# rend donc la moitié de ce que le dézoom leur prend, en fondu entre les deux
+# bornes plutôt que par paliers, pour qu'aucun cran de molette ne les fasse
+# sauter.
+func _grossissement() -> float:
+	if _zoom_max <= _zoom_min:
+		return 1.0
+	var t: float = clampf((_zoom - _zoom_min) / (_zoom_max - _zoom_min), 0.0, 1.0)
+	return lerpf(CART_GROSSI_LOIN, 1.0, t)
 
 
 func _geometrie_cartouche(port: Dictionary) -> Dictionary:
@@ -750,7 +772,7 @@ func _dessiner_nom(port: Dictionary) -> void:
 	var r: Rect2 = g["nom"]
 	var t_ecran: int = g["t_ecran"]
 	var texte: String = port["nom"]
-	_plaque_carte(r, 0.72, Color(0.86, 0.84, 0.78, 0.85), 1.1)
+	_plaque_carte(r, 0.72, Color(0.86, 0.84, 0.78, 0.85), CART_FILET)
 
 	# Le texte est tracé en pixels d'ÉCRAN, dans une transformation inverse :
 	# c'est ce qui le garde net quel que soit le cran de zoom.
@@ -804,10 +826,12 @@ func _dessiner_dignitaire(port: Dictionary, pavillon: Rect2) -> void:
 	if tex == null:
 		return
 	var cote := pavillon.size.y * DIGNITAIRE_TAILLE
-	# Ancrée au coin haut-gauche du pavillon, décalée vers l'extérieur de la
-	# moitié de son débord : elle chevauche le drapeau sans le couvrir.
-	var coin := pavillon.position + Vector2(-cote * DIGNITAIRE_MORD,
-											-cote * DIGNITAIRE_MORD)
+	# A CHEVAL sur l'arete du haut, centre sur la hampe : le sceau se lit alors
+	# comme pose sur le drapeau, tandis qu'au coin il flottait a l'oblique sans
+	# qu'on sache auquel des deux ports voisins il appartenait.
+	var coin := pavillon.position + Vector2(
+		(pavillon.size.x - cote) * 0.5,
+		-cote * DIGNITAIRE_MORD)
 	draw_texture_rect(tex, Rect2(coin, Vector2(cote, cote)), false)
 
 
@@ -823,15 +847,25 @@ func _plaque_carte(r: Rect2, alpha: float, bord: Color, ep_bord: float) -> void:
 	var vide := Color(0.03, 0.03, 0.04, 0.0)
 	var x0 := r.position.x
 	var x1 := r.position.x + r.size.x
-	var xm := x0 + r.size.x * 0.5
 	var y0 := r.position.y
 	var y1 := y0 + r.size.y
 
+	# Le fondu ne prend plus la MOITIÉ de la plaque de chaque côté : il tient sur
+	# une frange étroite, et tout le milieu reste pleinement opaque. Étalé sur la
+	# demi-largeur, le noir n'atteignait sa densité qu'au centre exact et le nom
+	# se lisait sur un fond qui fuyait sous ses premières et dernières lettres.
+	var f := r.size.x * CART_FRANGE
+	var xa := x0 + f
+	var xb := x1 - f
+
 	draw_polygon(PackedVector2Array([
-		Vector2(x0, y0), Vector2(xm, y0), Vector2(xm, y1), Vector2(x0, y1)]),
+		Vector2(x0, y0), Vector2(xa, y0), Vector2(xa, y1), Vector2(x0, y1)]),
 		PackedColorArray([vide, noir, noir, vide]))
 	draw_polygon(PackedVector2Array([
-		Vector2(xm, y0), Vector2(x1, y0), Vector2(x1, y1), Vector2(xm, y1)]),
+		Vector2(xa, y0), Vector2(xb, y0), Vector2(xb, y1), Vector2(xa, y1)]),
+		PackedColorArray([noir, noir, noir, noir]))
+	draw_polygon(PackedVector2Array([
+		Vector2(xb, y0), Vector2(x1, y0), Vector2(x1, y1), Vector2(xb, y1)]),
 		PackedColorArray([noir, vide, vide, noir]))
 
 	# Les filets s'effacent AVEC le fond : un liseré net sur un fond dégradé
@@ -839,10 +873,13 @@ func _plaque_carte(r: Rect2, alpha: float, bord: Color, ep_bord: float) -> void:
 	var b0 := Color(bord.r, bord.g, bord.b, 0.0)
 	for y in [y0, y1 - ep_bord]:
 		draw_polygon(PackedVector2Array([
-			Vector2(x0, y), Vector2(xm, y), Vector2(xm, y + ep_bord), Vector2(x0, y + ep_bord)]),
+			Vector2(x0, y), Vector2(xa, y), Vector2(xa, y + ep_bord), Vector2(x0, y + ep_bord)]),
 			PackedColorArray([b0, bord, bord, b0]))
 		draw_polygon(PackedVector2Array([
-			Vector2(xm, y), Vector2(x1, y), Vector2(x1, y + ep_bord), Vector2(xm, y + ep_bord)]),
+			Vector2(xa, y), Vector2(xb, y), Vector2(xb, y + ep_bord), Vector2(xa, y + ep_bord)]),
+			PackedColorArray([bord, bord, bord, bord]))
+		draw_polygon(PackedVector2Array([
+			Vector2(xb, y), Vector2(x1, y), Vector2(x1, y + ep_bord), Vector2(xb, y + ep_bord)]),
 			PackedColorArray([bord, b0, b0, bord]))
 
 
