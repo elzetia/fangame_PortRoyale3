@@ -495,27 +495,24 @@ func _batir_lignes() -> void:
 	var produits: Array = _port.get("produits", [])
 	for m in _sim.marche(String(_port.get("cle", "")), 1):
 		var cle := String(m.get("cle", ""))
-		var fond := PanelContainer.new()
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0, 0, 0, 0)
-		sb.content_margin_left = 0
-		sb.content_margin_right = 6
-		sb.content_margin_top = 2
-		sb.content_margin_bottom = 2
-		fond.add_theme_stylebox_override("panel", sb)
-
-		# Le bandeau est DESSINE sous le contenu : il part en pointe derrière la
-		# vignette au lieu de s'arrêter net à côté d'elle. Premier enfant, donc
-		# dessiné en premier ; le PanelContainer lui donne toute sa surface.
-		var bande := FondLigne.new()
-		bande.couleur = BANDE_LIGNE
-		bande.finesse = BANDE_FINESSE
-		bande.depart = COL_VIGNETTE * 0.45
-		bande.pointe = COL_VIGNETTE * 0.55
-		fond.add_child(bande)
+		# La ligne dessine elle-même son bandeau, son liseré de survol et la jauge
+		# qu'elle déplie : voir scripts/ligne_marchandise.gd.
+		var fond := LigneMarchandise.new()
+		fond.couleur_fond = BANDE_LIGNE
+		fond.finesse = BANDE_FINESSE
+		fond.depart_pointe = COL_VIGNETTE * 0.45
+		fond.pointe = COL_VIGNETTE * 0.55
+		fond.hauteur_ligne = HAUTEUR_VIGNETTE + 4.0
+		fond.police = _police()
 
 		var h := HBoxContainer.new()
 		h.add_theme_constant_override("separation", SEPARATION)
+		h.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		h.offset_right = -6.0
+		h.offset_bottom = HAUTEUR_VIGNETTE + 4.0
+		# La rangée ne doit pas manger les clics : c'est la ligne qui les reçoit,
+		# d'un bout à l'autre, sinon le geste s'interromprait entre deux colonnes.
+		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		fond.add_child(h)
 
 		# La case garde le gabarit de la ligne ; l'image, elle, sort de ses bords
@@ -585,15 +582,22 @@ func _batir_lignes() -> void:
 		for k in ["achat", "cale", "vente"]:
 			h.add_child(e[k])
 
-		# Une jauge plutôt que deux boutons : on tire vers la gauche pour
-		# vendre, vers la droite pour acheter, et l'échange ne se fait qu'au
-		# relâchement. Voir scripts/jauge_negoce.gd.
-		var j := JaugeNegoce.new()
-		j.police = _police()
-		j.apercu.connect(_sur_apercu.bind(e))
-		j.valide.connect(_sur_valide.bind(cle))
-		h.add_child(j)
-		e["jauge"] = j
+		fond.apercu.connect(_sur_apercu.bind(e))
+		fond.valide.connect(_sur_valide.bind(cle))
+		e["jauge"] = fond
+
+		# Un ressort a droite : sans lui la rangee se tasse a gauche, et le
+		# liseré de survol n'aurait plus de rapport avec les colonnes.
+		var ressort := Control.new()
+		ressort.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(ressort)
+
+		# Tout ce que porte la rangée laisse passer la souris jusqu'à la ligne :
+		# un PanelContainer ou un TextureRect arrête les clics par défaut, et le
+		# geste se serait interrompu chaque fois que le doigt tombe sur la plaque
+		# de tonnage ou sur la barre d'abondance. PASS et non IGNORE, pour que
+		# les infobulles continuent de s'afficher.
+		_laisser_passer(h)
 
 		_colonne.add_child(fond)
 		_lignes.append(e)
@@ -624,7 +628,7 @@ func rafraichir() -> void:
 		var en_cale := int(m.get("en_cale", 0))
 		# Une jauge qu'on tire montre l'abondance que l'échange LAISSERAIT :
 		# on ne vient donc pas réécrire par-dessus à chaque image.
-		var tire: bool = (e["jauge"] as JaugeNegoce).est_glissee()
+		var tire: bool = (e["jauge"] as LigneMarchandise).est_ouverte()
 		if not tire:
 			# Le nombre de barres vient de la simulation, pas d'un calcul refait
 			# ici : elle le déduit du facteur de prix, si bien que la jauge et le
@@ -641,8 +645,8 @@ func rafraichir() -> void:
 		# Une jauge qui ne peut rien faire doit se voir avant d'être tirée.
 		# On ne touche pas à celle qu'on est en train de glisser : ses bornes
 		# changeraient sous le doigt, et le curseur sauterait.
-		var j := e["jauge"] as JaugeNegoce
-		if not j.est_glissee():
+		var j := e["jauge"] as LigneMarchandise
+		if not j.est_ouverte():
 			j.max_achat = int(m.get("achat_max", 0))
 			j.max_vente = en_cale
 			j.queue_redraw()
@@ -650,6 +654,14 @@ func rafraichir() -> void:
 
 # Pose la vignette d'abondance et son infobulle. Deux appelants : l'affichage
 # au repos et la prévision pendant le glissé.
+func _laisser_passer(noeud: Node) -> void:
+	for enfant in noeud.get_children():
+		var c := enfant as Control
+		if c != null and c.mouse_filter == Control.MOUSE_FILTER_STOP:
+			c.mouse_filter = Control.MOUSE_FILTER_PASS
+		_laisser_passer(enfant)
+
+
 func _poser_barre(e: Dictionary, n: int, stock: int, reference: int) -> void:
 	var chemin := BARRES + "barre_%d.png" % clampi(n, 0, 4)
 	if ResourceLoader.exists(chemin):
@@ -679,10 +691,9 @@ func _nombre(n: int) -> String:
 # la première, et un prix calculé ici ne serait pas celui qu'on paierait.
 func _sur_apercu(quantite: int, e: Dictionary) -> void:
 	var cle := String(e["cle"])
-	var jauge := e["jauge"] as JaugeNegoce
+	var jauge := e["jauge"] as LigneMarchandise
 	if quantite == 0 or _sim == null:
-		jauge.texte = ""
-		jauge.queue_redraw()
+		jauge.poser_prix("")
 		return
 	# Le cours de la tonne SUIVANTE, pas la moyenne du lot.
 	#
@@ -699,9 +710,8 @@ func _sur_apercu(quantite: int, e: Dictionary) -> void:
 	var marginal := roundi(somme_q1 - somme_q)
 	# Le sens se lit déjà au côté tiré et à la couleur du remplissage ; le
 	# texte n'a pas à le répéter en entier.
-	jauge.texte = "%s %d t · %s/t" % [
-		"achat" if quantite > 0 else "vente", q, _nombre(marginal)]
-	jauge.queue_redraw()
+	jauge.poser_prix("%s %d t · %s/t" % [
+		"achat" if quantite > 0 else "vente", q, _nombre(marginal)])
 
 	# L'abondance que l'échange laisserait. Acheter vide la ville, vendre la
 	# remplit : le décalage est donc l'opposé de la quantité, dans les deux sens
