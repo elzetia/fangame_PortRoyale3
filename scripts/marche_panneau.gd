@@ -283,14 +283,15 @@ func _batir_lignes() -> void:
 		for k in ["stock", "achat", "cale", "vente"]:
 			h.add_child(e[k])
 
-		var b_a := _bouton("Acheter", 84)
-		b_a.pressed.connect(_acheter.bind(cle))
-		h.add_child(b_a)
-		var b_v := _bouton("Vendre", 78)
-		b_v.pressed.connect(_vendre.bind(cle))
-		h.add_child(b_v)
-		e["b_achat"] = b_a
-		e["b_vente"] = b_v
+		# Une jauge plutôt que deux boutons : on tire vers la gauche pour
+		# vendre, vers la droite pour acheter, et l'échange ne se fait qu'au
+		# relâchement. Voir scripts/jauge_negoce.gd.
+		var j := JaugeNegoce.new()
+		j.police = _police()
+		j.apercu.connect(_sur_apercu.bind(e))
+		j.valide.connect(_sur_valide.bind(cle))
+		h.add_child(j)
+		e["jauge"] = j
 
 		_colonne.add_child(fond)
 		_lignes.append(e)
@@ -322,24 +323,40 @@ func rafraichir() -> void:
 		var m: Dictionary = lignes[i]
 		var e: Dictionary = _lignes[i]
 		var en_cale := int(m.get("en_cale", 0))
-		# Le nombre de barres vient de la simulation, pas d'un calcul refait
-		# ici : elle le déduit du facteur de prix, si bien que la jauge et le
-		# cours ne peuvent pas se contredire à l'écran.
-		var n: int = clampi(int(m.get("barres", 0)), 0, 4)
-		var chemin_barre := BARRES + "barre_%d.png" % n
-		if ResourceLoader.exists(chemin_barre):
-			(e["barre"] as TextureRect).texture = load(chemin_barre)
-		(e["barre"] as TextureRect).tooltip_text = "%d t en ville, réserve visée %d t" % [
-			int(m.get("stock", 0)), int(m.get("reference", 0))]
-
-		(e["stock"] as Label).text = "%d t" % int(m.get("stock", 0))
+		# Une jauge qu'on tire montre l'abondance que l'échange LAISSERAIT :
+		# on ne vient donc pas réécrire par-dessus à chaque image.
+		var tire: bool = (e["jauge"] as JaugeNegoce).est_glissee()
+		if not tire:
+			# Le nombre de barres vient de la simulation, pas d'un calcul refait
+			# ici : elle le déduit du facteur de prix, si bien que la jauge et le
+			# cours ne peuvent pas se contredire à l'écran.
+			_poser_barre(e, clampi(int(m.get("barres", 0)), 0, 4),
+						 int(m.get("stock", 0)), int(m.get("reference", 0)))
+			(e["stock"] as Label).text = "%d t" % int(m.get("stock", 0))
+		e["reference"] = int(m.get("reference", 0))
+		e["stock_reel"] = int(m.get("stock", 0))
 		(e["achat"] as Label).text = "%d" % int(float(m.get("achat_lot", 0.0)))
 		(e["cale"] as Label).text = ("%d t" % en_cale) if en_cale > 0 else "—"
 		(e["vente"] as Label).text = "%d" % int(float(m.get("vente_lot", 0.0)))
 
-		# Un bouton qui ne peut rien faire doit se voir avant d'être cliqué.
-		(e["b_achat"] as Button).disabled = int(m.get("achat_max", 0)) <= 0
-		(e["b_vente"] as Button).disabled = en_cale <= 0
+		# Une jauge qui ne peut rien faire doit se voir avant d'être tirée.
+		# On ne touche pas à celle qu'on est en train de glisser : ses bornes
+		# changeraient sous le doigt, et le curseur sauterait.
+		var j := e["jauge"] as JaugeNegoce
+		if not j.est_glissee():
+			j.max_achat = int(m.get("achat_max", 0))
+			j.max_vente = en_cale
+			j.queue_redraw()
+
+
+# Pose la vignette d'abondance et son infobulle. Deux appelants : l'affichage
+# au repos et la prévision pendant le glissé.
+func _poser_barre(e: Dictionary, n: int, stock: int, reference: int) -> void:
+	var chemin := BARRES + "barre_%d.png" % clampi(n, 0, 4)
+	if ResourceLoader.exists(chemin):
+		(e["barre"] as TextureRect).texture = load(chemin)
+	(e["barre"] as TextureRect).tooltip_text = "%d t en ville, réserve visée %d t" % [
+		stock, reference]
 
 
 func _nombre(n: int) -> String:
@@ -357,26 +374,54 @@ func _nombre(n: int) -> String:
 
 # --- échanges -----------------------------------------------------------------
 
-func _quantite_pour(cle: String, sens: String) -> int:
-	if _quantite > 0:
-		return _quantite
-	# « tout » : on demande à la simulation, qui seule connaît les trois limites
-	# — ce que la ville cède, ce que la caisse permet, ce que la cale porte.
-	for m in _sim.marche(String(_port.get("cle", "")), 1):
-		if String(m.get("cle", "")) == cle:
-			return int(m.get("achat_max", 0)) if sens == "achat" else int(m.get("en_cale", 0))
-	return 0
+# Le prix affiché sous le curseur est demandé à la simulation POUR LA QUANTITÉ
+# EXACTE visée, à chaque cran. C'est plus coûteux qu'une règle de trois, et
+# c'est le but : sur un marché mince, trente tonnes ne valent pas trente fois
+# la première, et un prix calculé ici ne serait pas celui qu'on paierait.
+func _sur_apercu(quantite: int, e: Dictionary) -> void:
+	var cle := String(e["cle"])
+	var jauge := e["jauge"] as JaugeNegoce
+	if quantite == 0 or _sim == null:
+		jauge.texte = ""
+		jauge.queue_redraw()
+		return
+	# Le cours de la tonne SUIVANTE, pas la moyenne du lot.
+	#
+	# `cotation` rend un cours MOYEN : elle déplace le stock de la moitié de la
+	# quantité, et la somme due vaut ce cours fois la quantité. La moyenne
+	# masque donc ce qu'on regarde en composant un lot — jusqu'où le marché
+	# reste intéressant. Le coût du cran suivant, lui, le dit : c'est la
+	# différence des deux sommes.
+	var ville := String(_port.get("cle", ""))
+	var sens := "achat" if quantite > 0 else "vente"
+	var q := absi(quantite)
+	var somme_q: float = _sim.cotation(ville, cle, q, sens) * float(q)
+	var somme_q1: float = _sim.cotation(ville, cle, q + 1, sens) * float(q + 1)
+	var marginal := roundi(somme_q1 - somme_q)
+	# Le sens se lit déjà au côté tiré et à la couleur du remplissage ; le
+	# texte n'a pas à le répéter en entier.
+	jauge.texte = "%s %d t · %s/t" % [
+		"achat" if quantite > 0 else "vente", q, _nombre(marginal)]
+	jauge.queue_redraw()
+
+	# L'abondance que l'échange laisserait. Acheter vide la ville, vendre la
+	# remplit : le décalage est donc l'opposé de la quantité, dans les deux sens
+	# d'un seul coup. On le demande à la simulation pour que la prévision suive
+	# le même barème que l'affichage au repos.
+	var laisse := int(e.get("stock_reel", 0)) - quantite
+	_poser_barre(e, _sim.barres(ville, cle, -quantite),
+				 maxi(laisse, 0), int(e.get("reference", 0)))
+	(e["stock"] as Label).text = "%d t" % maxi(laisse, 0)
 
 
-func _acheter(cle: String) -> void:
-	_annoncer(_sim.acheter(String(_port.get("cle", "")), cle,
-						   _quantite_pour(cle, "achat")), cle, "Acheté", "payées")
-	rafraichir()
-
-
-func _vendre(cle: String) -> void:
-	_annoncer(_sim.vendre(String(_port.get("cle", "")), cle,
-						  _quantite_pour(cle, "vente")), cle, "Vendu", "reçues")
+# Au relâchement seulement : c'est là que l'échange se fait.
+func _sur_valide(quantite: int, cle: String) -> void:
+	if quantite > 0:
+		_annoncer(_sim.acheter(String(_port.get("cle", "")), cle, quantite),
+				  cle, "Acheté", "payées")
+	else:
+		_annoncer(_sim.vendre(String(_port.get("cle", "")), cle, -quantite),
+				  cle, "Vendu", "reçues")
 	rafraichir()
 
 

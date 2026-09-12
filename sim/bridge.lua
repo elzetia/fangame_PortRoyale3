@@ -207,6 +207,25 @@ function Bridge.marche(cle_ville, lot)
 end
 
 
+-- Le cours À L'UNITÉ pour un lot de cette taille.
+--
+-- `Economie.cotation` déplace le stock de la MOITIÉ de la quantité : le chiffre
+-- qu'elle rend est donc un cours moyen sur le lot, et `Economie.acheter` le
+-- multiplie ensuite par la quantité. Le comptoir a besoin de deux tailles
+-- voisines pour en tirer le coût de la tonne SUIVANTE, qui est le chiffre qu'un
+-- négociant regarde en composant son lot.
+function Bridge.cotation(cle_ville, cle_m, quantite, sens)
+  return Economie.cotation(cle_ville, cle_m, quantite, sens) or 0
+end
+
+
+-- Les barres d'abondance d'une denrée, le stock décalé de `delta`. Sert à
+-- montrer ce que l'échange en cours de composition laisserait à la ville.
+function Bridge.barres(cle_ville, cle_m, delta)
+  return Economie.barres(cle_ville, cle_m, delta or 0)
+end
+
+
 function Bridge.etat_compagnie()
   local d = Dictionary()
   d.or_       = math.floor(Compagnie.or_ + 0.5)

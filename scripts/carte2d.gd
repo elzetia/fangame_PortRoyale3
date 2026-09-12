@@ -10,6 +10,7 @@ const CHEMIN_CARTE := "res://carte_cuite.png"
 const CHEMIN_FICHE := "res://carte_cuite.json"
 const CHEMIN_MER := "res://carte_cuite_mer.png"
 const RAYON_CLIC_PORT := 90.0        # en mètres monde
+const MARGE_CLIC := 8.0              # en pixels de carte, autour du dessin
 
 var sim: Sim
 var proj: ProjectionCarte
@@ -58,6 +59,8 @@ var _a_glisse := false
 var _mode_edition := false
 var _port_saisi: Dictionary = {}
 var _saisie_image := false      # on déplace l'image, pas le point réel
+var _charge := false         # le démarrage est-il terminé ?
+var _tex_ombre: ImageTexture
 var _rects_villes := {}         # rectangle dessiné de chaque village, pour le saisir
 var _message := ""
 var _message_fin := 0.0
@@ -71,15 +74,30 @@ var _marchands: Array = []
 
 
 func _ready() -> void:
+	# L'écran de chargement d'abord, et UNE image laissée au moteur avant de
+	# commencer : sans elle, tout le démarrage retomberait dans la même image
+	# et l'écran n'apparaîtrait jamais. Voir scripts/chargement.gd.
+	var ecran := Chargement.new()
+	add_child(ecran)
+	await get_tree().process_frame
+
+	const ETAPES := 8
+
+	await ecran.avancer("Simulation économique", 0, ETAPES)
 	sim = Sim.new()
 	if not sim.pret:
 		push_error("Simulation Lua absente : %s" % sim.erreur)
+		ecran.queue_free()
 		return
+
+	await ecran.avancer("Grille de navigation", 1, ETAPES)
 	sim.preparer_navigation()
 
+	await ecran.avancer("Fiche de projection", 2, ETAPES)
 	proj = ProjectionCarte.new(CHEMIN_FICHE)
 	if not proj.valide:
 		push_error(proj.erreur + "  (lance d'abord la cuisson de la carte)")
+		ecran.queue_free()
 		return
 
 	_police = ThemeDB.fallback_font
@@ -88,20 +106,36 @@ func _ready() -> void:
 	# doux. Le filtrage les ramène au même niveau de détail.
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 
+	await ecran.avancer("Vignettes des villes", 3, ETAPES)
 	_villes = Villes.new()
+
+	await ecran.avancer("Illustration de la carte", 4, ETAPES)
+	_creer_ombre()
+	_creer_fond_mer()
 	_creer_carte()
+
+	await ecran.avancer("Nappe animée et nuages", 5, ETAPES)
 	_creer_mer()
+
+	await ecran.avancer("Villes et mouillages", 6, ETAPES)
 	# Les ports AVANT la caméra : c'est elle qui calcule les bornes de zoom, et
 	# la borne du plus près se mesure sur deux d'entre eux.
 	ports = sim.ports()
 	_creer_camera()
 	_placer_navire()
+
+	await ecran.avancer("Habillage et ambiance", 7, ETAPES)
 	_creer_hud()
 	# Le ressac et la musique. Un noeud a part : il ne dépend de rien d'autre
 	# que de lui-même, et continue de tourner quand le jeu est en pause.
 	add_child(Ambiance.new())
 	_comptoir = MarchePanneau.new()
 	add_child(_comptoir)
+
+	await ecran.avancer("Prêt", 8, ETAPES)
+	ecran.queue_free()
+	_charge = true
+
 	_diagnostic_marche()
 	_capture_auto()
 
@@ -275,6 +309,47 @@ func _diagnostic_troc() -> void:
 					meilleure["nom"], cle, l["stock"], l["achat"], l["vente"]])
 
 
+# Le fond de mer : un aplat sous l'illustration.
+#
+# L'illustration ne peint plus le large — `outils/carte_eau.py` l'a rendu à la
+# nappe animée, qui se dessine par-dessus mais n'est pas opaque. Sans rien
+# derrière, on verrait le fond de la fenêtre à travers l'eau. Cet aplat est
+# exactement la couleur que l'illustration portait là : à l'oeil, rien n'a
+# changé; c'est la texture au pinceau qui a disparu sous le mouvement.
+# L'ombre de contact des villages, en TEXTURE.
+#
+# Trois cercles empilés se lisaient comme trois cercles : des bords nets et
+# deux marches de gris. Dix cercles donnaient bien une pente lisse, mais
+# `draw_circle` est cher — à soixante villages, dix cercles chacun coûtaient
+# 33 ms PAR IMAGE, mesuré, contre 15 ms pour trois. Un tiers du budget pour une
+# ombre.
+#
+# Le dégradé est donc calculé une seule fois dans une petite image, et chaque
+# village n'en fait plus qu'un `draw_texture_rect`. L'écrasement vertical vient
+# du rectangle lui-même, ce qui évite même le `draw_set_transform`.
+func _creer_ombre() -> void:
+	const N := 64
+	var img := Image.create(N, N, false, Image.FORMAT_RGBA8)
+	var r := (N - 1) * 0.5
+	for y in N:
+		for x in N:
+			var d := Vector2(x - r, y - r).length() / r
+			# Chute quadratique : un bord franc se verrait comme un disque.
+			var a: float = clampf(1.0 - d, 0.0, 1.0)
+			img.set_pixel(x, y, Color(0.05, 0.04, 0.03, a * a * OMBRE_ALPHA))
+	_tex_ombre = ImageTexture.create_from_image(img)
+
+
+func _creer_fond_mer() -> void:
+	var fond := ColorRect.new()
+	fond.position = Vector2.ZERO
+	fond.size = Vector2(proj.pixels)
+	fond.color = proj.mer_fond
+	fond.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fond.z_index = -11          # sous l'illustration, qui est à -10
+	add_child(fond)
+
+
 func _creer_carte() -> void:
 	var tex: Texture2D = load(CHEMIN_CARTE)
 	if tex == null:
@@ -372,6 +447,12 @@ const LOIN_JUSQUA := "port_royale"
 # différent du précédent, qui donnait l'impression de zoomer pour rien. On
 # descend donc la borne sur le dernier pas ENTIER depuis le dézoom maximal.
 const PAS_ZOOM := 1.12
+
+# L'alpha au centre de l'ombre de contact des villages.
+const OMBRE_ALPHA := 0.34
+
+# Combien d'événements de glissé à deux doigts valent un cran de molette.
+const CRANS_PAR_GESTE := 4.0
 
 # Déplacement de la caméra au clavier et à la souris.
 #
@@ -518,13 +599,11 @@ func _dessiner_port(port: Dictionary) -> void:
 		# Ombre de contact : un objet qui n'en projette pas a toujours l'air
 		# collé sur l'image. Elle est décalée vers le bas-droite, comme les
 		# ombres du terrain, dont le soleil vient du haut-gauche.
-		var pied := coin + Vector2(taille.x * 0.5, taille.y * 0.94)
-		for k in 3:
-			var rayon := taille.x * (0.46 - 0.11 * k)
-			draw_set_transform(pied + Vector2(taille.x * 0.05, 0.0), 0.0,
-							   Vector2(1.0, 0.34))
-			draw_circle(Vector2.ZERO, rayon, Color(0.05, 0.04, 0.03, 0.13))
-			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		var pied := coin + Vector2(taille.x * 0.55, taille.y * 0.94)
+		var lo := taille.x
+		var ht := lo * 0.34
+		draw_texture_rect(_tex_ombre,
+				Rect2(pied - Vector2(lo * 0.5, ht * 0.5), Vector2(lo, ht)), false)
 
 		# Teinte légèrement rabattue : le rendu généré est plus saturé et plus
 		# contrasté que le terrain cuit, et ressort trop sans ça.
@@ -796,6 +875,11 @@ func _dessiner_navire() -> void:
 # --- boucle -------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	# Pendant le chargement, `sim` et `proj` n'existent pas encore : rien ici
+	# ne doit tourner. Le garde est en TÊTE parce que la première ligne utile
+	# interroge déjà `sim`.
+	if not _charge:
+		return
 	_besoins_delai -= delta
 	if _besoins_delai <= 0.0:
 		_besoins_delai = 1.5
@@ -826,15 +910,54 @@ func _process(delta: float) -> void:
 
 
 func _maj_survol() -> void:
-	_port_survole = {}
-	var monde := proj.vers_monde(get_global_mouse_position())
-	var meilleure := RAYON_CLIC_PORT
+	_port_survole = _port_sous(get_global_mouse_position())
+
+
+# Le port désigné par un point de la carte, ou un dictionnaire vide.
+#
+# On vise l'IMAGE du village, pas son point. Le bourg est une convention
+# interne — le joueur ne le voit jamais. Ce qu'il voit, c'est un village
+# dessiné, et c'est dessus qu'il clique. L'ancien rayon était centré sur le
+# bourg alors que le sprite est posé EN DÉCALÉ par rapport à lui (`ancrages`) :
+# il fallait donc viser à côté du dessin pour attraper la ville.
+#
+# La décision est séparée de la souris pour qu'une sonde puisse l'interroger
+# sur un point choisi, sans piloter le curseur.
+func _port_sous(pos: Vector2) -> Dictionary:
+	if not _villes.vide():
+		var trouve := {}
+		var plus_pres := INF
+		for port in ports:
+			# L'emprise ÉLARGIE : le sprite ne fait qu'une dizaine de pixels
+			# et il est posé sur la terre, donc viser juste à côté est la
+			# règle. La marge rend la cible atteignable sans ramener le
+			# défaut d'origine, puisqu'elle reste centrée sur le DESSIN et
+			# non sur le point.
+			var r: Rect2 = _villes.emprise(proj, port).grow(MARGE_CLIC)
+			if r.has_point(pos):
+				# Deux villages peuvent se chevaucher : on prend celui dont le
+				# centre est le plus près du point.
+				var d := r.get_center().distance_to(pos)
+				if d < plus_pres:
+					plus_pres = d
+					trouve = port
+		return trouve
+
+	# Pas de sprites chargés : le point redevient la seule cible possible.
+	return _port_proche(proj.vers_monde(pos), RAYON_CLIC_PORT)
+
+
+# Le port dont le bourg est le plus proche d'un point du MONDE, dans un rayon.
+func _port_proche(monde: Vector2, rayon: float) -> Dictionary:
+	var trouve := {}
+	var meilleure := rayon
 	for port in ports:
 		var b: Vector3 = port["bourg"]
 		var d := monde.distance_to(Vector2(b.x, b.z))
 		if d < meilleure:
 			meilleure = d
-			_port_survole = port
+			trouve = port
+	return trouve
 
 
 # --- entrées ------------------------------------------------------------------
@@ -871,6 +994,21 @@ func _unhandled_input(e: InputEvent) -> void:
 			MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE:
 				_glisse = e.pressed
 				_a_glisse = e.pressed
+	# Le trackpad ne parle PAS la langue de la molette. Sur macOS, Godot rend
+	# le glissé à deux doigts comme un InputEventPanGesture et le pincement
+	# comme un InputEventMagnifyGesture : aucun des deux n'est un bouton de
+	# souris. Sans ces deux branches, un Mac sans souris ne peut pas zoomer du
+	# tout — et rien ne le dit, puisque la carte réagit au reste.
+	elif e is InputEventMagnifyGesture:
+		# `factor` est déjà une échelle : on la passe telle quelle.
+		_zoomer(e.factor)
+	elif e is InputEventPanGesture:
+		# Le glissé à deux doigts tient le rôle de la molette. Il arrive en
+		# rafale de petits deltas, là où la molette arrive par crans : on prend
+		# donc une fraction de cran par événement, sinon deux doigts traversent
+		# toute la plage de zoom d'un coup.
+		if absf(e.delta.y) > 0.0:
+			_zoomer(pow(PAS_ZOOM, -e.delta.y / CRANS_PAR_GESTE))
 	elif e is InputEventMouseMotion and not _port_saisi.is_empty():
 		var m := proj.vers_monde(get_global_mouse_position())
 		var cle: String = _port_saisi["cle"]
@@ -898,6 +1036,8 @@ func _unhandled_input(e: InputEvent) -> void:
 		match e.keycode:
 			KEY_SPACE: sim.basculer_pause()
 			KEY_1, KEY_2, KEY_3, KEY_4: sim.definir_vitesse(e.keycode - KEY_0)
+			KEY_EQUAL, KEY_PLUS, KEY_KP_ADD: _zoomer(PAS_ZOOM)
+			KEY_MINUS, KEY_KP_SUBTRACT: _zoomer(1.0 / PAS_ZOOM)
 			KEY_R: _cam.position = proj.vers_carte(navire.position.x, navire.position.y)
 			KEY_M:
 				var quai := _port_a_quai()
@@ -971,22 +1111,42 @@ func _zoomer(facteur: float) -> void:
 
 
 func _clic_gauche() -> void:
-	var cible: Vector2
-	if not _port_survole.is_empty():
-		var rade: Vector3 = _port_survole["rade"]
+	var port := _port_survole
+	var cible := Vector2.ZERO
+
+	if port.is_empty():
+		var monde := proj.vers_monde(get_global_mouse_position())
+		if sim.est_terre(monde.x, monde.y, 30.0):
+			# Cliquer sur la terre ne peut pas être un non-événement.
+			#
+			# Le survol vise l'image du village, au pixel — c'est ce qu'on veut
+			# pour désigner. Mais un village est DESSINÉ sur la terre et ne fait
+			# qu'une dizaine de pixels : mesuré, 83 % des clics autour d'un
+			# village tombaient à terre, donc dans un `return` muet. Le joueur
+			# voyait un bateau qui refuse de partir sans qu'on lui dise pourquoi.
+			# On rattrape donc le mouillage le plus proche, et à défaut on parle.
+			port = _port_proche(monde, RAYON_CLIC_PORT)
+			if port.is_empty():
+				_noter("Pas de mouillage ici : clique sur la mer ou sur un port.")
+				return
+		else:
+			cible = monde
+
+	if not port.is_empty():
+		var rade: Vector3 = port["rade"]
 		cible = Vector2(rade.x, rade.z)
 		if navire.position.distance_to(cible) < 40.0:
-			return
-	else:
-		cible = proj.vers_monde(get_global_mouse_position())
-		if sim.est_terre(cible.x, cible.y, 30.0):
 			return
 
 	var route := sim.route(Vector3(navire.position.x, 0, navire.position.y),
 						   Vector3(cible.x, 0, cible.y))
 	if route.is_empty():
+		# Trois mouillages sont enclos dans une eau que l'illustration peint
+		# fermée (Maracaïbo, Gibraltar, Port-d'Espagne) : sans ce message, le
+		# navire semblait simplement désobéir.
+		_noter("Aucune route maritime jusque-là.")
 		return
-	navire.cap_sur(route, _port_survole)
+	navire.cap_sur(route, port)
 
 
 # L'horloge ne s'arrête JAMAIS toute seule, ni à l'arrivée ni à l'ouverture du
