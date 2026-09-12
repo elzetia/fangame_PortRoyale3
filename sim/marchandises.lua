@@ -34,42 +34,47 @@ Marchandises.CATEGORIES = {
   manufactures = "Produits manufacturés",
 }
 
+-- L'ORDRE EST CELUI DE PORT ROYALE 3, relevé dans le jeu. Ce n'est ni l'ordre
+-- alphabétique ni un classement par catégorie : il suit la logique du joueur,
+-- des matériaux bruts vers les produits finis, en gardant voisines les denrées
+-- qu'on achète ensemble. Le comptoir affiche la liste telle quelle, donc qui
+-- connaît PR3 retrouve ses lignes au même rang.
+--
+-- Les catégories restent posées sur chaque ligne : elles servent aux règles,
+-- pas au rangement.
 Marchandises.liste = {
+  { cle = "bois",      nom = "Bois",        prix =  33, categorie = "matieres",     conso = 1.375 },
+  { cle = "briques",   nom = "Briques",     prix =  33, categorie = "matieres",     conso = 2.750 },
   { cle = "ble",       nom = "Blé",         prix =  33, categorie = "vivres",       conso = 2.750 },
   { cle = "fruits",    nom = "Fruits",      prix =  50, categorie = "vivres",       conso = 2.200 },
   { cle = "mais",      nom = "Maïs",        prix =  50, categorie = "vivres",       conso = 1.100 },
-  { cle = "viande",    nom = "Viande",      prix = 300, categorie = "vivres",       conso = 0.550,
-    recette = { { "mais", 2 } } },
-  { cle = "pain",      nom = "Pain",        prix = 142, categorie = "vivres",       conso = 1.100,
-    recette = { { "ble", 1 }, { "mais", 1 } } },
-
-  { cle = "bois",      nom = "Bois",        prix =  33, categorie = "matieres",     conso = 1.375 },
-  { cle = "briques",   nom = "Briques",     prix =  33, categorie = "matieres",     conso = 2.750 },
-  { cle = "chanvre",   nom = "Chanvre",     prix =  50, categorie = "matieres",     conso = 1.100 },
-  { cle = "coton",     nom = "Coton",       prix =  50, categorie = "matieres",     conso = 1.100 },
-  { cle = "metal",     nom = "Métal",       prix =  83, categorie = "matieres",     conso = 0.550 },
-
   { cle = "sucre",     nom = "Sucre",       prix =  50, categorie = "coloniales",   conso = 1.100 },
-  { cle = "tabac",     nom = "Tabac",       prix = 100, categorie = "coloniales",   conso = 0.715 },
+  { cle = "chanvre",   nom = "Chanvre",     prix =  50, categorie = "matieres",     conso = 1.100 },
+  { cle = "tissu",     nom = "Tissu",       prix = 150, categorie = "manufactures", conso = 0.550,
+    recette = { { "coton", 2 } } },
+  { cle = "metal",     nom = "Métal",       prix =  83, categorie = "matieres",     conso = 0.550 },
+  { cle = "coton",     nom = "Coton",       prix =  50, categorie = "matieres",     conso = 1.100 },
+  { cle = "outils",    nom = "Outils",      prix = 200, categorie = "manufactures", conso = 0.550,
+    recette = { { "bois", 1 }, { "metal", 2 } } },
   -- TEINTURE, pas épice. Je l'avais nommée "Épices" parce que la vignette de
   -- PR3 s'appelle `spices.png`, et le tableau de consommation de l'utilisateur
   -- disait "Teinture" -- doute laissé ouvert pendant des jours. Sa table de
   -- textes tranche : ID_GUI_GOOD_11 vaut "Teintures". C'est l'indigo et la
   -- cochenille des colonies, et c'est ce que New Orleans produit.
   { cle = "teinture",  nom = "Teintures",   prix = 100, categorie = "coloniales",   conso = 0.330 },
-  { cle = "cacao",     nom = "Cacao",       prix = 140, categorie = "coloniales",   conso = 0.715 },
   { cle = "cafe",      nom = "Café",        prix = 140, categorie = "coloniales",   conso = 0.715 },
-
-  { cle = "tissu",     nom = "Tissu",       prix = 150, categorie = "manufactures", conso = 0.550,
-    recette = { { "coton", 2 } } },
-  { cle = "cordage",   nom = "Cordage",     prix = 150, categorie = "manufactures", conso = 1.100,
-    recette = { { "chanvre", 2 } } },
-  { cle = "outils",    nom = "Outils",      prix = 200, categorie = "manufactures", conso = 0.550,
-    recette = { { "bois", 1 }, { "metal", 2 } } },
-  { cle = "rhum",      nom = "Rhum",        prix = 267, categorie = "manufactures", conso = 0.550,
-    recette = { { "sucre", 1 }, { "bois", 0.5 } } },
+  { cle = "cacao",     nom = "Cacao",       prix = 140, categorie = "coloniales",   conso = 0.715 },
+  { cle = "tabac",     nom = "Tabac",       prix = 100, categorie = "coloniales",   conso = 0.715 },
+  { cle = "viande",    nom = "Viande",      prix = 300, categorie = "vivres",       conso = 0.550,
+    recette = { { "mais", 2 } } },
   { cle = "vetements", nom = "Vêtements",   prix = 450, categorie = "manufactures", conso = 0.550,
     recette = { { "tissu", 1 }, { "teinture", 1 } } },
+  { cle = "cordage",   nom = "Cordage",     prix = 150, categorie = "manufactures", conso = 1.100,
+    recette = { { "chanvre", 2 } } },
+  { cle = "rhum",      nom = "Rhum",        prix = 267, categorie = "manufactures", conso = 0.550,
+    recette = { { "sucre", 1 }, { "bois", 0.5 } } },
+  { cle = "pain",      nom = "Pain",        prix = 142, categorie = "vivres",       conso = 1.100,
+    recette = { { "ble", 1 }, { "mais", 1 } } },
 }
 
 -- Ordre de FABRICATION : les matières premières d'abord, puis ce qui les

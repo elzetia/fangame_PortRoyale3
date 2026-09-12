@@ -24,33 +24,36 @@ Relevées d'un bloc dans `PortRoyale3.exe`, avec leurs noms internes :
 
 | # | Interne | Français | Produit à partir de |
 |---|---|---|---|
-| 0 | `wood` | Bois | — |
-| 1 | `bricks` | Briques | — |
-| 2 | `grain` | Blé | — |
-| 3 | `hemp` | Chanvre | — |
-| 4 | `cloth` | Textile | Coton |
-| 5 | `ropes` | Cordes | Chanvre |
-| 6 | `tabacco` *(sic)* | Tabac | — |
-| 7 | `sugar` | Sucre | — |
-| 8 | `tools` | Objets métal | Bois + Métal |
-| 9 | `bread` | Pain | Blé + Sucre |
-| 10 | `dyestuffs` | Teinture | — |
-| 11 | `coffee` | Café | Objets métal (peu) |
-| 12 | `fruits` | Fruits | — |
-| 13 | `clothes` | Vêtements | Textile + Teinture |
-| 14 | `corn` | Maïs | — |
-| 15 | `metals` | Métal | Bois |
-| 16 | `cotton` | Coton | — |
-| 17 | `meat` | Viande | Maïs |
-| 18 | `rum` | Rhum | Bois + Sucre |
-| 19 | `cocoa` | Cacao | Objets métal (peu) |
+| 1 | `wood` | Bois | — |
+| 2 | `bricks` | Briques | — |
+| 3 | `grain` | Blé | — |
+| 4 | `fruits` | Fruits | — |
+| 5 | `corn` | Maïs | — |
+| 6 | `sugar` | Sucre | — |
+| 7 | `hemp` | Chanvre | — |
+| 8 | `cloth` | Textile | Coton |
+| 9 | `metals` | Métal | Bois |
+| 10 | `cotton` | Coton | — |
+| 11 | `tools` | Objets métal | Bois + Métal |
+| 12 | `dyestuffs` | Teinture | — |
+| 13 | `coffee` | Café | Objets métal (peu) |
+| 14 | `cocoa` | Cacao | Objets métal (peu) |
+| 15 | `tabacco` *(sic)* | Tabac | — |
+| 16 | `meat` | Viande | Maïs |
+| 17 | `clothes` | Vêtements | Textile + Teinture |
+| 18 | `ropes` | Cordes | Chanvre |
+| 19 | `rum` | Rhum | Bois + Sucre |
+| 20 | `bread` | Pain | Blé + Sucre |
 
-Les noms sont sûrs, l'**ordre ne l'est pas** : ils apparaissent dans l'exe en
-ordre inverse de cette table, ce qui est le comportement habituel d'un
-compilateur pour des littéraux déclarés à la suite. L'ordre restitué ici est donc
-l'ordre de déclaration le plus probable, et il est cohérent (matières premières
-d'abord). À vérifier si un index précis devient important ; pour la simulation,
-il ne l'est pas.
+**L'ordre est celui du jeu**, relevé à l'écran par le joueur — pas celui que
+j'avais déduit de l'exécutable. Les noms internes s'y trouvent bien en un bloc,
+mais leur rang dans le binaire ne dit pas leur rang dans l'interface : j'avais
+supposé un ordre de déclaration inverse, ce qui plaçait Cordes en cinquième et
+Pain en dixième. La liste ci-dessus les remet où PR3 les montre.
+
+Elle ne suit ni l'alphabet ni les catégories : elle va des matériaux bruts aux
+produits finis en gardant voisines les denrées qu'on achète ensemble. C'est
+l'ordre de `sim/marchandises.lua`, et donc celui du comptoir.
 
 Dix marchandises poussent sans rien consommer, dix sont transformées. Aucune
 chaîne ne fait plus de deux étages.
