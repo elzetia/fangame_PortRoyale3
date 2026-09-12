@@ -54,6 +54,7 @@ var _barre_vitesse: BarreVitesse
 # carte, et ses chiffres restent lisibles.
 const ECHELLE_VITESSE := 0.5
 const MARGE_VITESSE := Vector2(10, 6)
+const MARGE_FICHE := Vector2(12, 10)
 
 var _glisse := false
 var _clic_depart := Vector2.ZERO
@@ -1343,20 +1344,25 @@ func _creer_hud() -> void:
 	_lbl_message.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	couche.add_child(_lbl_message)
 
-	var barre := PanelContainer.new()
-	barre.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	barre.offset_top = -70
-	barre.add_theme_stylebox_override("panel", _style(bois))
-	couche.add_child(barre)
-
-	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 18)
-	barre.add_child(hb)
+	# La fiche du navire : une petite carte dans le coin, et non plus un bandeau
+	# qui barre l'écran. Un fond pleine largeur coûtait soixante-dix pixels de
+	# mer sur toute la largeur pour n'y porter que deux lignes de texte, et la
+	# carte est ce qu'on est venu regarder.
+	#
+	# Elle se dimensionne sur son contenu : ancrée par son coin bas-gauche, on ne
+	# lui fixe que ses marges de ce côté-là et le PanelContainer trouve le reste.
+	var fiche := PanelContainer.new()
+	fiche.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	fiche.grow_horizontal = Control.GROW_DIRECTION_END
+	fiche.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	fiche.offset_left = MARGE_FICHE.x
+	fiche.offset_bottom = -MARGE_FICHE.y
+	fiche.add_theme_stylebox_override("panel", _style(bois))
+	couche.add_child(fiche)
 
 	var infos := VBoxContainer.new()
-	infos.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	infos.add_theme_constant_override("separation", 2)
-	hb.add_child(infos)
+	fiche.add_child(infos)
 
 	var nom := Label.new()
 	nom.text = "Sloop « Aurore »"
@@ -1368,23 +1374,6 @@ func _creer_hud() -> void:
 	_lbl_statut.add_theme_font_size_override("font_size", 14)
 	_lbl_statut.add_theme_color_override("font_color", Color(0.84, 0.70, 0.32))
 	infos.add_child(_lbl_statut)
-
-	# « Infos ville » avant les vitesses : c'est un bouton qu'on presse en
-	# regardant la carte, pas en réglant l'horloge.
-	var b_infos := Button.new()
-	b_infos.text = "Infos ville"
-	b_infos.custom_minimum_size = Vector2(110, 36)
-	b_infos.focus_mode = Control.FOCUS_NONE
-	b_infos.tooltip_text = "La ville à quai, ou la plus proche (touche I)"
-	b_infos.pressed.connect(func() -> void: _ouvrir_infos_ville(_ville_regardee()))
-	hb.add_child(b_infos)
-
-	# La planche du temps se pose PAR-DESSUS ce bandeau, dans le coin. On lui
-	# réserve donc sa largeur, sinon elle recouvre le bouton qu'on vient de
-	# poser — et un bouton masqué est un bouton perdu.
-	var place := Control.new()
-	place.custom_minimum_size.x = BarreVitesse.TAILLE_SOURCE.x * ECHELLE_VITESSE
-	hb.add_child(place)
 
 	# La barre du temps ne vit plus dans le bandeau du bas : elle a sa propre
 	# planche, posée par-dessus, dans le coin. Les feuilles de palmier qui la
