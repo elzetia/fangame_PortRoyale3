@@ -85,6 +85,12 @@ function Bridge.ports()
     -- Le rendu s'en sert pour hierarchiser les etiquettes, qui a soixante ports
     -- se recouvriraient toutes.
     d.taille       = port.taille or 1
+    -- Les CINQ marchandises que la ville produit, dans l'ordre de PR3. Le
+    -- panneau d'infos les aligne telles quelles : c'est la carte d'identité
+    -- économique du port, et elle ne change jamais en cours de partie.
+    local prod = Array()
+    for _, cle in ipairs(port.produits or {}) do prod:append(cle) end
+    d.produits     = prod
     local dec = port.decalage or { 0, 0 }
     d.decalage     = Vector2(dec[1], dec[2])
     d.bourg        = Vector3(bx, 0, bz)
@@ -325,6 +331,19 @@ function Bridge.etat_ville(cle_ville)
   if not v then return d end
   d.habitants   = math.floor(v.habitants + 0.5)
   d.subsistance = v.subsistance or 1.0
+
+  -- La tendance, pas la vitesse : le panneau ne montre qu'une flèche. Le seuil
+  -- est celui de `jour()` — 97 % des besoins vitaux couverts — et il doit rester
+  -- le même des deux côtés, sinon la flèche verte accompagne une ville qui se
+  -- vide. On ne recopie pas le nombre : on redemande le signe au même endroit.
+  local pire = v.subsistance or 1.0
+  d.tendance = (pire > 0.97 and 1) or (pire < 0.97 and -1) or 0
+
+  local dem = Economie.demographie(cle_ville)
+  d.ouvriers   = dem.ouvriers
+  d.fabriques  = dem.fabriques
+  d.maisons    = dem.maisons
+  d.occupation = dem.occupation
   return d
 end
 

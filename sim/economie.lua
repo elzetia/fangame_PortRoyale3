@@ -378,6 +378,62 @@ function Economie.ville(cle)
 end
 
 
+-- Emplois, fabriques et logements — tout se déduit du nombre d'habitants.
+--
+-- Port Royale 3 donne ses trois chiffres lui-même, dans son tutoriel :
+--
+--   « Chaque manufacture créant 25 emplois, et chaque emploi apportant 4
+--     nouveaux citoyens à la ville, la construction de vos Plantations de coton
+--     a accru la population de Port Royale de 200 personnes. »
+--
+-- Deux plantations, 25 emplois chacune, quatre citoyens par emploi : 200. Le
+-- compte tombe juste, donc les deux constantes sont sûres. Une fabrique porte
+-- ainsi cent habitants, ouvrier et famille compris.
+--
+--   « Il faut pour chaque manufacture construire un immeuble qui logera les
+--     ouvriers. Les marchands d'une ville construisent toujours de nouvelles
+--     maisons lorsque les maisons existantes sont remplies à 80%. »
+--
+-- D'où le calcul du logement : on pose le plus petit nombre de maisons qui tient
+-- la ville sous les 80 %. C'est ce seuil qui fait osciller le taux d'occupation
+-- au lieu de le coller à 100 — une ville qui grandit franchit 80 %, une maison
+-- sort de terre, et le taux retombe. Le chiffre affiché n'est donc pas cosmétique :
+-- c'est la place qui reste avant la prochaine construction.
+--
+-- Rien de tout cela n'est simulé bâtiment par bâtiment. La population reste la
+-- seule variable d'état ; ces trois nombres en sont des lectures, et c'est
+-- exactement le rapport qu'entretient PR3 entre sa démographie et ses murs.
+Economie.EMPLOIS_PAR_FABRIQUE = 25
+Economie.CITOYENS_PAR_EMPLOI  = 4
+Economie.LOGES_PAR_MAISON     = 100     -- 25 × 4 : une maison par manufacture
+Economie.SEUIL_CONSTRUCTION   = 0.80    -- au-delà, les marchands rebâtissent
+
+function Economie.demographie(cle)
+  local v = Economie.ville(cle)
+  local h = v and v.habitants or 0
+  if h < 1 then
+    return { habitants = 0, ouvriers = 0, fabriques = 0, maisons = 0, occupation = 0.0 }
+  end
+
+  local ouvriers  = math.floor(h / Economie.CITOYENS_PAR_EMPLOI + 0.5)
+  local fabriques = math.floor(ouvriers / Economie.EMPLOIS_PAR_FABRIQUE + 0.5)
+  if fabriques < 1 then fabriques = 1 end
+
+  -- Le plus petit nombre de maisons qui garde la ville sous le seuil.
+  local par_maison = Economie.LOGES_PAR_MAISON * Economie.SEUIL_CONSTRUCTION
+  local maisons = math.ceil(h / par_maison)
+  if maisons < 1 then maisons = 1 end
+
+  return {
+    habitants  = math.floor(h + 0.5),
+    ouvriers   = ouvriers,
+    fabriques  = fabriques,
+    maisons    = maisons,
+    occupation = h / (maisons * Economie.LOGES_PAR_MAISON),
+  }
+end
+
+
 -- Prix unitaire moyen d'une transaction.
 --
 -- On évalue le cours au stock MOYEN pendant l'échange, et non au stock de

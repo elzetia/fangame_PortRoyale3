@@ -67,6 +67,7 @@ var _message_fin := 0.0
 
 # Le comptoir, ouvert quand le navire est a quai.
 var _comptoir: MarchePanneau
+var _infos_ville: VillePanneau
 
 # Les cinq marchands des nations, relus à chaque image : ils bougent tout
 # seuls, y compris pendant que le joueur regarde ailleurs.
@@ -131,6 +132,9 @@ func _ready() -> void:
 	add_child(Ambiance.new())
 	_comptoir = MarchePanneau.new()
 	add_child(_comptoir)
+	_infos_ville = VillePanneau.new()
+	add_child(_infos_ville)
+	_infos_ville.poser_villes(_villes)
 
 	await ecran.avancer("Prêt", 8, ETAPES)
 	ecran.queue_free()
@@ -1045,6 +1049,8 @@ func _unhandled_input(e: InputEvent) -> void:
 					_noter("Il faut être à quai pour visiter le comptoir.")
 				else:
 					_ouvrir_comptoir(quai)
+			KEY_I:
+				_ouvrir_infos_ville(_ville_regardee())
 			KEY_F2:
 				_mode_edition = not _mode_edition
 				_port_saisi = {}
@@ -1175,6 +1181,24 @@ func _ouvrir_comptoir(port: Dictionary) -> void:
 	_comptoir.ouvrir(sim, port)
 
 
+# La ville dont on parle quand le joueur demande « infos ville » : celle où il
+# est à quai, sinon la plus proche. Le comptoir, lui, exige d'être à quai —
+# on n'achète qu'au port. Mais regarder une ville de loin ne coûte rien, et
+# s'en priver obligerait à naviguer pour décider si le voyage vaut la peine.
+func _ville_regardee() -> Dictionary:
+	var quai := _port_a_quai()
+	return quai if not quai.is_empty() else _port_le_plus_proche()
+
+
+func _ouvrir_infos_ville(port: Dictionary) -> void:
+	if _infos_ville == null:
+		return
+	if port.is_empty():
+		_noter("Aucune ville en vue.")
+		return
+	_infos_ville.ouvrir(sim, port)
+
+
 # --- HUD ----------------------------------------------------------------------
 
 func _creer_hud() -> void:
@@ -1241,6 +1265,16 @@ func _creer_hud() -> void:
 	_lbl_statut.add_theme_font_size_override("font_size", 14)
 	_lbl_statut.add_theme_color_override("font_color", Color(0.84, 0.70, 0.32))
 	infos.add_child(_lbl_statut)
+
+	# « Infos ville » avant les vitesses : c'est un bouton qu'on presse en
+	# regardant la carte, pas en réglant l'horloge.
+	var b_infos := Button.new()
+	b_infos.text = "Infos ville"
+	b_infos.custom_minimum_size = Vector2(110, 36)
+	b_infos.focus_mode = Control.FOCUS_NONE
+	b_infos.tooltip_text = "La ville à quai, ou la plus proche (touche I)"
+	b_infos.pressed.connect(func() -> void: _ouvrir_infos_ville(_ville_regardee()))
+	hb.add_child(b_infos)
 
 	var vit := HBoxContainer.new()
 	vit.alignment = BoxContainer.ALIGNMENT_END
@@ -1341,6 +1375,8 @@ func _capture_auto() -> void:
 		_mode_edition = true
 	if args.has("--comptoir"):
 		_ouvrir_comptoir(_port_a_quai())
+	if args.has("--infos-ville"):
+		_ouvrir_infos_ville(_ville_regardee())
 	var cn := args.find("--comptoir-nu")
 	if cn >= 0 and cn + 1 < args.size():
 		_ouvrir_comptoir(_port_a_quai())
