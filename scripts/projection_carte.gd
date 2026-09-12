@@ -14,6 +14,10 @@ var angle := 58.0
 var centre := Vector2.ZERO      # centre de la zone, en mètres monde (x, z)
 var vue_taille := Vector2.ONE   # étendue du plan de projection, en mètres
 var pixels := Vector2i.ONE
+# La couleur de l'eau du large, mesurée sur l'illustration par
+# `outils/carte_eau.py`. C'est elle qu'on voit là où l'illustration a rendu le
+# large à la nappe animée.
+var mer_fond := Color(0.0, 0.30, 0.52)
 var valide := false
 var erreur := ""
 
@@ -43,6 +47,9 @@ func charger(chemin: String) -> bool:
 	vue_taille = Vector2(t[0], t[1])
 	var p: Array = d.get("pixels", [1, 1])
 	pixels = Vector2i(int(p[0]), int(p[1]))
+	if d.has("mer_fond"):
+		var f: Array = d["mer_fond"]
+		mer_fond = Color(f[0], f[1], f[2])
 
 	_sin = sin(deg_to_rad(angle))
 	_cos = cos(deg_to_rad(angle))
