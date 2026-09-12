@@ -45,12 +45,14 @@ const PARCHEMIN  := Color(0.90, 0.86, 0.78)
 const LIN        := Color(0.945, 0.919, 0.855)
 # De combien la plaque se rentre sous la planche du titre, de chaque côté et
 # par le haut.
-const RETRAIT_FOND := 20.0
+# Le bois doit border le crème, pas flotter autour : à vingt pixels le cadre
+# se décollait du fond, à huit il ne se voyait plus déborder du tout.
+const RETRAIT_FOND := 13.0
 const DESCENTE_FOND := 46.0
 const HAUTEUR_BAS := 64.0
 # De combien les équerres passent sous la plaque. Alignées sur elle, le lin
 # affleurait leur base et se voyait dépasser entre les deux coins.
-const DEBORD_BAS := 12.0
+const DEBORD_BAS := 7.0
 const MARGE_EQUERRE := 70
 const ENCRE_BRUNE := Color(0.24, 0.16, 0.09)
 const ENCRE_PALE  := Color(0.44, 0.36, 0.28)
@@ -567,7 +569,7 @@ func rafraichir() -> void:
 			# cours ne peuvent pas se contredire à l'écran.
 			_poser_barre(e, clampi(int(m.get("barres", 0)), 0, 4),
 						 int(m.get("stock", 0)), int(m.get("reference", 0)))
-			(e["stock"] as Label).text = "%d t" % int(m.get("stock", 0))
+			(e["stock"] as Label).text = "%d" % int(m.get("stock", 0))
 		e["reference"] = int(m.get("reference", 0))
 		e["stock_reel"] = int(m.get("stock", 0))
 		(e["achat"] as Label).text = "%d" % int(float(m.get("achat_lot", 0.0)))
@@ -646,7 +648,7 @@ func _sur_apercu(quantite: int, e: Dictionary) -> void:
 	var laisse := int(e.get("stock_reel", 0)) - quantite
 	_poser_barre(e, _sim.barres(ville, cle, -quantite),
 				 maxi(laisse, 0), int(e.get("reference", 0)))
-	(e["stock"] as Label).text = "%d t" % maxi(laisse, 0)
+	(e["stock"] as Label).text = "%d" % maxi(laisse, 0)
 
 
 # Au relâchement seulement : c'est là que l'échange se fait.

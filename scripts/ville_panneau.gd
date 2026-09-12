@@ -47,12 +47,14 @@ const PARCHEMIN  := Color(0.90, 0.86, 0.78)
 # grain qu'il faut affaiblir jusqu'à l'invisible pour qu'il cesse de gêner.
 const LIN         := Color(0.945, 0.919, 0.855)
 const UI          := "res://sprites/ui_pr/"
-const RETRAIT_FOND := 20.0
+# Le bois doit border le crème, pas flotter autour : à vingt pixels le cadre
+# se décollait du fond, à huit il ne se voyait plus déborder du tout.
+const RETRAIT_FOND := 13.0
 const DESCENTE_FOND := 46.0
 const HAUTEUR_BAS := 64.0
 # De combien les équerres passent sous la plaque. Alignées sur elle, le lin
 # affleurait leur base et se voyait dépasser entre les deux coins.
-const DEBORD_BAS := 12.0
+const DEBORD_BAS := 7.0
 const MARGE_EQUERRE := 70
 const ENCRE_BRUNE := Color(0.24, 0.16, 0.09)
 const ENCRE_PALE  := Color(0.44, 0.36, 0.28)
