@@ -35,6 +35,14 @@ const BOIS_CLAIR := Color(0.26, 0.18, 0.11)
 const OR         := Color(0.86, 0.71, 0.36)
 const OR_PALE    := Color(0.98, 0.92, 0.76)
 const PARCHEMIN  := Color(0.90, 0.86, 0.78)
+# Le fond des écrans de ville : un lin très clair, à peine chaud. Sur cette
+# teinte, l'or et le parchemin des textes ne se lisent plus — le contenu passe
+# donc à l'encre brune, et seuls les éléments de bois (bandeau, onglets, plaques
+# de tonnage) gardent leurs couleurs claires, puisqu'ils portent leur propre fond.
+const LIN        := Color(0.914, 0.898, 0.867)
+const ENCRE_BRUNE := Color(0.24, 0.16, 0.09)
+const ENCRE_PALE  := Color(0.44, 0.36, 0.28)
+const VERT_SOMBRE := Color(0.20, 0.42, 0.18)
 const ENCRE      := Color(0.58, 0.52, 0.44)
 const VERT       := Color(0.45, 0.72, 0.35)
 const ROUGE      := Color(0.84, 0.42, 0.34)
@@ -125,6 +133,33 @@ func _texte(contenu: String, taille: int, teinte: Color,
 # de `_batir_lignes` — vignette 46, nom 118, barre 88, stock 54… — et la même
 # séparation de 8 : une rangée d'en-têtes qui glisse d'un cran par rapport à ses
 # colonnes est pire que pas d'en-têtes du tout, elle désigne la mauvaise.
+# La plaque brune du tonnage. C'est un NinePatchRect : son cadre doré ne doit
+# pas s'étirer avec le nombre, sinon un « 1057 t » l'épaissit plus qu'un « 39 t »
+# et la colonne se met à onduler d'une ligne à l'autre.
+func _plaque_stock(etiquette: Label, largeur: float) -> Control:
+	var boite := PanelContainer.new()
+	boite.custom_minimum_size = Vector2(largeur, 34)
+	var chemin := UI + "fond_stock.png"
+	if ResourceLoader.exists(chemin):
+		# StyleBoxTexture et non NinePatchRect : un conteneur impose sa taille à
+		# ses enfants et écrase leurs ancres, si bien que le rectangle posé en
+		# fond restait invisible. Le style, lui, EST le fond du conteneur.
+		var st := StyleBoxTexture.new()
+		st.texture = load(chemin)
+		# Le cadre doré fait une douzaine de pixels sur les 122 de la plaque :
+		# on le préserve, seul le brun du milieu s'étire avec le nombre.
+		st.texture_margin_left = 16
+		st.texture_margin_right = 16
+		st.texture_margin_top = 16
+		st.texture_margin_bottom = 16
+		st.content_margin_left = 4
+		st.content_margin_right = 4
+		boite.add_theme_stylebox_override("panel", st)
+	etiquette.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	boite.add_child(etiquette)
+	return boite
+
+
 func _picto(fichier: String, largeur: float, infobulle: String,
 			a_droite := false) -> Control:
 	# Les chiffres de prix sont ferrés à droite dans leur case : un picto centré
@@ -174,7 +209,7 @@ func _entetes() -> Control:
 	# a en magasin — donc un seul picto les coiffe tous les deux.
 	h.add_child(_picto("stock.png", 88, "Ce que la ville tient en magasin"))
 	var t := Control.new()
-	t.custom_minimum_size.x = 54
+	t.custom_minimum_size.x = 62
 	h.add_child(t)
 
 	h.add_child(_picto("prix.png", 66, "Le cours du jour", true))
@@ -208,11 +243,14 @@ func _batir() -> void:
 	fenetre.offset_top = -HAUTEUR * 0.5
 	fenetre.offset_right = LARGEUR * 0.5
 	fenetre.offset_bottom = HAUTEUR * 0.5
-	var sb := _cadre(BOIS, 10, 3)
-	sb.content_margin_left = 18
-	sb.content_margin_right = 18
-	sb.content_margin_top = 14
-	sb.content_margin_bottom = 14
+	# Aucune marge sur la fenêtre : le bandeau de titre est le premier enfant et
+	# doit venir mourir sur le cadre, bord à bord. Le reste du contenu prend sa
+	# respiration dans son propre conteneur, plus bas.
+	var sb := _cadre(LIN, 10, 3)
+	sb.content_margin_left = 0
+	sb.content_margin_right = 0
+	sb.content_margin_top = 0
+	sb.content_margin_bottom = 0
 	fenetre.add_theme_stylebox_override("panel", sb)
 	add_child(fenetre)
 
@@ -225,6 +263,17 @@ func _batir() -> void:
 	_bandeau.ferme.connect(_fermer)
 	_bandeau.infos.connect(func() -> void: infos_demandees.emit(_port))
 	vb.add_child(_bandeau)
+
+	var dedans := MarginContainer.new()
+	dedans.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	for cote in ["left", "right"]:
+		dedans.add_theme_constant_override("margin_" + cote, 18)
+	dedans.add_theme_constant_override("margin_bottom", 14)
+	vb.add_child(dedans)
+	var vb2 := VBoxContainer.new()
+	vb2.add_theme_constant_override("separation", 10)
+	dedans.add_child(vb2)
+	vb = vb2
 
 	# --- trois boutons, en ligne ----------------------------------------------
 	var onglets := HBoxContainer.new()
@@ -272,7 +321,7 @@ func _batir() -> void:
 
 	# --- pied : caisse et cale -------------------------------------------------
 	var bas := HBoxContainer.new()
-	_pied = _texte("", 15, OR)
+	_pied = _texte("", 15, ENCRE_BRUNE)
 	_pied.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bas.add_child(_pied)
 	var fermer := _bouton("Appareiller   Échap", 180)
@@ -329,7 +378,7 @@ func _batir_lignes() -> void:
 		var cle := String(m.get("cle", ""))
 		var fond := PanelContainer.new()
 		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(1, 1, 1, 0.05) if pair else Color(0, 0, 0, 0.16)
+		sb.bg_color = Color(0, 0, 0, 0.0) if pair else Color(0.36, 0.26, 0.14, 0.10)
 		sb.set_corner_radius_all(4)
 		sb.content_margin_left = 8
 		sb.content_margin_right = 8
@@ -370,7 +419,7 @@ func _batir_lignes() -> void:
 			marque.position = Vector2(46 - 22, 42 - 20)
 			vignette.add_child(marque)
 
-		h.add_child(_texte(String(m.get("nom", cle)), 15, PARCHEMIN, 118))
+		h.add_child(_texte(String(m.get("nom", cle)), 15, ENCRE_BRUNE, 118))
 
 		var e := {"cle": cle}
 
@@ -384,11 +433,16 @@ func _batir_lignes() -> void:
 		h.add_child(barre)
 		e["barre"] = barre
 
-		e["stock"] = _texte("", 13, ENCRE, 54, HORIZONTAL_ALIGNMENT_RIGHT)
-		e["achat"] = _texte("", 16, OR_PALE, 66, HORIZONTAL_ALIGNMENT_RIGHT)
-		e["cale"] = _texte("", 15, PARCHEMIN, 60, HORIZONTAL_ALIGNMENT_RIGHT)
-		e["vente"] = _texte("", 16, OR, 66, HORIZONTAL_ALIGNMENT_RIGHT)
-		for k in ["stock", "achat", "cale", "vente"]:
+		# Le tonnage en ville va dans sa plaque : c'est le chiffre qu'on cherche
+		# des yeux en descendant la liste, et il se perdait entre deux colonnes
+		# de prix alignées comme lui.
+		e["stock"] = _texte("", 14, OR_PALE, 0, HORIZONTAL_ALIGNMENT_CENTER)
+		h.add_child(_plaque_stock(e["stock"], 62))
+
+		e["achat"] = _texte("", 16, ENCRE_BRUNE, 66, HORIZONTAL_ALIGNMENT_RIGHT)
+		e["cale"] = _texte("", 15, ENCRE_PALE, 60, HORIZONTAL_ALIGNMENT_RIGHT)
+		e["vente"] = _texte("", 16, VERT_SOMBRE, 66, HORIZONTAL_ALIGNMENT_RIGHT)
+		for k in ["achat", "cale", "vente"]:
 			h.add_child(e[k])
 
 		# Une jauge plutôt que deux boutons : on tire vers la gauche pour

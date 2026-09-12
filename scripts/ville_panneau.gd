@@ -41,6 +41,10 @@ const BOIS_CLAIR := Color(0.26, 0.18, 0.11)
 const OR         := Color(0.86, 0.71, 0.36)
 const OR_PALE    := Color(0.98, 0.92, 0.76)
 const PARCHEMIN  := Color(0.90, 0.86, 0.78)
+# Même lin qu'au comptoir : les deux écrans sont deux pages d'un même dossier.
+const LIN         := Color(0.914, 0.898, 0.867)
+const ENCRE_BRUNE := Color(0.24, 0.16, 0.09)
+const ENCRE_PALE  := Color(0.44, 0.36, 0.28)
 const ENCRE      := Color(0.58, 0.52, 0.44)
 const VERT       := Color(0.45, 0.72, 0.35)
 const ROUGE      := Color(0.84, 0.42, 0.34)
@@ -180,7 +184,14 @@ func _batir() -> void:
 	add_child(fond)
 
 	var plaque := PanelContainer.new()
-	plaque.add_theme_stylebox_override("panel", _cadre(BOIS, 8, 3))
+	var sb := _cadre(LIN, 8, 3)
+	# Sans marge : le bandeau de titre doit venir mourir sur le cadre, bord à
+	# bord. Le contenu prend sa respiration dans son propre conteneur.
+	sb.content_margin_left = 0
+	sb.content_margin_right = 0
+	sb.content_margin_top = 0
+	sb.content_margin_bottom = 0
+	plaque.add_theme_stylebox_override("panel", sb)
 	plaque.custom_minimum_size = Vector2(LARGEUR, HAUTEUR)
 	plaque.set_anchors_preset(Control.PRESET_CENTER)
 	plaque.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -203,6 +214,17 @@ func _batir() -> void:
 	_bandeau.griser_infos(true)
 	col.add_child(_bandeau)
 
+	var dedans := MarginContainer.new()
+	dedans.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	for cote in ["left", "right"]:
+		dedans.add_theme_constant_override("margin_" + cote, 14)
+	dedans.add_theme_constant_override("margin_bottom", 10)
+	col.add_child(dedans)
+	var col2 := VBoxContainer.new()
+	col2.add_theme_constant_override("separation", 10)
+	dedans.add_child(col2)
+	col = col2
+
 	col.add_child(_onglets())
 	col.add_child(_blason())
 	col.add_child(_ligne_habitants())
@@ -213,7 +235,7 @@ func _batir() -> void:
 	pousse.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(pousse)
 
-	var pied := _texte("Échap ou clic hors du cadre pour fermer", 12, ENCRE,
+	var pied := _texte("Échap ou clic hors du cadre pour fermer", 12, ENCRE_PALE,
 					   0.0, HORIZONTAL_ALIGNMENT_CENTER)
 	pied.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_child(pied)
@@ -259,20 +281,20 @@ func _ligne_habitants() -> Control:
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
 	hb.add_theme_constant_override("separation", 8)
 
-	_lbl_habitants = _texte("", 22, PARCHEMIN)
+	_lbl_habitants = _texte("", 22, ENCRE_BRUNE)
 	hb.add_child(_lbl_habitants)
 
 	_fleche = _texte("", 22, VERT)
 	hb.add_child(_fleche)
 
-	var h := _texte("habitants", 15, ENCRE)
+	var h := _texte("habitants", 15, ENCRE_PALE)
 	hb.add_child(h)
 	return hb
 
 
 func _separateur() -> Control:
 	var t := ColorRect.new()
-	t.color = OR.darkened(0.5)
+	t.color = OR.darkened(0.35)
 	t.custom_minimum_size = Vector2(0, 2)
 	return t
 
@@ -281,16 +303,16 @@ func _section_production() -> Control:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8)
 
-	col.add_child(_texte("Production", 18, OR))
+	col.add_child(_texte("Production", 18, OR.darkened(0.45)))
 
 	# Première ligne : les trois chiffres de l'activité.
 	var chiffres := HBoxContainer.new()
 	chiffres.add_theme_constant_override("separation", 0)
-	_lbl_fabriques = _texte("", 15, PARCHEMIN)
+	_lbl_fabriques = _texte("", 15, ENCRE_BRUNE)
 	_lbl_fabriques.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_lbl_maisons = _texte("", 15, PARCHEMIN, 0.0, HORIZONTAL_ALIGNMENT_CENTER)
+	_lbl_maisons = _texte("", 15, ENCRE_BRUNE, 0.0, HORIZONTAL_ALIGNMENT_CENTER)
 	_lbl_maisons.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_lbl_occupation = _texte("", 15, PARCHEMIN, 0.0, HORIZONTAL_ALIGNMENT_RIGHT)
+	_lbl_occupation = _texte("", 15, ENCRE_BRUNE, 0.0, HORIZONTAL_ALIGNMENT_RIGHT)
 	_lbl_occupation.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	chiffres.add_child(_lbl_fabriques)
 	chiffres.add_child(_lbl_maisons)
