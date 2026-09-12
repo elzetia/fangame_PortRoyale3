@@ -9,7 +9,12 @@ local Calendrier = {}
 local MOIS = { "janvier", "février", "mars", "avril", "mai", "juin",
                "juillet", "août", "septembre", "octobre", "novembre", "décembre" }
 
-Calendrier.VITESSES       = { 0, 1, 2, 4 }
+Calendrier.VITESSES       = { 0, 1, 3, 5 }
+
+-- La vitesse tenue à la barre d'espace. Elle ne remplace pas le choix du
+-- joueur, elle le couvre le temps d'un appui : on saute une traversée sans
+-- perdre l'allure de croisière qu'on avait réglée.
+Calendrier.SURVOL         = 10
 Calendrier.SECONDES_JOUR  = 12    -- secondes réelles pour une journée en x1
 
 local function bissextile(a)
@@ -29,15 +34,25 @@ function Calendrier.reinitialiser()
   Calendrier.heure = 6
   Calendrier.indiceVitesse = 2      -- x1
   Calendrier.derniereVitesse = 2
+  Calendrier.survol = false
   Calendrier.joursEcoules = 0
 end
 
 function Calendrier.vitesse()
+  if Calendrier.survol then return Calendrier.SURVOL end
   return Calendrier.VITESSES[Calendrier.indiceVitesse]
 end
 
+-- La pause reste celle du JOUEUR : pendant un survol, l'horloge tourne, mais
+-- le jeu n'a pas quitté la pause pour autant et y retombera au relâchement.
+-- Sans cette distinction, le bouton de pause s'allumerait et s'éteindrait tout
+-- seul au gré des appuis sur espace.
 function Calendrier.enPause()
-  return Calendrier.vitesse() == 0
+  return Calendrier.VITESSES[Calendrier.indiceVitesse] == 0
+end
+
+function Calendrier.definirSurvol(actif)
+  Calendrier.survol = actif and true or false
 end
 
 function Calendrier.definirVitesse(i)

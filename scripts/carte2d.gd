@@ -48,11 +48,24 @@ var _lbl_date: Label
 var _lbl_heure: Label
 var _lbl_statut: Label
 var _lbl_message: Label
-var _boutons: Array[Button] = []
+var _barre_vitesse: BarreVitesse
+
+# La planche fait 839 × 341 : à moitié, elle tient dans le coin sans écraser la
+# carte, et ses chiffres restent lisibles.
+const ECHELLE_VITESSE := 0.5
+const MARGE_VITESSE := Vector2(10, 6)
 
 var _glisse := false
 var _clic_depart := Vector2.ZERO
 var _a_glisse := false
+
+# La barre d'espace a deux sens selon la durée : un appui bref bascule la pause,
+# un appui tenu passe en x10 le temps qu'on le tient. On ne peut donc pas
+# décider à l'enfoncement — il faut attendre de voir si la touche est relâchée
+# avant le seuil.
+const SEUIL_SURVOL := 0.28
+var _espace_tenu := -1.0
+var _survol := false
 
 # Mode d'édition : F2. Permet de faire glisser les villes sur la carte et de
 # réécrire sim/archipel.lua avec les positions obtenues.
@@ -890,6 +903,20 @@ func _process(delta: float) -> void:
 	# interroge déjà `sim`.
 	if not _charge:
 		return
+	# La barre d'espace tenue passe en x10. Le seuil se mesure ici parce qu'aucun
+	# événement n'arrive tant que la touche ne bouge pas : sans horloge, un appui
+	# maintenu est indistinguable d'un appui bref qui dure.
+	if _espace_tenu >= 0.0 and not _survol:
+		_espace_tenu += delta
+		if _espace_tenu >= SEUIL_SURVOL:
+			_survol = true
+			sim.definir_survol(true)
+	# Filet : si la fenêtre perd le focus touche enfoncée, le relâchement n'arrive
+	# jamais et le jeu resterait en x10 pour toujours.
+	elif _survol and not Input.is_key_pressed(KEY_SPACE):
+		_finir_survol()
+		_espace_tenu = -1.0
+
 	_besoins_delai -= delta
 	if _besoins_delai <= 0.0:
 		_besoins_delai = 1.5
@@ -973,6 +1000,13 @@ func _port_proche(monde: Vector2, rayon: float) -> Dictionary:
 # --- entrées ------------------------------------------------------------------
 
 func _unhandled_input(e: InputEvent) -> void:
+	# La barre d'espace se traite AVANT les gardes des panneaux. Si un écran
+	# s'ouvre pendant qu'on la tient, c'est lui qui recevrait le relâchement —
+	# et le jeu resterait bloqué en x10, à devoir deviner pourquoi.
+	if e is InputEventKey and e.keycode == KEY_SPACE and not e.echo:
+		_espace(e.pressed)
+		return
+
 	# Comptoir ouvert : la carte ne doit plus reagir derriere lui, ni au clic
 	# ni au clavier. Il gere sa propre touche Echap.
 	if _comptoir != null and _comptoir.visible:
@@ -1059,7 +1093,7 @@ func _unhandled_input(e: InputEvent) -> void:
 			_cam.position -= e.relative / _zoom
 	elif e is InputEventKey and e.pressed and not e.echo:
 		match e.keycode:
-			KEY_SPACE: sim.basculer_pause()
+			KEY_SPACE: pass   # tout se joue au relâchement, voir _input_espace
 			KEY_1, KEY_2, KEY_3, KEY_4: sim.definir_vitesse(e.keycode - KEY_0)
 			KEY_EQUAL, KEY_PLUS, KEY_KP_ADD: _zoomer(PAS_ZOOM)
 			KEY_MINUS, KEY_KP_SUBTRACT: _zoomer(1.0 / PAS_ZOOM)
@@ -1140,6 +1174,26 @@ func _zoomer(facteur: float) -> void:
 # Clic gauche : on DÉSIGNE. Une ville sous le curseur ouvre son écran ; ailleurs
 # il ne se passe rien, et c'est voulu — le bouton qui fait bouger la flotte est
 # le droit, et un ordre d'appareillage donné par mégarde coûte des jours de mer.
+# Bref, la barre bascule la pause ; tenue, elle passe en x10 jusqu'au
+# relâchement. On ne tranche donc qu'au relâchement : à l'enfoncement, on ne
+# sait pas encore lequel des deux gestes le joueur est en train de faire.
+func _espace(enfonce: bool) -> void:
+	if enfonce:
+		if _espace_tenu < 0.0:
+			_espace_tenu = 0.0
+		return
+	if _survol:
+		_finir_survol()
+	elif _espace_tenu >= 0.0:
+		sim.basculer_pause()
+	_espace_tenu = -1.0
+
+
+func _finir_survol() -> void:
+	_survol = false
+	sim.definir_survol(false)
+
+
 func _clic_gauche() -> void:
 	var port := _port_survole
 	if port.is_empty():
@@ -1325,19 +1379,30 @@ func _creer_hud() -> void:
 	b_infos.pressed.connect(func() -> void: _ouvrir_infos_ville(_ville_regardee()))
 	hb.add_child(b_infos)
 
-	var vit := HBoxContainer.new()
-	vit.alignment = BoxContainer.ALIGNMENT_END
-	vit.add_theme_constant_override("separation", 6)
-	hb.add_child(vit)
+	# La planche du temps se pose PAR-DESSUS ce bandeau, dans le coin. On lui
+	# réserve donc sa largeur, sinon elle recouvre le bouton qu'on vient de
+	# poser — et un bouton masqué est un bouton perdu.
+	var place := Control.new()
+	place.custom_minimum_size.x = BarreVitesse.TAILLE_SOURCE.x * ECHELLE_VITESSE
+	hb.add_child(place)
 
-	for i in 4:
-		var b := Button.new()
-		b.text = ["II", "x1", "x2", "x4"][i]
-		b.custom_minimum_size = Vector2(46, 36)
-		b.focus_mode = Control.FOCUS_NONE
-		b.pressed.connect(sim.definir_vitesse.bind(i + 1))
-		vit.add_child(b)
-		_boutons.append(b)
+	# La barre du temps ne vit plus dans le bandeau du bas : elle a sa propre
+	# planche, posée par-dessus, dans le coin. Les feuilles de palmier qui la
+	# débordent n'auraient aucun sens alignées dans une rangée de boutons.
+	_barre_vitesse = BarreVitesse.new()
+	# Ancré au coin bas-droit, donc placé par ses MARGES et non par une position :
+	# avec des ancres à (1, 1), `position` s'entend en coordonnées du parent et la
+	# planche sortait de l'écran par le bas.
+	var taille := Vector2(BarreVitesse.TAILLE_SOURCE) * ECHELLE_VITESSE
+	_barre_vitesse.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_barre_vitesse.offset_left = -taille.x - MARGE_VITESSE.x
+	_barre_vitesse.offset_top = -taille.y - MARGE_VITESSE.y
+	_barre_vitesse.offset_right = -MARGE_VITESSE.x
+	_barre_vitesse.offset_bottom = -MARGE_VITESSE.y
+	_barre_vitesse.vitesse_choisie.connect(func(i: int) -> void:
+		sim.definir_vitesse(i))
+	_barre_vitesse.pause_demandee.connect(func() -> void: sim.basculer_pause())
+	couche.add_child(_barre_vitesse)
 
 
 func _style(couleur: Color) -> StyleBoxFlat:
@@ -1371,8 +1436,11 @@ func _maj_hud() -> void:
 		_lbl_statut.text = ("En mer - cap au large, arrivée dans %s" % duree) if nom == "" \
 			else ("En mer - cap sur %s, arrivée dans %s" % [nom, duree])
 
-	for i in _boutons.size():
-		_boutons[i].button_pressed = (int(etat["indice"]) == i + 1)
+	# La plaque de la barre affiche l'allure. Elle lit l'indice DU CALENDRIER
+	# plutôt que de retenir le dernier clic : la vitesse change aussi au clavier
+	# et, pendant un survol, sans qu'on ait touché aux boutons.
+	if _barre_vitesse != null:
+		_barre_vitesse.poser(int(etat["indice"]), bool(etat.get("survol", false)))
 
 	var maintenant := Time.get_ticks_msec() / 1000.0
 	if _mode_edition:

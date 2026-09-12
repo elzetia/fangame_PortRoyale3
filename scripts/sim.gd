@@ -165,6 +165,10 @@ func definir_vitesse(indice: int) -> void:
 	_appel("definir_vitesse", [indice])
 
 
+func definir_survol(actif: bool) -> void:
+	_appel("definir_survol", [actif])
+
+
 func basculer_pause() -> void:
 	_appel("basculer_pause", [])
 

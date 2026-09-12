@@ -157,6 +157,7 @@ function Bridge.etat_temps()
   d.vitesse    = Calendrier.vitesse()
   d.indice     = Calendrier.indiceVitesse
   d.en_pause   = Calendrier.enPause()
+  d.survol     = Calendrier.survol and true or false
   return d
 end
 
@@ -166,6 +167,10 @@ end
 
 function Bridge.basculer_pause()
   Calendrier.basculerPause()
+end
+
+function Bridge.definir_survol(actif)
+  Calendrier.definirSurvol(actif)
 end
 
 -- Durée d'une traversée, en texte, à partir d'une distance en mètres monde.
