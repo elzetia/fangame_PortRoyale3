@@ -50,6 +50,8 @@ const DESCENTE_FOND := 46.0
 # a pleine force, la repetition dessine des lignes horizontales tous les
 # soixante pixels. A cette opacite le grain reste, le quadrillage disparait.
 const OPACITE_TRAME := 0.30
+const HAUTEUR_BAS := 64.0
+const MARGE_EQUERRE := 70
 const ENCRE_BRUNE := Color(0.24, 0.16, 0.09)
 const ENCRE_PALE  := Color(0.44, 0.36, 0.28)
 const ENCRE      := Color(0.58, 0.52, 0.44)
@@ -62,6 +64,7 @@ var _villes: Villes = null
 
 var _bandeau: BandeauTitre
 var _plaque: PanelContainer
+var _bas: NinePatchRect
 var _vignette: TextureRect
 var _pavillon: TextureRect
 var _lbl_habitants: Label
@@ -240,6 +243,19 @@ func _batir() -> void:
 	# mener.
 	_bandeau.griser_infos(true)
 	racine.add_child(_bandeau)
+	# La bordure du bas : deux equerres qui ferment le cadre, comme le bandeau le
+	# coiffe. Son milieu est vide, donc seuls les coins mordent sur le contenu —
+	# d'ou la marge basse qui leur laisse la place.
+	_bas = NinePatchRect.new()
+	var cb := UI + "bas_de_menu.png"
+	if ResourceLoader.exists(cb):
+		_bas.texture = load(cb)
+	_bas.patch_margin_left = MARGE_EQUERRE
+	_bas.patch_margin_right = MARGE_EQUERRE
+	_bas.patch_margin_top = 0
+	_bas.patch_margin_bottom = 0
+	_bas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	racine.add_child(_bas)
 	_plaque = plaque
 	plaque.resized.connect(_replacer_bandeau)
 	_replacer_bandeau()
@@ -248,7 +264,7 @@ func _batir() -> void:
 	dedans.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	for cote in ["left", "right"]:
 		dedans.add_theme_constant_override("margin_" + cote, 14)
-	dedans.add_theme_constant_override("margin_bottom", 10)
+	dedans.add_theme_constant_override("margin_bottom", 36)
 	col.add_child(dedans)
 	var col2 := VBoxContainer.new()
 	col2.add_theme_constant_override("separation", 10)
@@ -312,6 +328,10 @@ func _replacer_bandeau() -> void:
 	_bandeau.position = Vector2(_plaque.position.x - RETRAIT_FOND, 0.0)
 	_bandeau.size = Vector2(_plaque.size.x + RETRAIT_FOND * 2.0,
 							BandeauTitre.HAUTEUR)
+	if _bas != null:
+		_bas.position = Vector2(_plaque.position.x - RETRAIT_FOND,
+			_plaque.position.y + _plaque.size.y - HAUTEUR_BAS)
+		_bas.size = Vector2(_plaque.size.x + RETRAIT_FOND * 2.0, HAUTEUR_BAS)
 
 
 func _ligne_habitants() -> Control:

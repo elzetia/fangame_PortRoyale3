@@ -48,6 +48,8 @@ const DESCENTE_FOND := 46.0
 # a pleine force, la repetition dessine des lignes horizontales tous les
 # soixante pixels. A cette opacite le grain reste, le quadrillage disparait.
 const OPACITE_TRAME := 0.30
+const HAUTEUR_BAS := 64.0
+const MARGE_EQUERRE := 70
 const ENCRE_BRUNE := Color(0.24, 0.16, 0.09)
 const ENCRE_PALE  := Color(0.44, 0.36, 0.28)
 const VERT_SOMBRE := Color(0.20, 0.42, 0.18)
@@ -61,6 +63,7 @@ var _messages: Array[String] = []
 
 var _bandeau: BandeauTitre
 var _fenetre: PanelContainer
+var _bas: NinePatchRect
 var _pied: Label
 var _colonne: VBoxContainer
 var _lignes: Array = []
@@ -300,6 +303,19 @@ func _batir() -> void:
 	_bandeau.ferme.connect(_fermer)
 	_bandeau.infos.connect(func() -> void: infos_demandees.emit(_port))
 	racine.add_child(_bandeau)
+	# La bordure du bas : deux equerres qui ferment le cadre, comme le bandeau le
+	# coiffe. Son milieu est vide, donc seuls les coins mordent sur le contenu —
+	# d'ou la marge basse qui leur laisse la place.
+	_bas = NinePatchRect.new()
+	var cb := UI + "bas_de_menu.png"
+	if ResourceLoader.exists(cb):
+		_bas.texture = load(cb)
+	_bas.patch_margin_left = MARGE_EQUERRE
+	_bas.patch_margin_right = MARGE_EQUERRE
+	_bas.patch_margin_top = 0
+	_bas.patch_margin_bottom = 0
+	_bas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	racine.add_child(_bas)
 	# Le bandeau se cale sur la PLAQUE, pas sur la racine : la largeur réelle de
 	# l'écran est dictée par la liste des denrées, qui réclame plus que LARGEUR.
 	# Ancré sur la racine, le bandeau restait à 640 pendant que la plaque
@@ -312,7 +328,7 @@ func _batir() -> void:
 	dedans.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	for cote in ["left", "right"]:
 		dedans.add_theme_constant_override("margin_" + cote, 18)
-	dedans.add_theme_constant_override("margin_bottom", 14)
+	dedans.add_theme_constant_override("margin_bottom", 40)
 	vb.add_child(dedans)
 	var vb2 := VBoxContainer.new()
 	vb2.add_theme_constant_override("separation", 10)
@@ -382,6 +398,10 @@ func _replacer_bandeau() -> void:
 	_bandeau.position = Vector2(_fenetre.position.x - RETRAIT_FOND, 0.0)
 	_bandeau.size = Vector2(_fenetre.size.x + RETRAIT_FOND * 2.0,
 							BandeauTitre.HAUTEUR)
+	if _bas != null:
+		_bas.position = Vector2(_fenetre.position.x - RETRAIT_FOND,
+			_fenetre.position.y + _fenetre.size.y - HAUTEUR_BAS)
+		_bas.size = Vector2(_fenetre.size.x + RETRAIT_FOND * 2.0, HAUTEUR_BAS)
 
 
 func _choisir_lot(q: int) -> void:
