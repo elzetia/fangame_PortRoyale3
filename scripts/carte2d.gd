@@ -548,6 +548,10 @@ const NAV_TAILLE := 62.0
 # l'envers revient à mettre toute la rose en miroir, et chaque navire croise
 # alors la route qu'il devrait suivre.
 const NAV_ROSE := [7, 8, 5, 2, 1, 0, 3, 6]
+
+# Le sillage, en côtés de vignette : sa longueur et son demi-écartement.
+const SILLAGE_LONG := 1.15
+const SILLAGE_OUVRE := 0.30
 const CART_MARGE := 23.2         # respiration à gauche et à droite du nom
 # De combien le pavillon mord sur la plaque. Il doit couvrir le filet du haut
 # sans toucher les lettres : c'est ce qui soude les deux en un seul bloc au lieu
@@ -971,6 +975,8 @@ func _dessiner_marchands() -> void:
 		# Un halo sous la coque : un navire brun foncé sur une mer bleu nuit ne se
 		# voit pas au zoom de la carte.
 		var u := _par_unite_brut()
+		if not quai:
+			_dessiner_sillage(p, a, u)
 		draw_circle(p, NAV_TAILLE * 0.18 * u, Color(0, 0, 0, 0.18 if quai else 0.24))
 		_poser_navire(p, a, NAV_TAILLE * 0.88 * u,
 			Color(1, 1, 1, 0.55) if quai else Color(1, 1, 1, 1))
@@ -1008,8 +1014,35 @@ func _dessiner_navire() -> void:
 	# comprimée nord-sud, donc on passe par la projection.
 	var a := proj.angle_ecran(cos(navire.cap), sin(navire.cap))
 	var u := _par_unite_brut()
+	if not navire.au_mouillage():
+		_dessiner_sillage(p, a, u)
 	draw_circle(p, NAV_TAILLE * 0.20 * u, Color(0, 0, 0, 0.22))
 	_poser_navire(p, a, NAV_TAILLE * u, Color(1, 1, 1, 1))
+
+
+# Le sillage : deux traits qui s'ouvrent en V derrière la poupe, et s'effacent
+# en s'éloignant. C'est ce qui donne au navire sa vitesse et son sens de marche —
+# sans lui, un bateau à l'arrêt et un bateau au grand largue se dessinent pareil.
+#
+# Il se trace à partir du CAP, comme la vignette : si l'un des deux tombait de
+# travers, le V partirait de l'étrave et le désaccord sauterait aux yeux.
+func _dessiner_sillage(p: Vector2, angle: float, u: float) -> void:
+	var arriere := Vector2(-1.0, 0.0).rotated(angle)
+	var cote := Vector2(0.0, 1.0).rotated(angle)
+	var base := p + arriere * (NAV_TAILLE * 0.14 * u)
+	var longueur := NAV_TAILLE * SILLAGE_LONG * u
+	var ouverture := NAV_TAILLE * SILLAGE_OUVRE * u
+	var ep := maxf(NAV_TAILLE * 0.055 * u, 0.6)
+	for s in [-1.0, 1.0]:
+		var bout: Vector2 = base + arriere * longueur + cote * (ouverture * float(s))
+		var n: Vector2 = (bout - base).normalized().orthogonal() * ep
+		# Un quadrilatère plutôt qu'un trait : l'écume est large à la poupe et
+		# se dissipe au loin, ce qu'une ligne d'épaisseur constante ne dit pas.
+		draw_polygon(
+			PackedVector2Array([base - n, base + n, bout + n * 0.35, bout - n * 0.35]),
+			PackedColorArray([
+				Color(1, 1, 1, 0.34), Color(1, 1, 1, 0.34),
+				Color(1, 1, 1, 0.0), Color(1, 1, 1, 0.0)]))
 
 
 # L'atlas des navires, découpé de la planche par outils/decouper_navire.gd.
