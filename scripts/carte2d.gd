@@ -527,7 +527,10 @@ const CART_MARGE := 23.2         # respiration à gauche et à droite du nom
 # sans toucher les lettres : c'est ce qui soude les deux en un seul bloc au lieu
 # de laisser deux objets empilés.
 const CART_CHEVAUCHE := 7.7
-const CART_ICONE := 1.30         # côté de la vignette, en hauteurs de pavillon
+# Cote de la vignette du manque, en hauteurs de pavillon. Aux deux tiers de ce
+# qu'elle valait : le pavillon ayant grandi d'un tiers, elle avait grandi avec
+# lui et pesait autant que la ville qu'elle annote.
+const CART_ICONE := 0.87
 
 const UI_CARTE := "res://sprites/ui_pr/"
 # Le sceau du dignitaire : sa taille en hauteurs de pavillon, et la part de
