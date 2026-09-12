@@ -39,7 +39,15 @@ const PARCHEMIN  := Color(0.90, 0.86, 0.78)
 # teinte, l'or et le parchemin des textes ne se lisent plus — le contenu passe
 # donc à l'encre brune, et seuls les éléments de bois (bandeau, onglets, plaques
 # de tonnage) gardent leurs couleurs claires, puisqu'ils portent leur propre fond.
-const LIN        := Color(0.914, 0.898, 0.867)
+const LIN        := Color(0.906, 0.866, 0.784)
+# De combien la plaque se rentre sous la planche du titre, de chaque côté et
+# par le haut.
+const RETRAIT_FOND := 8.0
+const DESCENTE_FOND := 46.0
+# La tuile du lin fait 70 x 60 et ses bords ne se raccordent pas tout a fait :
+# a pleine force, la repetition dessine des lignes horizontales tous les
+# soixante pixels. A cette opacite le grain reste, le quadrillage disparait.
+const OPACITE_TRAME := 0.30
 const ENCRE_BRUNE := Color(0.24, 0.16, 0.09)
 const ENCRE_PALE  := Color(0.44, 0.36, 0.28)
 const VERT_SOMBRE := Color(0.20, 0.42, 0.18)
@@ -52,6 +60,7 @@ var _port: Dictionary = {}
 var _messages: Array[String] = []
 
 var _bandeau: BandeauTitre
+var _fenetre: PanelContainer
 var _pied: Label
 var _colonne: VBoxContainer
 var _lignes: Array = []
@@ -234,35 +243,70 @@ func _batir() -> void:
 	voile.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(voile)
 
+	# Le bandeau n'est PLUS dans la plaque : il la coiffe. Rangé dedans, la
+	# plaque le débordait d'un liseré clair sur la droite et au-dessus — c'est
+	# la planche de bois qui doit border l'écran, pas le lin. La plaque est donc
+	# un frère du bandeau, rentré de chaque côté et descendu sous lui.
+	var racine := Control.new()
+	racine.anchor_left = 0.5
+	racine.anchor_top = 0.5
+	racine.anchor_right = 0.5
+	racine.anchor_bottom = 0.5
+	racine.offset_left = -LARGEUR * 0.5
+	racine.offset_top = -HAUTEUR * 0.5
+	racine.offset_right = LARGEUR * 0.5
+	racine.offset_bottom = HAUTEUR * 0.5
+	racine.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(racine)
+
 	var fenetre := PanelContainer.new()
-	fenetre.anchor_left = 0.5
-	fenetre.anchor_top = 0.5
-	fenetre.anchor_right = 0.5
-	fenetre.anchor_bottom = 0.5
-	fenetre.offset_left = -LARGEUR * 0.5
-	fenetre.offset_top = -HAUTEUR * 0.5
-	fenetre.offset_right = LARGEUR * 0.5
-	fenetre.offset_bottom = HAUTEUR * 0.5
-	# Aucune marge sur la fenêtre : le bandeau de titre est le premier enfant et
-	# doit venir mourir sur le cadre, bord à bord. Le reste du contenu prend sa
-	# respiration dans son propre conteneur, plus bas.
+	fenetre.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fenetre.offset_left = RETRAIT_FOND
+	fenetre.offset_right = -RETRAIT_FOND
+	fenetre.offset_top = DESCENTE_FOND
+	# Les coins sont arrondis : sans découpe, la trame du lin déborderait dans
+	# les angles, là où le fond ne va pas.
+	fenetre.clip_contents = true
 	var sb := _cadre(LIN, 10, 3)
 	sb.content_margin_left = 0
 	sb.content_margin_right = 0
 	sb.content_margin_top = 0
 	sb.content_margin_bottom = 0
 	fenetre.add_theme_stylebox_override("panel", sb)
-	add_child(fenetre)
+	racine.add_child(fenetre)
+
+	# La trame du lin, répétée. Elle vient AVANT le contenu : l'ordre des enfants
+	# fait la profondeur, et un PanelContainer les dimensionne tous pareil.
+	var trame := TextureRect.new()
+	var ct := UI + "parchemin_uni.png"
+	if ResourceLoader.exists(ct):
+		trame.texture = load(ct)
+	trame.stretch_mode = TextureRect.STRETCH_TILE
+	trame.modulate = Color(1, 1, 1, OPACITE_TRAME)
+	trame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fenetre.add_child(trame)
 
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
 	fenetre.add_child(vb)
 
+	# La place que le bandeau occupe par-dessus la plaque.
+	var sous_bandeau := Control.new()
+	sous_bandeau.custom_minimum_size.y = BandeauTitre.HAUTEUR - DESCENTE_FOND
+	vb.add_child(sous_bandeau)
+
 	# --- titre : le nom du port ------------------------------------------------
 	_bandeau = BandeauTitre.new()
 	_bandeau.ferme.connect(_fermer)
 	_bandeau.infos.connect(func() -> void: infos_demandees.emit(_port))
-	vb.add_child(_bandeau)
+	racine.add_child(_bandeau)
+	# Le bandeau se cale sur la PLAQUE, pas sur la racine : la largeur réelle de
+	# l'écran est dictée par la liste des denrées, qui réclame plus que LARGEUR.
+	# Ancré sur la racine, le bandeau restait à 640 pendant que la plaque
+	# s'étalait à 790 — et c'est le lin qui débordait, l'inverse de ce qu'on veut.
+	_fenetre = fenetre
+	fenetre.resized.connect(_replacer_bandeau)
+	_replacer_bandeau()
 
 	var dedans := MarginContainer.new()
 	dedans.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -330,6 +374,14 @@ func _batir() -> void:
 	vb.add_child(bas)
 
 	_choisir_lot(10)
+
+
+func _replacer_bandeau() -> void:
+	if _bandeau == null or _fenetre == null:
+		return
+	_bandeau.position = Vector2(_fenetre.position.x - RETRAIT_FOND, 0.0)
+	_bandeau.size = Vector2(_fenetre.size.x + RETRAIT_FOND * 2.0,
+							BandeauTitre.HAUTEUR)
 
 
 func _choisir_lot(q: int) -> void:

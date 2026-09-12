@@ -42,7 +42,14 @@ const OR         := Color(0.86, 0.71, 0.36)
 const OR_PALE    := Color(0.98, 0.92, 0.76)
 const PARCHEMIN  := Color(0.90, 0.86, 0.78)
 # Même lin qu'au comptoir : les deux écrans sont deux pages d'un même dossier.
-const LIN         := Color(0.914, 0.898, 0.867)
+const LIN         := Color(0.906, 0.866, 0.784)
+const UI          := "res://sprites/ui_pr/"
+const RETRAIT_FOND := 8.0
+const DESCENTE_FOND := 46.0
+# La tuile du lin fait 70 x 60 et ses bords ne se raccordent pas tout a fait :
+# a pleine force, la repetition dessine des lignes horizontales tous les
+# soixante pixels. A cette opacite le grain reste, le quadrillage disparait.
+const OPACITE_TRAME := 0.30
 const ENCRE_BRUNE := Color(0.24, 0.16, 0.09)
 const ENCRE_PALE  := Color(0.44, 0.36, 0.28)
 const ENCRE      := Color(0.58, 0.52, 0.44)
@@ -54,6 +61,7 @@ var _port: Dictionary = {}
 var _villes: Villes = null
 
 var _bandeau: BandeauTitre
+var _plaque: PanelContainer
 var _vignette: TextureRect
 var _pavillon: TextureRect
 var _lbl_habitants: Label
@@ -183,36 +191,58 @@ func _batir() -> void:
 			_fermer())
 	add_child(fond)
 
+	# Le bandeau coiffe la plaque au lieu d'y être rangé : c'est la planche de
+	# bois qui doit border l'écran, pas le lin. Même construction qu'au comptoir.
+	var racine := Control.new()
+	racine.set_anchors_preset(Control.PRESET_CENTER)
+	racine.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(racine)
+	racine.offset_left = -LARGEUR / 2.0
+	racine.offset_top = -HAUTEUR / 2.0
+	racine.offset_right = LARGEUR / 2.0
+	racine.offset_bottom = HAUTEUR / 2.0
+
 	var plaque := PanelContainer.new()
 	var sb := _cadre(LIN, 8, 3)
-	# Sans marge : le bandeau de titre doit venir mourir sur le cadre, bord à
-	# bord. Le contenu prend sa respiration dans son propre conteneur.
 	sb.content_margin_left = 0
 	sb.content_margin_right = 0
 	sb.content_margin_top = 0
 	sb.content_margin_bottom = 0
 	plaque.add_theme_stylebox_override("panel", sb)
-	plaque.custom_minimum_size = Vector2(LARGEUR, HAUTEUR)
-	plaque.set_anchors_preset(Control.PRESET_CENTER)
+	plaque.set_anchors_preset(Control.PRESET_FULL_RECT)
+	plaque.offset_left = RETRAIT_FOND
+	plaque.offset_right = -RETRAIT_FOND
+	plaque.offset_top = DESCENTE_FOND
+	plaque.clip_contents = true
 	plaque.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(plaque)
-	# PRESET_CENTER ancre le coin, pas le centre : sans ce décalage la plaque
-	# pend en bas à droite de l'écran.
-	plaque.offset_left = -LARGEUR / 2.0
-	plaque.offset_top = -HAUTEUR / 2.0
-	plaque.offset_right = LARGEUR / 2.0
-	plaque.offset_bottom = HAUTEUR / 2.0
+	racine.add_child(plaque)
+
+	var trame := TextureRect.new()
+	var ct := UI + "parchemin_uni.png"
+	if ResourceLoader.exists(ct):
+		trame.texture = load(ct)
+	trame.stretch_mode = TextureRect.STRETCH_TILE
+	trame.modulate = Color(1, 1, 1, OPACITE_TRAME)
+	trame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plaque.add_child(trame)
 
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
 	plaque.add_child(col)
+
+	var sous_bandeau := Control.new()
+	sous_bandeau.custom_minimum_size.y = BandeauTitre.HAUTEUR - DESCENTE_FOND
+	col.add_child(sous_bandeau)
 
 	_bandeau = BandeauTitre.new()
 	_bandeau.ferme.connect(_fermer)
 	# On est déjà sur la page d'infos : le « i » du bandeau n'a nulle part où
 	# mener.
 	_bandeau.griser_infos(true)
-	col.add_child(_bandeau)
+	racine.add_child(_bandeau)
+	_plaque = plaque
+	plaque.resized.connect(_replacer_bandeau)
+	_replacer_bandeau()
 
 	var dedans := MarginContainer.new()
 	dedans.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -274,6 +304,14 @@ func _blason() -> Control:
 	_vignette.offset_bottom = -marge
 	boite.add_child(_vignette)
 	return boite
+
+
+func _replacer_bandeau() -> void:
+	if _bandeau == null or _plaque == null:
+		return
+	_bandeau.position = Vector2(_plaque.position.x - RETRAIT_FOND, 0.0)
+	_bandeau.size = Vector2(_plaque.size.x + RETRAIT_FOND * 2.0,
+							BandeauTitre.HAUTEUR)
 
 
 func _ligne_habitants() -> Control:
