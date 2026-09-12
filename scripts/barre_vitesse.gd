@@ -41,7 +41,9 @@ var _zones := {}
 
 
 func _init() -> void:
-	custom_minimum_size = TAILLE_SOURCE * 0.5
+	# Pas de taille minimale : c'est l'appelant qui décide de l'échelle. Figée
+	# ici à la moitié de la planche, elle l'emportait sur les marges posées par
+	# le HUD et la barre se retrouvait coupée par le bord de l'écran.
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 

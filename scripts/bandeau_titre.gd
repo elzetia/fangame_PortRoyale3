@@ -29,6 +29,8 @@ const BOUT := 130.0
 
 # Le rond cliquable dans son bout de planche, mesuré sur la texture.
 const RAYON_BOUTON := Vector2(96, 96)
+# Deux fois l'écart entre le centre de l'image et celui de la planche.
+const DECALAGE_NOM := 16.0
 const MARGE_BOUTON := 12.0
 
 const OR_PALE := Color(0.98, 0.92, 0.76)
@@ -110,7 +112,10 @@ func _replacer() -> void:
 	_nom.offset_left = BOUT
 	_nom.offset_right = -BOUT
 	_nom.offset_top = 0
-	_nom.offset_bottom = 0
+	# Centré sur la PLANCHE, pas sur l'image. La texture fait 130 de haut mais le
+	# bois n'occupe que de 11 à 103 : son milieu est à 57, celui de l'image à 65.
+	# Centré sur l'image, le nom paraissait posé trop bas sur la planche.
+	_nom.offset_bottom = -DECALAGE_NOM
 
 
 func poser(nom: String) -> void:
