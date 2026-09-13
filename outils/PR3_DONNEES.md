@@ -260,6 +260,24 @@ l'enregistrement **précédent** : la fenêtre de 120 octets déborde sur la que
 voisin. En réattribuant `+5` au navire d'avant on lit 2, 1, 2, 3 pour pinasse,
 sloop, brick, barque — soit leurs mâts, ce qui est historiquement juste.
 
+### `Masts`, à +5 de la fenêtre suivante
+
+En appliquant le décalage d'un navire, la colonne `+5` donne :
+
+| navire | mâts | | navire | mâts |
+|---|---:|---|---|---:|
+| pinasse | 2 | | flûte, flûte comm. | 3 |
+| sloop | **1** | | corvette, frégate | 3 |
+| brick | 2 | | galion, caraque, caravelle | 3 |
+| barque, barque pirate | 3 | | galion de guerre | **4** |
+
+Un sloop à un mât, un galion de guerre à quatre, une pinasse à deux : la série
+est historiquement juste sur les quinze navires mesurables. C'est `Masts`.
+
+Nuance de méthode : contrairement aux colonnes ci-dessus, celle-ci n'est pas
+vérifiée contre une valeur numérique connue mais contre la vraisemblance du
+domaine. Solidement indiquée, donc, plutôt que prouvée.
+
 ### Ce qui n'est toujours PAS établi
 
 - **`Gauge` (tirant d'eau).** La colonne `+7` était le candidat le plus plausible ;
