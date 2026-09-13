@@ -527,10 +527,16 @@ l'exécution » :
   `SpeedFactor` 1.
 - **`[AmmoTrajectory]` (le boulet)** : `Gravity`, `Amax`, `ACorrMax`, `FiringDelay`,
   `ScatterMin`, `ScatterMax`, `AAimMax`.
-- **`[AmmoData]` (par type de munition `%d` — boulet, chaîne, mitraille)** :
-  `Vmax_%d`, **`DmgHull_%d`**, **`DmgSail_%d`**, **`DmgCrew_%d`**, `Asset_%d`. La
-  STRUCTURE est lue ; les VALEURS chiffrées sont dans `constdata` (tableaux par
-  munition) — voir la tâche « parseur d'arbre de config » ci-dessous.
+- **`[AmmoData]` (4 types de munition) — DÉCODÉ** (table `constdata`, ancre
+  `cannonball0`, `outils/pr3_constdata.py`). Vmax, puis dégâts coque/voiles/équipage
+  (à comparer aux PV internes = `Hitpoints` ×1000 ; un sloop a 110 000 de coque) :
+
+  | Munition | Vmax | Coque | Voiles | Équipage | Rôle |
+  |---|---|---|---|---|---|
+  | boulet | 424 | **1000** | 100 | 300 | polyvalent, anti-coque |
+  | chaîne | 366 | 200 | **1500** | 100 | anti-voiles (immobilise) |
+  | mitraille | 312 | 300 | 100 | **800** | anti-équipage (abordage) |
+  | lourd | 554 | **2500** | **2500** | 100 | gros dégâts coque + voiles |
 - **`[HullDamage]` / `[SailDamage]`** : paliers `Condition_%d` (%, jusqu'à 100) →
   `SpeedFactor_%d` : une coque/voilure abîmée ralentit le navire par paliers.
 - **`[Boarding]` (l'abordage) — décodé** : `Prepare` 7, `Start` 3.5, `DmgMod` 5,
@@ -638,7 +644,7 @@ Cinq niveaux : **porté** (dans `sim/`), **décodé** (math/structure exacte lue
 | Pirates, tempêtes, sauterelles, mines, patrouilles, météo | **décodé** (paramètres) |
 | Signaux de ville (conseiller) — taxonomie | **décodé** |
 | Générateurs de stratégie (Profit, Resources… → ordres) | **sémantique** (logique par stratégie non décompilée) |
-| Combat — PARAMÈTRES (`[Battleship]`, `[AmmoData]`, `[HullDamage]`, `[Boarding]`, `[Captain]`, `[Tactic]`) | **décodé** (structure + défauts) ; valeurs chiffrées dans `constdata` |
+| Combat — PARAMÈTRES (`[Battleship]`, `[AmmoData]`, `[HullDamage]`, `[Boarding]`, `[Captain]`, `[Tactic]`) | **décodé** — physique/abordage dans l'exe, **4 munitions (dégâts coque/voiles/équipage) dans `constdata`** ; restent prix canons + capitaine |
 | Combat AUTOMATIQUE : formule de puissance par camp | **partiel** — modèle connu, l'arithmétique est en cache ECS (RE profonde ou relevé en jeu) |
 | Combat MANUEL : application du coup (angle → touche → dégâts) | **partiel** — paramètres décodés, fonctions d'application à suivre |
 | Affectation équipage/escorte au combat (3 navires, ≤ 5 marins/canon) | **décodé** (règle) |
