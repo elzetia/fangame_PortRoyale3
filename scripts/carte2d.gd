@@ -94,6 +94,7 @@ var _comptoir: MarchePanneau
 var _infos_ville: VillePanneau
 var _routes: RoutesPanneau
 var _chantier: ChantierPanneau
+var _radial: RadialVille
 
 # Les cinq marchands des nations, relus à chaque image : ils bougent tout
 # seuls, y compris pendant que le joueur regarde ailleurs.
@@ -167,6 +168,16 @@ func _ready() -> void:
 	# L'écran du chantier naval : y constituer sa flotte.
 	_chantier = ChantierPanneau.new()
 	add_child(_chantier)
+	# Le menu radial au clic sur une ville : infos, dock, chantier (si elle en a un).
+	_radial = RadialVille.new()
+	add_child(_radial)
+	_radial.infos_demandee.connect(func(port: Dictionary) -> void:
+		_ouvrir_infos_ville(port))
+	_radial.dock_demande.connect(func(port: Dictionary) -> void:
+		_ouvrir_comptoir(port))
+	_radial.chantier_demande.connect(func(port: Dictionary) -> void:
+		if _chantier != null:
+			_chantier.ouvrir(sim))
 	# Le bouton « Infos ville » du comptoir passe par ici : c'est la carte qui
 	# arbitre lequel des deux panneaux est à l'écran.
 	_comptoir.infos_demandees.connect(func(port: Dictionary) -> void:
@@ -1251,11 +1262,9 @@ func _process(delta: float) -> void:
 		var m := _comptoir.message()
 		if m != "":
 			_noter(m)
-	# Les convois du joueur bougent et commercent avec le temps : l'écran des
-	# routes doit se relire s'il est ouvert.
-	if _routes != null and _routes.visible:
-		_routes.rafraichir()
-	# Les constructions avancent avec le temps : le chantier aussi se relit.
+	# L'écran des routes se rafraîchit tout seul, à cadence throttlée (il porte des
+	# boutons qu'un rebâti par image casserait). Les constructions du chantier, elles,
+	# n'ont pas de bouton par ligne : on peut les relire à chaque image sans risque.
 	if _chantier != null and _chantier.visible:
 		_chantier.rafraichir()
 	queue_redraw()
@@ -1524,8 +1533,10 @@ func _clic_gauche() -> void:
 	if port.is_empty():
 		var monde := proj.vers_monde(get_global_mouse_position())
 		port = _port_proche(monde, RAYON_CLIC_PORT)
-	if not port.is_empty():
-		_ouvrir_infos_ville(port)
+	if not port.is_empty() and _radial != null:
+		# La couronne s'ouvre au curseur, en pixels écran (elle vit dans une
+		# CanvasLayer, hors de la transformée de la caméra).
+		_radial.ouvrir(port, get_viewport().get_mouse_position())
 
 
 # Clic droit : on COMMANDE. Le navire met le cap sur la mer cliquée, ou sur la

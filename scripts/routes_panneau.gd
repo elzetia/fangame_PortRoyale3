@@ -1,9 +1,10 @@
 # L'écran des routes commerciales automatiques du joueur.
 #
-# Le cœur de Port Royale : on arme un convoi (des navires), on lui trace un
-# circuit de villes et on lui donne une stratégie ; il navigue et commerce seul.
-# Tout le moteur vit dans `sim/` (marchands + strategies + compagnie) ; ce
-# panneau n'est qu'une façade : il liste les routes existantes et en crée.
+# Le cœur de Port Royale : on arme un convoi (des navires de la flotte), on lui
+# trace un circuit de villes et on lui donne une stratégie ; il navigue et commerce
+# seul. On gère aussi les convois EN SERVICE : ajouter des navires libres, en
+# retirer (ils reviennent à la flotte), dissoudre. Tout le moteur vit dans `sim/`
+# (marchands + strategies + compagnie) ; ce panneau n'est qu'une façade.
 #
 # Contrôles standard de Godot (listes, menu, compteur), habillés de la palette
 # de la maison. Il ne calcule rien : l'or, la cale, la cargaison viennent du pont.
@@ -29,12 +30,32 @@ var _msg: Label
 var _flotte: Array = []       # index de ligne -> navire possédé (avec son indice sim)
 var _villes: Array = []       # index de ligne -> dico de ville
 var _strats: Array = []       # index -> nom de stratégie
+var _cadre: PanelContainer    # le cadre, pour savoir si la souris est dessus
+var _depuis_maj := 0.0        # secondes depuis le dernier rafraîchissement auto
+
+const INTERVALLE := 0.7       # cadence du rafraîchissement auto des convois
 
 
 func _ready() -> void:
 	layer = 60
 	visible = false
 	_construire()
+
+
+# Les convois bougent et commercent : on relit la liste régulièrement, mais PAS à
+# chaque image — les lignes portent des boutons (retirer un navire, ajouter la
+# sélection) qu'un rebâti continu détruirait sous le curseur. On saute donc le
+# rafraîchissement tant que la souris est sur le cadre.
+func _process(delta: float) -> void:
+	if not visible or _sim == null:
+		return
+	_depuis_maj += delta
+	if _depuis_maj < INTERVALLE:
+		return
+	if _cadre != null and _cadre.get_global_rect().has_point(get_viewport().get_mouse_position()):
+		return
+	_depuis_maj = 0.0
+	rafraichir()
 
 
 func ouvrir(sim_obj: Object) -> void:
@@ -84,6 +105,7 @@ func _construire() -> void:
 	# Le cadre ne laisse pas passer le clic au voile.
 	cadre.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(cadre)
+	_cadre = cadre
 
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
@@ -274,6 +296,46 @@ func _ligne_route(r: Dictionary) -> Control:
 	v.add_child(_label("%s pièces · cale %d/%d · %s · %s" % [
 		_nombre(int(r.get("or_", 0))), int(r.get("charge", 0)),
 		int(r.get("capacite", 0)), String(r.get("cargaison", "")), lieu], 12, ENCRE))
+
+	# Les navires du convoi, chacun avec un bouton pour l'en retirer (il revient
+	# à la flotte). C'est la gestion fine des convois, comme l'onglet Navires du
+	# dialogue de ville de PR3.
+	var noms: Array = r.get("navires_noms", [])
+	var quai := FlowContainer.new()
+	quai.add_theme_constant_override("h_separation", 4)
+	quai.add_theme_constant_override("v_separation", 4)
+	v.add_child(quai)
+	for k in noms.size():
+		var chip := Button.new()
+		chip.text = "%s  ✕" % String(noms[k])
+		chip.add_theme_font_size_override("font_size", 11)
+		chip.tooltip_text = "Retirer ce navire du convoi"
+		var pos := k + 1  # Lua indexe à partir de 1
+		chip.pressed.connect(func() -> void:
+			_sim.retirer_navire_convoi(indice, pos)
+			_remplir_flotte()
+			rafraichir())
+		quai.add_child(chip)
+
+	# Ajouter au convoi les navires libres cochés dans la liste de gauche.
+	var ajouter := Button.new()
+	ajouter.text = "+ Ajouter les navires cochés"
+	ajouter.add_theme_font_size_override("font_size", 12)
+	ajouter.pressed.connect(func() -> void:
+		var sel: Array = []
+		for i in _liste_navires.get_selected_items():
+			sel.append(int(_flotte[i].get("indice", 0)))
+		if sel.is_empty():
+			_msg.add_theme_color_override("font_color", Color(0.5, 0.1, 0.1))
+			_msg.text = "Coche d'abord des navires de la flotte à gauche."
+			return
+		var res: Dictionary = _sim.ajouter_navire_convoi(indice, sel)
+		if not bool(res.get("ok", false)):
+			_msg.add_theme_color_override("font_color", Color(0.5, 0.1, 0.1))
+			_msg.text = String(res.get("message", "Échec."))
+		_remplir_flotte()
+		rafraichir())
+	v.add_child(ajouter)
 	return fond
 
 
