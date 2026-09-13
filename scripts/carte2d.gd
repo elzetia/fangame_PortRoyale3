@@ -100,6 +100,7 @@ var _routes: RoutesPanneau
 var _chantier: ChantierPanneau
 var _radial: RadialVille
 var _capitainerie: CapitaineriePanneau
+var _convoy_town: ConvoyTownPanneau
 
 # Les cinq marchands des nations, relus à chaque image : ils bougent tout
 # seuls, y compris pendant que le joueur regarde ailleurs.
@@ -186,6 +187,10 @@ func _ready() -> void:
 	# La capitainerie d'un port : convois à quai et navires sans convoi qui y sont.
 	_capitainerie = CapitaineriePanneau.new()
 	add_child(_capitainerie)
+	# Le bureau du port tabulé, fidèle à Scene_Convoy_Town de PR3 (remplace la
+	# Capitainerie séparée : Convois / Navires / Villes / Routes en onglets).
+	_convoy_town = ConvoyTownPanneau.new()
+	add_child(_convoy_town)
 	_radial.infos_demandee.connect(func(port: Dictionary) -> void:
 		_ouvrir_infos_ville(port))
 	# Dock = le marché. On sélectionne d'abord un convoi présent au port, pour que
@@ -193,10 +198,10 @@ func _ready() -> void:
 	_radial.dock_demande.connect(func(port: Dictionary) -> void:
 		_selectionner_convoi_au_port(port)
 		_ouvrir_comptoir(port))
-	# Capitainerie = la gestion des convois de ce port.
+	# Bureau du port = l'écran de ville tabulé (Convois/Navires/Villes/Routes).
 	_radial.capitainerie_demande.connect(func(port: Dictionary) -> void:
-		if _capitainerie != null:
-			_capitainerie.ouvrir(sim, port))
+		if _convoy_town != null:
+			_convoy_town.ouvrir(sim, port))
 	_radial.chantier_demande.connect(func(port: Dictionary) -> void:
 		if _chantier != null:
 			_chantier.ouvrir(sim, port))
@@ -1715,6 +1720,17 @@ func _joueur_au_port(port: Dictionary) -> bool:
 	return sim.convoi_au_port(String(port.get("cle", "")))
 
 
+# Le port sur lequel ouvrir le bureau du port depuis le HUD : celui où le convoi
+# sélectionné est à quai, sinon le premier port de la carte.
+func _port_pour_bureau() -> Dictionary:
+	var m := _convoi_par_indice(_convoi_selectionne)
+	if not m.is_empty() and bool(m.get("a_quai", false)):
+		var p := _port_par_cle(String(m.get("ville", "")))
+		if not p.is_empty():
+			return p
+	return ports[0] if not ports.is_empty() else {}
+
+
 # Sélectionne un convoi du joueur à quai dans ce port (pour que le comptoir échange
 # avec lui). Ne change rien si aucun n'y est.
 func _selectionner_convoi_au_port(port: Dictionary) -> void:
@@ -1863,18 +1879,19 @@ func _creer_hud() -> void:
 	_panneau_date.position = MARGE_DATE
 	couche.add_child(_panneau_date)
 
-	# Le bouton des routes commerciales : en haut à droite, il ouvre l'écran de
-	# gestion des convois automatiques du joueur.
+	# Le bouton « Bureau du port » : en haut à droite, il ouvre l'écran de ville
+	# tabulé (Convois/Navires/Villes/Routes) sans passer par le radial. On l'ouvre
+	# sur le port du convoi sélectionné, sinon le premier port.
 	var routes_b := Button.new()
-	routes_b.text = "Routes"
+	routes_b.text = "Bureau du port"
 	routes_b.add_theme_font_size_override("font_size", 16)
 	routes_b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	routes_b.offset_left = -120
+	routes_b.offset_left = -170
 	routes_b.offset_top = 14
 	routes_b.offset_right = -14
 	routes_b.pressed.connect(func() -> void:
-		if _routes != null:
-			_routes.ouvrir(sim))
+		if _convoy_town != null:
+			_convoy_town.ouvrir(sim, _port_pour_bureau()))
 	couche.add_child(routes_b)
 
 	# Plus de bouton « Chantier » global : le chantier est propre à chaque port et

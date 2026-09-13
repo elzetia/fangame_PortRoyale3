@@ -77,8 +77,8 @@ func ouvrir(port: Dictionary, ecran_pos: Vector2, a_convoi: bool) -> void:
 		{"txt": "Infos", "sig": "infos"},
 	]
 	if a_convoi:
-		petales.append({"txt": "Dock", "sig": "dock"})
-		petales.append({"txt": "Capitainerie", "sig": "capitainerie"})
+		petales.append({"txt": "Marché", "sig": "dock"})
+		petales.append({"txt": "Bureau du port", "sig": "capitainerie"})
 		if bool(port.get("chantier", false)):
 			petales.append({"txt": "Chantier", "sig": "chantier"})
 
