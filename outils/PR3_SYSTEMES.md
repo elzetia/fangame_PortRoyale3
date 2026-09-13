@@ -788,3 +788,71 @@ extensible. Prochaines briques, par ordre d'utilité :
 
 La liste exhaustive des 134 sections et 421 clés est reproductible par
 `py -3 outils/config_map.py` (l'outil lit l'exécutable local, jamais commité).
+
+---
+
+## La réputation : deux systèmes, un seul alimenté par le commerce
+
+Relevé au désassembleur, fonction par fonction. C'est la réponse à « la
+réputation baisse vite et ne remonte jamais ».
+
+### Deux magasins distincts, dans le même objet
+
+Tout vit dans `joueur+0x1B8` :
+
+| Zone | Forme | Portée |
+|---|---|---|
+| vecteur d'enregistrements de **12 octets** | `[0]` accumulateur, `[4]` base, `[8]` valeur affichée 0–100, `[9]` dernière variation | **par ville** |
+| `+0x20` : quatre `u32` | 0–1000, affichage ÷10 | **par nation** |
+| `+0x30` : quatre `u32` | cumul brut des gains | par nation |
+| `+0x40` : quatre octets | nation *liée* (si < 4, moyenne des deux) | par nation |
+| `+0x52` | bits « à rafraîchir » | — |
+
+### Qui écrit quoi
+
+```
+COMMERCE ──> 0x7839E0 (vendre sous X1)  ──┐
+             0x783B40 (acheter sous X1) ──┼──> 0x759F00 ──> 0x75CEF0 ──> 0x75CC30
+             0x783C00                    ──┘                          (ACCUMULE, ±1000)
+                                                                      => VILLE seulement
+
+MISSIONS, ANNEXION, PIRATERIE ──> 0x783510 (boucle sur les 4 nations)
+                                  0x783CB0 (annexion, valeur Annexed = 200)
+                                      └──> 0x7C72A0 ──> 0x759E40 ──> 0x75C700
+                                                                     (ACCUMULE, 0..1000)
+                                                                     => NATION seulement
+```
+
+**Aucun chemin du commerce n'atteint `0x75C700`.** La séparation est
+architecturale, pas un réglage.
+
+### Pourquoi ça paraît asymétrique
+
+Les coefficients, eux, sont symétriques : gain et perte de ville valent tous deux
+`100 × part/X1` en unités d'accumulateur (`RepFactor` vaut 1000 par défaut —
+`fld1` × la constante `1000.0` en `0xB3D9B8` — et le gain vaut `RepFactor/10`).
+`[Reputation] Offset/Amplitude/Phase` se chargent avec `fldz` : **aucune érosion
+passive**. L'asymétrie vient d'ailleurs :
+
+1. **La punition est collective** — `0x783510` boucle sur les quatre nations : une
+   attaque sans lettre de marque coûte partout à la fois. Le gain ne concerne
+   jamais qu'une couronne.
+2. **Le gain est épisodique**, jamais continu, alors que le commerce est l'action
+   permanente du joueur.
+3. **Verrou d'amorçage** — il faut déjà 25 % auprès d'une nation pour que son
+   gouverneur offre les missions qui sont la principale source de réputation
+   (`ID_TOWNHALL_GOVERNOR_CASE2`), et 75 % pour le vice-roi.
+
+### Le correctif
+
+`outils/pr3_patch_reputation.py`. Dans `0x7839E0`, le `call 0x759F00` de
+`0x783A79` fait exactement 5 octets — la taille d'un `jmp rel32`. On le remplace
+par un saut vers une section ajoutée (`.pr3fix`), qui refait l'appel d'origine
+puis appelle `0x75C700(nation, valeur)` pour la nation propriétaire de la ville,
+avant de revenir à `0x783A7E`.
+
+Faits qui rendent la greffe sûre : `[ville+0x36]` est l'index de nation (six
+sites le bornent par `cmp al,4; jae`) ; `0x759F00` ne touche jamais `ebx`, donc
+l'objet ville survit ; et l'exe est **sans ASLR** (`DllCharacteristics` 0x8100,
+table de relocations vide), si bien que toutes les adresses absolues restent
+valides. L'en-tête PE a 120 octets libres — assez pour une dixième section.
