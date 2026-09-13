@@ -13,6 +13,7 @@ local Economie     = require("sim.economie")
 local Marchandises = require("sim.marchandises")
 local Navires      = require("sim.navires")
 local Marchands    = require("sim.marchands")
+local Chantier     = require("sim.chantier")
 
 local Compagnie = {}
 
@@ -75,40 +76,156 @@ function Compagnie.reputation_nation(cle_nation)
   return n > 0 and somme / n or Compagnie.REP_DEPART
 end
 
--- Les convois AUTOMATIQUES du joueur : des flottes lancées sur un circuit avec une
--- stratégie (voir `sim/strategies.lua`), qui commercent seules — le cœur de Port
--- Royale. Ils réutilisent la machinerie des convois de l'IA (`sim/marchands.lua`),
--- mais gardent leur or, alimenté par le joueur. La richesse totale du joueur, c'est
--- sa caisse plus l'or embarqué sur ses convois.
-Compagnie.convois = {}
+-- LA FLOTTE DU JOUEUR, telle que PR3 la fait vivre (voir `sim/chantier.lua`).
+--
+-- On ACHÈTE ou on CONSTRUIT des navires au chantier ; ils entrent dans la flotte
+-- possédée (`Compagnie.flotte`), à quai, désœuvrés. On en AFFECTE ensuite plusieurs
+-- à un convoi automatique (`Compagnie.convois`), qui part sur un circuit avec une
+-- stratégie et commerce seul — le cœur de Port Royale. Dissoudre un convoi rend ses
+-- navires à la flotte. On peut donc avoir autant de convois qu'on veut, chacun taillé
+-- sur mesure, dans les limites de PR3 (50 navires en tout, 50 par convoi, 100 convois).
+--
+-- Un « navire possédé » est léger : sa clé de type (`sim/navires`) et un nom propre.
+-- La coque et l'équipage ne sont pas encore suivis faute de combat dans la sim.
+Compagnie.flotte = {}         -- navires possédés, à quai, non affectés
+Compagnie.file_chantier = {}  -- constructions en cours : { cle, nom, ville, jours }
+Compagnie.convois = {}        -- convois automatiques en service
 
--- Arme un convoi du joueur : une liste de clés de navires (types de `sim/navires`),
--- un circuit de villes, une stratégie, et un capital prélevé sur la caisse. Renvoie
--- le convoi, ou un message d'échec.
-function Compagnie.armer_route(cles_navires, circuit, strategie, capital)
-  local navires = {}
-  for _, cle in ipairs(cles_navires or {}) do
-    local n = Navires.get(cle)
-    if n then navires[#navires + 1] = n end
+-- Baptise chaque navire pour le distinguer dans la flotte : « Sloop 3 ».
+local function baptiser(navire)
+  Compagnie.compteur_navires = (Compagnie.compteur_navires or 0) + 1
+  return string.format("%s %d", navire.nom, Compagnie.compteur_navires)
+end
+
+
+-- Combien de navires le joueur possède EN TOUT : flotte à quai + constructions en
+-- cours + navires embarqués dans les convois + son navire personnel. C'est ce total
+-- que plafonne `maxShips` (50).
+function Compagnie.nombre_navires()
+  local n = #Compagnie.flotte + #Compagnie.file_chantier
+  if Compagnie.navire then n = n + 1 end
+  for _, m in ipairs(Compagnie.convois) do
+    n = n + #(m.navires_joueur or m.navires or {})
   end
-  if #navires == 0 then return nil, "Aucun navire." end
+  return n
+end
+
+
+-- ACHETER un navire tout fait : on paie son plein prix (`Value`) et il rejoint la
+-- flotte tout de suite. Renvoie ok, message.
+function Compagnie.acheter_navire(cle_ville, cle_type)
+  local navire = Navires.get(cle_type)
+  if not navire then return false, "Type de navire inconnu." end
+  if Compagnie.nombre_navires() >= Chantier.LIMITE_NAVIRES then
+    return false, string.format("Flotte pleine (%d navires).", Chantier.LIMITE_NAVIRES)
+  end
+  local prix = Chantier.prix_achat(cle_type)
+  if prix > Compagnie.or_ then return false, "Or insuffisant." end
+  Compagnie.or_ = Compagnie.or_ - prix
+  Compagnie.flotte[#Compagnie.flotte + 1] =
+    { cle = cle_type, nom = baptiser(navire), attache = cle_ville }
+  return true, nil
+end
+
+
+-- CONSTRUIRE un navire neuf : moins d'or (`Construct`) mais il faut que la ville ait
+-- les matières (bois, cordage, tissu, métal — puisées à son marché) et il faut
+-- attendre le délai de construction. Renvoie ok, message.
+function Compagnie.construire_navire(cle_ville, cle_type)
+  local recette = Chantier.recette(cle_type)
+  if not recette then return false, "Type de navire inconnu." end
+  if Compagnie.nombre_navires() >= Chantier.LIMITE_NAVIRES then
+    return false, string.format("Flotte pleine (%d navires).", Chantier.LIMITE_NAVIRES)
+  end
+  if recette.or_ > Compagnie.or_ then return false, "Or insuffisant." end
+
+  -- Toutes les matières doivent être disponibles AVANT d'en consommer aucune :
+  -- une construction ne doit jamais réussir à moitié.
+  for _, mat in ipairs(recette.materiaux) do
+    local l = Economie.ligne(cle_ville, mat.cle)
+    if not l or l.stock < mat.quantite then
+      local m = Marchandises.get(mat.cle)
+      return false, string.format("Il manque du %s au chantier.",
+        (m and m.nom:lower()) or mat.cle)
+    end
+  end
+
+  for _, mat in ipairs(recette.materiaux) do
+    Economie.acheter(cle_ville, mat.cle, mat.quantite)  -- vide le stock de la ville
+  end
+  Compagnie.or_ = Compagnie.or_ - recette.or_
+  local navire = Navires.get(cle_type)
+  Compagnie.file_chantier[#Compagnie.file_chantier + 1] =
+    { cle = cle_type, nom = baptiser(navire), ville = cle_ville, jours = recette.jours }
+  return true, nil
+end
+
+
+-- Fait avancer les constructions en cours ; celles arrivées à terme rejoignent la
+-- flotte. Appelé par le pont, avec le temps.
+function Compagnie.avancer_chantier(jours)
+  if not jours or jours <= 0 then return end
+  local reste = {}
+  for _, b in ipairs(Compagnie.file_chantier) do
+    b.jours = b.jours - jours
+    if b.jours <= 0 then
+      Compagnie.flotte[#Compagnie.flotte + 1] = { cle = b.cle, nom = b.nom, attache = b.ville }
+    else
+      reste[#reste + 1] = b
+    end
+  end
+  Compagnie.file_chantier = reste
+end
+
+
+-- Arme un convoi en y AFFECTANT des navires de la flotte (leurs indices), sur un
+-- circuit, avec une stratégie et un capital prélevé sur la caisse. Les navires
+-- quittent la flotte pour le convoi. Renvoie le convoi, ou un message d'échec.
+function Compagnie.armer_route(indices_flotte, circuit, strategie, capital)
   if not circuit or #circuit < 1 then return nil, "Circuit vide." end
+  if #Compagnie.convois >= Chantier.LIMITE_CONVOIS then
+    return nil, "Trop de convois." end
+
+  -- On trie les indices en ordre décroissant pour retirer de la flotte sans décaler.
+  local choisis = {}
+  for _, i in ipairs(indices_flotte or {}) do
+    if Compagnie.flotte[i] then choisis[#choisis + 1] = i end
+  end
+  if #choisis == 0 then return nil, "Aucun navire choisi." end
+  if #choisis > Chantier.LIMITE_MEMBRES then
+    return nil, string.format("Un convoi ne peut porter plus de %d navires.", Chantier.LIMITE_MEMBRES)
+  end
+  table.sort(choisis, function(a, b) return a > b end)
+
   capital = math.max(0, capital or 0)
   if capital > Compagnie.or_ then return nil, "Or insuffisant pour le capital." end
 
-  local m = Marchands.armer_joueur(circuit[1], navires, circuit, strategie, capital)
+  local possedes, types = {}, {}
+  for _, i in ipairs(choisis) do
+    local s = Compagnie.flotte[i]
+    possedes[#possedes + 1] = s
+    types[#types + 1] = Navires.get(s.cle)
+  end
+
+  local m = Marchands.armer_joueur(circuit[1], types, circuit, strategie, capital)
   if not m then return nil, "Port d'attache inconnu." end
+  m.navires_joueur = possedes  -- pour rendre les mêmes navires en dissolvant
+
+  for _, i in ipairs(choisis) do table.remove(Compagnie.flotte, i) end
   Compagnie.or_ = Compagnie.or_ - capital
   Compagnie.convois[#Compagnie.convois + 1] = m
   return m, nil
 end
 
 
--- Dissout un convoi du joueur : rapatrie son or dans la caisse, sa cargaison est
--- perdue (ou à vendre avant). Rend l'or récupéré.
+-- Dissout un convoi du joueur : rend ses navires à la flotte, rapatrie son or dans
+-- la caisse (sa cargaison est perdue, ou à vendre avant). Rend l'or récupéré.
 function Compagnie.dissoudre_route(indice)
   local m = Compagnie.convois[indice]
   if not m then return 0 end
+  for _, s in ipairs(m.navires_joueur or {}) do
+    Compagnie.flotte[#Compagnie.flotte + 1] = s
+  end
   local recup = math.floor(math.max(0, m.or_) + 0.5)
   Compagnie.or_ = Compagnie.or_ + recup
   table.remove(Compagnie.convois, indice)
@@ -136,6 +253,9 @@ end
 function Compagnie.reinitialiser()
   local sloop = Navires.get("sloop")
   Compagnie.or_ = 20000
+  Compagnie.flotte = {}
+  Compagnie.file_chantier = {}
+  Compagnie.compteur_navires = 0
   Compagnie.convois = {}
   Compagnie.reputation = {}
   for _, port in ipairs(Archipel.ports or {}) do

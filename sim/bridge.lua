@@ -11,6 +11,7 @@ local Economie     = require("sim.economie")
 local Compagnie    = require("sim.compagnie")
 local Marchands    = require("sim.marchands")
 local Navires      = require("sim.navires")
+local Chantier     = require("sim.chantier")
 
 local Bridge = {}
 
@@ -150,6 +151,8 @@ function Bridge.avancer_temps(dt)
     Marchands.avancer(heures / 24.0)
     -- Les convois automatiques du joueur avancent au même rythme que ceux de l'IA.
     Compagnie.avancer_convois(heures / 24.0)
+    -- Les navires en construction au chantier avancent par journées.
+    Compagnie.avancer_chantier(jours)
   end
   return heures
 end
@@ -528,11 +531,12 @@ local function en_table(liste)
   return t
 end
 
--- Arme une route : `navires` et `circuit` sont des listes de clés (types de
--- navires, clés de villes). Renvoie { ok, message }.
+-- Arme une route : `navires` est une liste d'INDICES dans la flotte du joueur (voir
+-- `Bridge.flotte`), `circuit` une liste de clés de villes. Renvoie { ok, message }.
 function Bridge.armer_route(navires, circuit, strategie, capital)
-  local nv, ci = en_table(navires), en_table(circuit)
-  local m, err = Compagnie.armer_route(nv, ci, strategie, capital)
+  local indices = {}
+  for _, v in ipairs(en_table(navires)) do indices[#indices + 1] = math.floor(v + 0.5) end
+  local m, err = Compagnie.armer_route(indices, en_table(circuit), strategie, capital)
   local d = Dictionary()
   d.ok = m ~= nil
   d.message = err or ""
@@ -542,6 +546,79 @@ end
 -- Dissout la route d'indice donné, rend l'or récupéré.
 function Bridge.dissoudre_route(indice)
   return math.floor(Compagnie.dissoudre_route(indice) + 0.5)
+end
+
+-- La flotte possédée du joueur : les navires à quai, prêts à être affectés à une
+-- route. L'indice sert à `armer_route`.
+function Bridge.flotte()
+  local a = Array()
+  for i, s in ipairs(Compagnie.flotte) do
+    local n = Navires.get(s.cle)
+    local d = Dictionary()
+    d.indice    = i
+    d.cle       = s.cle
+    d.nom       = s.nom
+    d.type      = n and n.nom or s.cle
+    d.cale      = n and n.cale or 0
+    d.entretien = n and n.entretien or 0
+    d.attache   = s.attache or ""
+    a:append(d)
+  end
+  return a
+end
+
+-- Les navires en construction au chantier, avec le nombre de jours restants.
+function Bridge.chantier_file()
+  local a = Array()
+  for _, b in ipairs(Compagnie.file_chantier) do
+    local p = Archipel.portsParCle[b.ville]
+    local d = Dictionary()
+    d.nom   = b.nom
+    d.ville = p and p.nom or (b.ville or "")
+    d.jours = math.ceil(b.jours)
+    a:append(d)
+  end
+  return a
+end
+
+-- Ce que coûte un type de navire : prix d'achat, coût de construction, délai et
+-- matières. Pour peupler la fiche du chantier.
+function Bridge.chantier_infos(cle_type)
+  local recette = Chantier.recette(cle_type)
+  local d = Dictionary()
+  if not recette then return d end
+  d.prix_achat  = Chantier.prix_achat(cle_type)
+  d.cout_construction = recette.or_
+  d.jours       = recette.jours
+  local mats = Array()
+  for _, mat in ipairs(recette.materiaux) do
+    local m = Marchandises.get(mat.cle)
+    local e = Dictionary()
+    e.cle = mat.cle
+    e.nom = m and m.nom or mat.cle
+    e.quantite = mat.quantite
+    mats:append(e)
+  end
+  d.materiaux = mats
+  return d
+end
+
+-- Achète un navire tout fait, à quai dans `cle_ville`. Renvoie { ok, message }.
+function Bridge.acheter_navire(cle_ville, cle_type)
+  local ok, err = Compagnie.acheter_navire(cle_ville, cle_type)
+  local d = Dictionary()
+  d.ok = ok
+  d.message = err or ""
+  return d
+end
+
+-- Lance la construction d'un navire à `cle_ville`. Renvoie { ok, message }.
+function Bridge.construire_navire(cle_ville, cle_type)
+  local ok, err = Compagnie.construire_navire(cle_ville, cle_type)
+  local d = Dictionary()
+  d.ok = ok
+  d.message = err or ""
+  return d
 end
 
 

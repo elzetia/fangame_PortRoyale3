@@ -1,0 +1,79 @@
+-- Le chantier naval, tel que PR3 le fait (voir `outils/PR3_SYSTEMES.md`
+-- § « Le chantier naval »).
+--
+-- PR3 offre cinq gestes au chantier : ACHETER un navire tout fait (au plein prix
+-- `Value`, tout de suite), le CONSTRUIRE neuf (moins cher, contre des matières et
+-- un délai), le RÉPARER, le REVENDRE (cote normale ou cote pirate). Ce module tient
+-- les RÈGLES et les CHIFFRES ; les gestes qui touchent la caisse et la flotte vivent
+-- dans `sim/compagnie.lua`, seul maître de l'or du joueur.
+--
+-- Ce qui est EXACT (lu dans l'exécutable) :
+--   * acheter = prix `Value` du type (colonne `prix` de `sim/navires`), immédiat ;
+--   * construire = coût `Construct` (colonne `construction`) + matières + délai ;
+--   * limites de flotte `[Limits]` : 50 navires, 50 par convoi, 100 convois ;
+--   * réparation `[Repairs]` : Zeit 30, Kosten 50 la coque.
+--
+-- Ce qui est PROVISOIRE (la recette de construction — matières et durée — est
+-- calculée EN JEU par PR3 depuis l'état de la ville, pas rangée en table ; on pose
+-- une recette raisonnable, à caler sur des relevés en jeu, comme la puissance de
+-- combat). Tout ce qui est provisoire est marqué CALER.
+
+local Navires = require("sim.navires")
+
+local Chantier = {}
+
+-- Limites de flotte, `[Limits]` de PR3 (`0x8299d9`) — EXACT.
+Chantier.LIMITE_NAVIRES = 50   -- maxShips : navires possédés en tout
+Chantier.LIMITE_MEMBRES = 50   -- maxConvoyMembers : navires dans un même convoi
+Chantier.LIMITE_CONVOIS = 100  -- maxConvoys
+
+-- Réparation, `[Repairs]` de PR3 (`0x8557c2`) — EXACT. Sans combat dans la sim, la
+-- coque ne s'abîme pas encore ; on garde les chiffres pour quand elle le fera.
+Chantier.REPARATION_ZEIT = 30    -- facteur de temps (plancher 1)
+Chantier.REPARATION_KOSTEN = 50  -- coût à l'unité de coque manquante
+
+-- Les matières navales de PR3 : bois, cordage (gréement), tissu (voiles), et métal
+-- pour les coques armées. Jusqu'à QUATRE, comme l'offre du jeu (boucle `0x58cae0`).
+-- CALER : quantités provisoires, à l'échelle de la cale. Relever en jeu la recette
+-- réelle (construire quelques navires, noter les marchandises) puis remplacer.
+local function recette_materiaux(navire)
+  local cale = navire.cale
+  local m = {
+    { cle = "bois",    quantite = math.ceil(cale / 8) },   -- la coque
+    { cle = "cordage", quantite = math.ceil(cale / 40) },  -- le gréement
+    { cle = "tissu",   quantite = math.ceil(cale / 30) },  -- les voiles
+  }
+  if navire.militaire then
+    m[#m + 1] = { cle = "metal", quantite = math.ceil(cale / 50) }  -- le bordé armé
+  end
+  return m
+end
+
+-- Le délai de construction, en JOURS. CALER : formule provisoire, à l'échelle de la
+-- cale (un sloop de 200 t ~ 3 j, un galion de 600 t ~ 8 j). PR3 le calcule en direct
+-- (offer time = constructing time, `0x58c890`) et le module le niveau du chantier ;
+-- on n'a encore ni l'un ni l'autre en clair.
+local function duree_construction(navire)
+  return math.max(2, math.floor(navire.cale / 80 + 0.5))
+end
+
+-- Ce que coûte et exige la construction d'un type de navire : l'or (`Construct`,
+-- EXACT), les matières et le délai (CALER). Renvoie nil si le type est inconnu.
+function Chantier.recette(cle_type)
+  local navire = Navires.get(cle_type)
+  if not navire then return nil end
+  return {
+    cle = navire.cle,
+    or_ = navire.construction,
+    materiaux = recette_materiaux(navire),
+    jours = duree_construction(navire),
+  }
+end
+
+-- Le prix d'achat d'un navire tout fait : son `Value` — EXACT.
+function Chantier.prix_achat(cle_type)
+  local navire = Navires.get(cle_type)
+  return navire and navire.prix or 0
+end
+
+return Chantier
