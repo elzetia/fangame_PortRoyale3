@@ -1,9 +1,10 @@
 # PR3 — données chiffrées de `constdata.dat` (tables binaires)
 
 Généré par `outils/pr3_constdata.py` (lit ta copie locale, jamais commitée). Ce
-sont des FAITS de gameplay (prix, recettes, coûts, stats de navires) tirés des
-tables binaires de `ini/constdata.dat` — pas les défauts de l'exe, mais les vraies
-valeurs du jeu (elles écrasent parfois l'exe : 1Fass 2000, Faktor 1.1, Lohn 6).
+sont des FAITS de gameplay (prix, recettes, coûts, stats de navires, munitions)
+tirés des tables binaires de `ini/constdata.dat` — pas les défauts de l'exe, mais
+les vraies valeurs du jeu (elles écrasent parfois l'exe : 1Fass 2000, Faktor 1.1,
+Lohn 6).
 
 Pour la config SCALAIRE complète (146 sections), voir `PR3_CONFIG.md`.
 Pour la logique et les systèmes, voir `PR3_SYSTEMES.md`.
@@ -168,4 +169,10 @@ Pour la logique et les systèmes, voir `PR3_SYSTEMES.md`.
    caravel           160000  500  300  300  180000  300 [6, '-', 8] 16 44  75
    wargalleon        180000  400  320  320  210000  320 [8, '-', '-'] 16 52  70
    liner             200000  400  340  340  240000  340 [8, '-', '-'] 12 56  70
+
+== Munitions (AmmoData : Vmax, DmgHull, DmgSail, DmgCrew)
+   boulet     Vmax  424.4   coque  1000  voiles   100  equipage   300
+   chaine     Vmax  365.9   coque   200  voiles  1500  equipage   100
+   mitraille  Vmax  311.8   coque   300  voiles   100  equipage   800
+   lourd      Vmax  554.3   coque  2500  voiles  2500  equipage   100
 ```

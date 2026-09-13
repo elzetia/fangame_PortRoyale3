@@ -211,6 +211,22 @@ def main():
               f" {construction:7d} {entretien:4d} {rangs} {vmin:2d} {vmax:2d} {wendig:3d}")
         fin = pos + len(nom)
 
+    # --- munitions (section AmmoData) ---------------------------------------
+    # Chaque type porte l'asset "cannonball0" ; les entrees se suivent au pas de
+    # 0x26. Le bloc string fait 4 (prefixe u32 de longueur) + 12 ("cannonball0\0").
+    # Juste avant : les champs. A +5 du bloc numerique : Vmax (f32) puis DmgHull,
+    # DmgSail, DmgCrew (i32). Les degats sont a comparer aux PV internes (Hitpoints
+    # x1000 : un sloop a 110 000 de coque).
+    AMMO = ["boulet", "chaine", "mitraille", "lourd"]
+    prem = cd.find(b"cannonball0")
+    print("\n== Munitions (AmmoData : Vmax, DmgHull, DmgSail, DmgCrew)")
+    for k, nom in enumerate(AMMO):
+        strp = prem - 4 + k * 0x26
+        b = cd[strp - 22:strp]
+        vmax = struct.unpack_from("<f", b, 5)[0]
+        dh, ds, dc = struct.unpack_from("<3i", b, 9)
+        print(f"   {nom:10s} Vmax {vmax:6.1f}   coque {dh:5d}  voiles {ds:5d}  equipage {dc:5d}")
+
 
 if __name__ == "__main__":
     main()
