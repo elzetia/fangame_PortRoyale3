@@ -47,6 +47,11 @@ const BOIS        := Color(0.16, 0.11, 0.07)
 # courante ; « Marchandises » renvoie au comptoir, le reste attend son écran.
 const ONGLETS := ["Infos ville", "Marchandises", "Équipement", "Commerce"]
 
+# Les sept niveaux de prospérité de PR3 (textes ID_GUI_TOWN_WEALTH), indexés par
+# `etat_ville.niveau` (1..7). C'est ce nom que TownInfo affiche, pas un nombre.
+const PROSPERITE := ["", "Pauvreté", "Récession", "Stagnation", "Redressement",
+	"Croissance", "Prospérité", "Opulence"]
+
 var _sim: Object = null
 var _port: Dictionary = {}
 var _villes: Villes = null
@@ -338,7 +343,7 @@ func rafraichir() -> void:
 	var fabriques := 0
 	var maisons := 0
 	var occupation := 0.0
-	var prosperite := int(_port.get("prosperite", 0))
+	var niveau := 5
 
 	if _sim != null:
 		var etat: Dictionary = _sim.etat_ville(String(_port.get("cle", "")))
@@ -348,11 +353,10 @@ func rafraichir() -> void:
 			fabriques = int(etat.get("fabriques", 0))
 			maisons = int(etat.get("maisons", 0))
 			occupation = float(etat.get("occupation", 0.0))
-			prosperite = int(etat.get("prosperite", prosperite))
+			niveau = int(etat.get("niveau", 5))
 
 	_lbl_habitants.text = _nombre(habitants)
-	_lbl_prosperite.text = (_nombre(prosperite) if prosperite > 0
-		else "occupée à %d %%" % int(round(occupation * 100.0)))
+	_lbl_prosperite.text = PROSPERITE[clampi(niveau, 1, 7)]
 	if tendance > 0:
 		_fleche.text = "▲"
 		_fleche.add_theme_color_override("font_color", VERT)
