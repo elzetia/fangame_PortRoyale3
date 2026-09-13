@@ -221,6 +221,34 @@ famine, l'ambassade et l'église amènent des colons d'Europe. La croissance « 
 sans immigration » qu'évoque le jeu est exactement la croissance à la prospérité
 que la sim applique.
 
+## Les signaux d'une ville (le conseiller)
+
+PR3 tient, par ville, une liste de raisons qui expliquent son état — ce que le
+conseiller affiche. L'énumération (`0x68E310`, `0x68E440`) en donne le vocabulaire
+complet :
+
+- **Manques économiques** : `missing_raw` (intrants manquants), `missing_worker`
+  (ouvriers manquants), `storage_cost` (entrepôt trop cher), `workload` (surcharge),
+  `housing` (logement insuffisant), `materials` / `materials_ship` (matériaux de
+  construction), `construct` (chantier), `nofood` (famine), `townwealth`
+  (prospérité).
+- **Convois** : `convoy_idle` (convoi inactif), `convoy_hp` (convoi endommagé),
+  `route` / `route_idle` (route commerciale à l'arrêt).
+- **Personnel** : `teacher` (école), `admin` (gérant d'entrepôt), `gouv`
+  (gouvernance).
+- **Événements** : `plague` (peste), `grashopper` (sauterelles), `fire` (feu),
+  `drought` (sécheresse), `blizzard`, `attack_sea` (attaque en mer), `feast`
+  (fête), `rouge`, `mission`.
+
+Les trois premiers manques (`missing_raw`, `missing_worker`, `nofood`) et
+`townwealth` sont exactement ce que la sim calcule (rendement des ateliers,
+subsistance, qualité) ; `Bridge.besoin_prioritaire` et `etat_ville` en sont
+l'écho. Les événements recouvrent les fléaux (§ économie).
+
+Les missions et quêtes de la campagne sont une couche scriptée par-dessus (durée
+d'affichage `[MissionDuration]`, comptage `[EventCount]`, drapeaux de nations
+`[Flags]`), qui déclenche ces mêmes signaux — hors du modèle économique.
+
 ## Combat naval — formules à confirmer
 
 Les paramètres sont relevés (§ « Le combat naval ») ; les formules exactes —
@@ -241,7 +269,8 @@ sim, qui ne simule pas le combat.
 | Combat naval (canon, abordage, forteresse) | **paramètres relevés**, formules à tracer en exécution |
 | Diplomatie, rangs, licences, donations, lettres de marque | **mécanique lue** (18 rangs à la richesse, réputation double + dérive sinusoïdale) |
 | Pirates, tempêtes, sauterelles, patrouilles, météo | **paramètres relevés** |
-| Missions et quêtes | **identifiées** (système d'événements) |
+| Signaux de ville (conseiller) | **taxonomie complète lue** |
+| Missions et quêtes | **identifiées** (couche scriptée sur les signaux) |
 | Rendu, caméra, interface, audio, réseau | **hors du modèle de simulation** |
 
 La liste exhaustive des 134 sections et 421 clés est reproductible par
