@@ -176,3 +176,101 @@ Pour la logique et les systèmes, voir `PR3_SYSTEMES.md`.
    mitraille  Vmax  311.8   coque   300  voiles   100  equipage   800
    lourd      Vmax  554.3   coque  2500  voiles  2500  equipage   100
 ```
+
+---
+
+## La table des navires de `constdata.dat`, relue proprement
+
+Mon premier décodeur cherchait les navires par une ancre heuristique et ne lisait
+que onze colonnes. La structure réelle se lit mieux : **chaque navire occupe un
+bloc de 120 octets qui se termine à son nom**, suivi de son nom de carte et de
+ses positions de canon.
+
+```
+[ scalaires, 120 octets ] [ nom ] [ nom_wm ] [ blocs GunPos de 16 octets ]
+```
+
+### Colonnes PROUVÉES
+
+Vérifiées en croisant chaque valeur connue contre chaque offset, sur les seize
+navires. Une colonne n'est retenue qu'au-delà de quatorze concordances sur seize.
+
+| champ | offset | type | concordance |
+|---|---:|---|---:|
+| `Value` (prix) | +13 | u32 | 16/16 |
+| `Capacity` (cale) | +17 | u16 | 16/16 |
+| `Construct` (construction) | +27 | u32 | 16/16 |
+| `DailyCosts` (entretien) | +31 | u16 | 16/16 |
+| `Vmin` | +40 | u8 | 16/16 |
+| `Vmax` | +41 | u8 | 16/16 |
+| `Wendig` (maniabilité) | +42 | u8 | 16/16 |
+
+### Les canons, et l'équipage qui s'en déduit
+
+Après les deux noms viennent des blocs de **16 octets** : un préfixe puis trois
+flottants, soit la **position (x, y, z) d'un canon**. Le fichier n'en garde
+qu'**un seul bord** — pour un navire donné, toutes les positions partagent le
+signe de leur x — et le jeu mire l'autre. D'où :
+
+```
+canons   = 2 × nombre de positions
+équipage = canons × [Ship] CrewmenAtGun (5)
+```
+
+Vérifié sur une capture du jeu : le sloop y affiche **14 canons et 70 marins**,
+et `constdata` lui donne **7 positions**. Deux champs indépendants qui tombent
+juste. De la pinasse (4 positions → 8 canons) au vaisseau de ligne (26 → 52), la
+série est monotone avec le prix et le tonnage.
+
+| navire | positions | canons | équipage |
+|---|---:|---:|---:|
+| pinasse, flûte commerciale | 4 | 8 | 40 |
+| sloop | 7 | 14 | 70 |
+| brick, flûte | 8 | 16 | 80 |
+| barque | 10 | 20 | 100 |
+| barque pirate, corvette | 12 | 24 | 120 |
+| frégate | 13 | 26 | 130 |
+| corvette combat | 16 | 32 | 160 |
+| frégate combat, galion | 18 | 36 | 180 |
+| caraque, caravelle | 20 | 40 | 200 |
+| galion de guerre | 23 | 46 | 230 |
+| vaisseau de ligne | 26 | 52 | 260 |
+
+### Colonnes prouvées, seconde passe
+
+`Hitpoints` EST dans le bloc — je l'avais d'abord déclaré absent, à tort : il est
+stocké en `u32` **multiplié par 1000**, et je le cherchais en `u16`.
+
+| champ | offset | type | concordance |
+|---|---:|---|---:|
+| `Hitpoints` (coque) | +19 | u32 ÷ 1000 | 16/16 |
+| `HitpointsSail` (voiles) | +23 | u32 ÷ 1000 | 16/16 |
+| `minRankMil` | +37 | u8 (255 = interdit) | 16/16 |
+| `maxRankMil` | +38 | u8 | 16/16 |
+| `minRankPir` | +39 | u8 | 16/16 |
+
+Coque et voiles portent la même valeur pour les seize navires, ce que disaient
+déjà les notes. C'est cette paire d'entiers égaux que le premier décodeur prenait
+pour une « ancre » sans savoir ce qu'elle était.
+
+### Les colonnes de tête sont décalées d'un navire
+
+Les octets `+0` à `+11` de la fenêtre d'un navire appartiennent à
+l'enregistrement **précédent** : la fenêtre de 120 octets déborde sur la queue du
+voisin. En réattribuant `+5` au navire d'avant on lit 2, 1, 2, 3 pour pinasse,
+sloop, brick, barque — soit leurs mâts, ce qui est historiquement juste.
+
+### Ce qui n'est toujours PAS établi
+
+- **`Gauge` (tirant d'eau).** La colonne `+7` était le candidat le plus plausible ;
+  elle est écartée : elle n'égale `vmax/4` qu'une fois sur quinze et n'est pas
+  monotone avec la taille (corvette 42 contre vaisseau de ligne 36).
+- **Les colonnes flottantes** (+52, +64, +68, +84, +100, +108) : huit navires y
+  partagent exactement les mêmes valeurs (5.5, 2.75, 7.0, 15.0, 16.0). Valeurs
+  par défaut partagées ou mauvaise lecture — indécidable par inspection seule.
+
+Le schéma du chargeur, lui, est certain (`0x85f8a7`–`0x85fe81`) : `minRankMil`,
+`maxRankMil` (255), `minRankPir`, `Vmin` (20), `Vmax` (28), `Wendig` (60),
+`BattleAsset`, `SeaMapAsset`, `HullLength/Width/Height`, `SailOffset/Length/
+Height/Type`, `GunPos%02u`, `Nations`, `Masts`, `Gauge`, `DailyCosts`,
+`Construct` — section `[Ship%02u]`.
