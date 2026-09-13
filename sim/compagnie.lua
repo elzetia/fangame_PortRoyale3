@@ -306,6 +306,19 @@ function Compagnie.ordonner_convoi(indice, cle_port_dest)
 end
 
 
+-- Envoie un convoi MANUEL vers un point de mer quelconque (clic droit en pleine
+-- mer). Renvoie ok, message.
+function Compagnie.ordonner_convoi_position(indice, x, z)
+  local m = Compagnie.convois[indice]
+  if not m then return false, "Convoi inconnu." end
+  if m.mode ~= "manuel" then return false, "Ce convoi suit une route ; dissous-la d'abord." end
+  if not Marchands.ordonner_position(m, x, z) then
+    return false, "Aucune route maritime jusque-là."
+  end
+  return true, nil
+end
+
+
 -- Dissout un convoi du joueur : rend ses navires à la flotte, rapatrie son or dans
 -- la caisse (sa cargaison est perdue, ou à vendre avant). Rend l'or récupéré.
 function Compagnie.dissoudre_route(indice)

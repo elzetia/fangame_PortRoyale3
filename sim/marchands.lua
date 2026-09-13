@@ -677,6 +677,19 @@ function Marchands.ordonner(m, cle_ville)
 end
 
 
+-- Envoie un convoi manuel vers un POINT DE MER quelconque (pas un port) : il y
+-- navigue et s'y arrête, à l'ancre. Renvoie false s'il n'y a pas de route de mer.
+function Marchands.ordonner_position(m, x, z)
+  if not m then return false end
+  local r = Navigation.route(m.x, m.z, x, z)
+  if not r or #r == 0 then return false end
+  m.route = r
+  m.destination = nil     -- pas un port : il restera à l'ancre en arrivant
+  m.ville = nil
+  return true
+end
+
+
 -- De quoi la ville manque-t-elle le plus ? Pour le diagnostic, et pour dire au
 -- joueur ce qu'il gagnerait à apporter ici.
 --

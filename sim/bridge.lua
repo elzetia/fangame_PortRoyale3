@@ -635,6 +635,15 @@ function Bridge.ordonner_convoi(indice, cle_port_dest)
   return d
 end
 
+-- Envoie le convoi manuel d'indice donné vers un point de mer (x, z).
+function Bridge.ordonner_convoi_position(indice, x, z)
+  local ok, err = Compagnie.ordonner_convoi_position(indice, x, z)
+  local d = Dictionary()
+  d.ok = ok
+  d.message = err or ""
+  return d
+end
+
 -- La flotte possédée du joueur : les navires à quai, prêts à être affectés à une
 -- route. L'indice sert à `armer_route`.
 function Bridge.flotte()

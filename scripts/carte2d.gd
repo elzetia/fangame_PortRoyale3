@@ -1728,23 +1728,30 @@ func _selectionner_convoi_au_port(port: Dictionary) -> void:
 # Clic droit : on COMMANDE. Si un convoi du joueur est sélectionné, on l'envoie au
 # port visé. Sinon, le navire met le cap sur la mer cliquée, ou sur la rade du port.
 func _clic_droit() -> void:
-	# Des convois sélectionnés : le clic droit les envoie TOUS au port visé.
+	# Des convois sélectionnés : le clic droit les envoie TOUS à la destination —
+	# un port si on en vise un, sinon le point de MER cliqué (comme dans PR3).
 	if not _convois_selectionnes.is_empty():
 		var monde0 := proj.vers_monde(get_global_mouse_position())
 		var port0 := _port_survole
 		if port0.is_empty():
 			port0 = _port_proche(monde0, RAYON_CLIC_PORT)
-		if port0.is_empty():
-			_noter("Clique sur un port pour y envoyer le(s) convoi(s) sélectionné(s).")
-		else:
+		var refus := ""
+		if not port0.is_empty():
 			var cle := String(port0.get("cle", ""))
-			var refus := ""
 			for ic in _convois_selectionnes:
 				var res := sim.ordonner_convoi(int(ic), cle)
 				if not bool(res.get("ok", false)):
 					refus = String(res.get("message", "Ordre refusé."))
-			if refus != "":
-				_noter(refus)
+		elif sim.est_terre(monde0.x, monde0.y, 30.0):
+			_noter("Impossible d'aller à terre — clique sur la mer ou un port.")
+			return
+		else:
+			for ic in _convois_selectionnes:
+				var res := sim.ordonner_convoi_position(int(ic), monde0.x, monde0.y)
+				if not bool(res.get("ok", false)):
+					refus = String(res.get("message", "Ordre refusé."))
+		if refus != "":
+			_noter(refus)
 		return
 
 	var port := _port_survole

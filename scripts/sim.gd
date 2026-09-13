@@ -165,6 +165,11 @@ func selectionner_convoi(indice_convoi: int) -> void:
 	_appel("selectionner_convoi", [indice_convoi])
 
 
+func ordonner_convoi_position(indice_convoi: int, x: float, z: float) -> Dictionary:
+	var r = _appel("ordonner_convoi_position", [indice_convoi, x, z])
+	return r if r is Dictionary else {}
+
+
 func ajouter_navire_convoi(indice_convoi: int, navires: Array) -> Dictionary:
 	var r = _appel("ajouter_navire_convoi", [indice_convoi, navires])
 	return r if r is Dictionary else {}
