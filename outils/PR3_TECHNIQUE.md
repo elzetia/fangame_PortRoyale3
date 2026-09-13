@@ -411,13 +411,19 @@ pinasses.
 `Verkaufszeit` (64 chacun). Ses ordres passent par une machine à états (autour de
 `0x79C1A0`) dont le détail des trajets n'a pas été lu.
 
-**Le commerce agit sur la réputation** (`0x7839E0`, `0x783B40`) :
+**Le commerce agit sur la réputation** (`0x7839E0`, `0x783B40`), tenue **par
+ville** — un tableau indexé par l'identifiant de la ville (`0x75CEF0`, une entrée
+par ville) :
 - **vendre** à une ville dont le stock est sous son premier seuil X1 fait monter
-  la réputation, au prorata de la part du manque comblée ;
+  sa réputation, au prorata de la part du manque comblée ;
 - **acheter** jusqu'à la faire passer sous X1 la fait baisser d'autant.
 
-*Dans la sim* (`sim/compagnie.lua`), la réputation du joueur est tenue par nation,
-de 0 à 100, et bouge à chaque transaction selon cette règle.
+PR3 tient en plus une réputation par nation (`RepNation`, `ID_REPUTATION_NATION_*`),
+nourrie par les missions et les annexions, distincte de celle des villes.
+
+*Dans la sim* (`sim/compagnie.lua`), la réputation du joueur est tenue par ville,
+de 0 à 100, et bouge à chaque transaction selon cette règle ; l'affichage par
+nation en est la moyenne.
 
 **Dans la sim** (`sim/marchands.lua`) :
 - 2 convois par ville ;

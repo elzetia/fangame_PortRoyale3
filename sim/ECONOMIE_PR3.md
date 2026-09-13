@@ -618,7 +618,7 @@ Tout ce qui précède et qui se simule sans bâtiments ni combats est dans `sim/
 | Entretien du navire du joueur, prélevé chaque jour | `sim/compagnie.lua` |
 | 2 convois IA par ville, cale visée de habitants × 420 ÷ 1 900, 1 à 3 navires tirés au hasard, 90 000 pièces | `sim/marchands.lua` |
 | **Or d'un convoi plafonné à son capital de travail ; le débordement bâtit des ateliers pour les chaînes faibles (comme l'IA de PR3)** | `sim/marchands.lua` |
-| **Réputation du joueur par nation, montée en comblant un manque, baissée en le creusant** | `sim/compagnie.lua` |
+| **Réputation du joueur par ville, montée en comblant un manque, baissée en le creusant (moyenne par nation pour l'affichage)** | `sim/compagnie.lua` |
 | **Fléaux (peste, sauterelles, feu) : consommation doublée sur leurs denrées, peste mortelle ; tirés surtout dans les villes mal loties** | `sim/economie.lua` |
 
 Mesuré sur douze ans par `tools/equilibre.gd`, à partir de 82 500 habitants :
@@ -643,10 +643,14 @@ démographie — la vitesse de PR3, non plus le seul compteur de faim. La famine
 croissance, si bien qu'une ville prospère de tissu mais sans pain n'enfle pas
 au-delà de ce que sa nourriture porte.
 
-**La réputation** (`sim/compagnie.lua`) est celle de `0x7839E0` / `0x783B40` :
-vendre à une ville dont le stock est sous X1 comble un manque et la fait monter,
-au prorata de la part comblée ; acheter jusqu'à la faire passer sous X1 la fait
-baisser d'autant. Elle est tenue par nation, de 0 à 100, à partir de 50.
+**La réputation** (`sim/compagnie.lua`) est celle de `0x7839E0` / `0x783B40`, et
+elle est tenue **par ville** : PR3 la range dans un tableau indexé par
+l'identifiant de la ville (`0x75CEF0`). Vendre à une ville dont le stock est sous
+X1 comble un manque et fait monter SA réputation, au prorata de la part comblée ;
+acheter jusqu'à la faire passer sous X1 la fait baisser d'autant. De 0 à 100, à
+partir de 50. Le jeu tient aussi une réputation par nation (`RepNation`, nourrie
+par les missions et les annexions) ; le commerce ne touche que celle de la ville,
+et on en dérive une moyenne par nation pour l'affichage large.
 
 **Les fléaux** (`sim/economie.lua`) sont tirés au sort, plus souvent dans les
 villes à basse qualité — l'écho du déclencheur de PR3 (`0x7C1930`), qui frappe les

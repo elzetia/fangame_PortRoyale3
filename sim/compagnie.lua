@@ -16,20 +16,22 @@ local Navires      = require("sim.navires")
 local Compagnie = {}
 
 -- LA RÉPUTATION, comme PR3 la fait bouger au commerce (`0x7839E0`, `0x783B40`).
--- Vendre à une ville dont le stock est SOUS son premier seuil de prix X1 comble
--- un manque et FAIT MONTER la réputation, au prorata de la part comblée ; acheter
--- jusqu'à la faire passer sous X1 aggrave le manque et la FAIT BAISSER d'autant.
--- Elle se tient par nation, de 0 à 100, et part de 50 — ni amie ni ennemie.
+-- Elle est tenue **PAR VILLE** : le jeu la range dans un tableau indexé par
+-- l'identifiant de la ville (`0x75CEF0`, une entrée par ville). Vendre à une ville
+-- dont le stock est SOUS son premier seuil de prix X1 comble un manque et FAIT
+-- MONTER sa réputation, au prorata de la part comblée ; acheter jusqu'à la faire
+-- passer sous X1 aggrave le manque et la FAIT BAISSER d'autant. De 0 à 100, départ
+-- 50 — ni amie ni ennemie.
 --
 -- PR3 la range en interne sur une échelle plus large (−1000 à 1000, `0x75CC30`)
 -- qu'il ramène à 0-100 pour l'affichage ; on garde directement l'échelle visible.
+-- Il tient aussi une réputation par NATION (`RepNation`, `ID_REPUTATION_NATION_*`),
+-- nourrie par les missions et les annexions ; le commerce, lui, ne touche que
+-- celle de la ville. On en dérive une moyenne par nation pour l'affichage large.
 Compagnie.REP_DEPART = 50
 Compagnie.REP_PLEIN = 3.0     -- points pour un lot qui comble un X1 entier de manque
 
 local function ajuster_reputation(cle_ville, cle_m, stock_avant, sens, quantite)
-  local nation = Archipel.portsParCle[cle_ville]
-  nation = nation and nation.nation
-  if not nation then return end
   local l = Economie.ligne(cle_ville, cle_m)
   if not l then return end
   local x1 = l.seuils[2]
@@ -46,18 +48,38 @@ local function ajuster_reputation(cle_ville, cle_m, stock_avant, sens, quantite)
     if sous_x1 > 0 then delta = -Compagnie.REP_PLEIN * math.min(quantite, sous_x1) / x1 end
   end
   if delta ~= 0 then
-    local r = (Compagnie.reputation[nation] or Compagnie.REP_DEPART) + delta
+    local r = (Compagnie.reputation[cle_ville] or Compagnie.REP_DEPART) + delta
     if r < 0 then r = 0 elseif r > 100 then r = 100 end
-    Compagnie.reputation[nation] = r
+    Compagnie.reputation[cle_ville] = r
   end
+end
+
+
+-- La réputation du joueur dans une ville, de 0 à 100.
+function Compagnie.reputation_ville(cle_ville)
+  return Compagnie.reputation[cle_ville] or Compagnie.REP_DEPART
+end
+
+
+-- La réputation moyenne auprès d'une nation : la moyenne de ses villes. C'est
+-- l'agrégat que PR3 montre à côté du drapeau, faute de simuler les missions.
+function Compagnie.reputation_nation(cle_nation)
+  local somme, n = 0, 0
+  for _, port in ipairs(Archipel.ports) do
+    if port.nation == cle_nation then
+      somme = somme + Compagnie.reputation_ville(port.cle)
+      n = n + 1
+    end
+  end
+  return n > 0 and somme / n or Compagnie.REP_DEPART
 end
 
 function Compagnie.reinitialiser()
   local sloop = Navires.get("sloop")
   Compagnie.or_ = 20000
   Compagnie.reputation = {}
-  for cle in pairs(Archipel.nations or {}) do
-    Compagnie.reputation[cle] = Compagnie.REP_DEPART
+  for _, port in ipairs(Archipel.ports or {}) do
+    Compagnie.reputation[port.cle] = Compagnie.REP_DEPART
   end
   Compagnie.navire = {
     nom = "Aurore",
