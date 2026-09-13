@@ -194,6 +194,33 @@ pirate attaque une ville), `TownAttackLock`. Les pirates ont leurs repaires
 mobiles sur la carte. La météo (`[Weather]` `Region%uRain`) fait pleuvoir par
 région.
 
+## Les bâtiments et leurs effets
+
+Les quarante-trois fiches (coûts et matériaux) sont dans `ECONOMIE_PR3.md` §10.6.
+Ce que chaque type FAIT, tiré des descriptions du jeu :
+
+| Bâtiment | Effet |
+|---|---|
+| **Entrepôt** | +`BasicCapacity` (1 000) de stockage par entrepôt ; coûts quotidiens (`Lagermiete`) ; un gérant peut tenir les routes à la place du joueur |
+| **Manufacture** | livre sa production à l'entrepôt chaque jour après y avoir pris ses intrants ; 25 ouvriers, **100 colons par manufacture** ; entretien fixe, donc plus elle produit plus elle est rentable |
+| **Maison** | 100 locataires ; bâtie à `FillRate` de remplissage |
+| **École** | +satisfaction et **+croissance des colons (jusqu'à +100 %)** ; n'agit que dans les villes riches ou prospères |
+| **Hôpital** | +satisfaction et **réduit le risque de famine** |
+| **Église** | +moral (fêtes), attire des colons, convertit les citoyens d'autres nations → +réputation |
+| **Ambassade** | les galions d'une nation (réputation > 25 %) viennent acheter les denrées coloniales (teintures, café, cacao, tabac) et **déposent ~1 colon par denrée achetée** |
+| **Caserne de pompiers** | réduit la propagation des incendies ; à bâtir près des manufactures à feu |
+| **Hospice** | rend la ville plus attirante pour les colons en quête de travail |
+| **Grand puits** | un réservoir retarde la sécheresse de plusieurs jours si la pluie manque |
+| **Parc** | +qualité de vie, seulement au-delà de 5 000 habitants et au statut Prospérité |
+| **Hôtel de ville, chantier naval, forteresse** | administration, construction navale, défense |
+
+Ces bâtiments publics (école, hôpital, église, parc…) sont les **vingt derniers
+points de qualité de vie** que la sim remplace par une dotation civique
+(`ECONOMIE_PR3.md` §10.10) : l'école pousse les colons, l'hôpital retient la
+famine, l'ambassade et l'église amènent des colons d'Europe. La croissance « même
+sans immigration » qu'évoque le jeu est exactement la croissance à la prospérité
+que la sim applique.
+
 ## Combat naval — formules à confirmer
 
 Les paramètres sont relevés (§ « Le combat naval ») ; les formules exactes —
@@ -210,6 +237,7 @@ sim, qui ne simule pas le combat.
 | Économie, villes, prix, prospérité, réputation | **complet et appliqué à la sim** |
 | Navires (caractéristiques), carte, eau, formats | **complet** |
 | Convois de l'IA (modèle d'objet, taille, classes) | **structure lue**, décision dans une hiérarchie de classes |
+| Bâtiments (coûts, matériaux, effets) | **complet** (effets lus des descriptions) |
 | Combat naval (canon, abordage, forteresse) | **paramètres relevés**, formules à tracer en exécution |
 | Diplomatie, rangs, licences, donations, lettres de marque | **mécanique lue** (18 rangs à la richesse, réputation double + dérive sinusoïdale) |
 | Pirates, tempêtes, sauterelles, patrouilles, météo | **paramètres relevés** |
