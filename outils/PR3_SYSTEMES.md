@@ -626,10 +626,28 @@ puissance est entièrement cartographié — il ne manque que l'écriture :
   d'économie (`0x8629b0`) et une courbe par paliers `0x51b8a0` (rang/richesse,
   non-combat) — la formule n'est pas une simple ×5 en clair.
 
-**Voie retenue** (pas de relevé en jeu) : reconstituer la **disposition mémoire du
-sous-objet `+0xfd0`** (offsets des champs puissance/équipage/canons des deux camps),
-puis identifier son **remplisseur** parmi les écrivains de `0x4376f0` — là est
-l'arithmétique. C'est une session de désassemblage ciblée, à faire d'un bloc.
+**Structure reconstruite (session « bloc » dédiée).** Le sous-objet `+0xfd0` est un
+objet « aperçu de bataille » : constructeur `0x49c7c0`, il contient **deux camps
+identiques** (attaquant à `+0`, défenseur à `+0x38`, chacun de la classe `0x49c990`,
+taille 0x38 o) plus une `std::string` à `+0x74`. Chaque camp a des accesseurs de
+champ (`get` à `+0x28`, `+0x34`, …). La puissance affichée est un champ de camp.
+
+**Ce qui résiste (honnête, après ~10 angles).** L'accesseur `0x4376f0` a **192
+appels** — tous des LECTEURS/copieurs (aucun n'écrit ni ne calcule juste après). Le
+déclencheur d'escorte `0x4b7a50` est un **dispatcher de 82 cas**. Les balayages ×5
+(« ≤ 5 marins/canon ») et « lit canons `+0x3b` ET équipage `+0x30` » ne donnent que
+des **widgets d'UI** dont les offsets de cache (0x30/0x34/0x3b) **coïncident** avec
+ceux d'un navire — la réutilisation d'offsets défait le balayage. L'écriture de la
+puissance vit dans la mise à jour du composant ECS, atteinte seulement par le
+système de composants abstrait.
+
+**Constat.** Ce n'est pas absent des fichiers, mais **ce chiffre précis ne cède pas
+au balayage statique** dans un effort raisonnable : cache + réutilisation d'offsets
++ abstraction ECS. Deux vraies voies restent : (a) reconstruire tout le système de
+composants ECS (long, payoff incertain) ; (b) pour le portage, une formule **calée
+sur le modèle connu** (somme sur ≤ 3 navires de combat de `canons·a + min(équipage,
+canons·5)·b`, modulée par la maniabilité), à ajuster au ressenti. Le modèle est sûr ;
+seuls les coefficients a/b manquent.
 
 ## État du rétro-engineering — le bilan complet
 
