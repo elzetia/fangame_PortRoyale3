@@ -346,6 +346,8 @@ function Economie.reinitialiser()
       qualite = 100,
       niveau = 5,
       tendance = 0,
+      maisons = math.floor(port.habitants / 100) + 1,   -- logement : 100 par maison
+      capacite = (math.floor(port.habitants / 100) + 1) * 100,
       fleau = nil,        -- { type = "peste"|"sauterelles"|"feu", jours = n }
     }
     -- Une graine propre à la ville, pour ses tirages de fléaux.
@@ -636,16 +638,27 @@ local SEUIL_OPULENCE = 90
 local POP_PROSPERITE = 2000       -- Prospérité (niveau 6) exige cette population
 local POP_OPULENCE = 6000         -- Opulence (niveau 7) exige celle-là
 
--- Les vitesses journalières par niveau. Pauvreté et Récession sont celles du
--- tutoriel (2 % et 1 %) ; les gains sont bien plus doux — une colonie se peuple
--- lentement et se vide vite — et ils sont MODULÉS par la subsistance : une ville
--- prospère de tissu mais sans pain ne grandit pas, elle attend son blé. C'est ce
--- qui empêche une ville de dépasser ce que sa nourriture peut porter.
+-- Le déclin garde les vitesses du tutoriel de PR3 (Pauvreté 2 %/jour, Récession
+-- 1 %/jour). La CROISSANCE, elle, suit désormais le modèle exact de PR3 (voir plus
+-- bas) et non plus un pourcentage.
 local DECLIN_PAUVRETE = -0.020
 local DECLIN_RECESSION = -0.010
-local CROISSANCE_REDRESSEMENT = 0.0003
-local CROISSANCE_PROSPERITE = 0.0006
 local DECLIN_MAX = 0.0050
+
+-- LA CROISSANCE EXACTE DE PR3 (`0x7C0BD0`) : les citoyens ne montent pas d'un
+-- pourcentage, ils approchent la CAPACITÉ DE LOGEMENT (maisons × 100) d'un montant
+--
+--     croissance = (capacité − citoyens) × facteur ÷ diviseur
+--
+-- Le diviseur est 200 (rapide) ; le facteur est le coefficient d'immigration par
+-- nation et difficulté (`0x828900`), qu'on ne lit pas et qu'on calibre. Les maisons
+-- se bâtissent vers `citoyens ÷ 100 + 1` (100 locataires par maison), et une ville
+-- prospère en bâtit DEVANT, d'où une capacité libre plus large et une montée plus
+-- vive. La courbe ralentit d'elle-même près de la capacité, sans taux écrit.
+local CROISSANCE_DIVISEUR = 200
+local CROISSANCE_FACTEUR = 1.5        -- facteur d'immigration, calibré sur equilibre.gd
+local MAISONS_AVANCE_PROSPERE = 2     -- maisons bâties DEVANT la population en Prospérité
+local MAISONS_AVANCE_CROISSANCE = 1   -- et en simple croissance
 
 -- La famine passe outre la prospérité : trois aliments manquants font fuir la
 -- population quoi que dise la note.
@@ -818,35 +831,60 @@ local function jour(ville)
   local note, niveau = qualite(ville)
   ville.qualite, ville.niveau = note, niveau
 
-  -- 6. Démographie, selon le niveau — la vitesse de PR3, graduée par la
-  --    satisfaction. La famine (trois aliments manquants) l'emporte : une ville
-  --    prospère mais affamée fond quand même.
-  local taux
+  -- 6. Démographie, comme PR3. Le DÉCLIN reste un pourcentage (les vitesses du
+  --    tutoriel) ; la CROISSANCE approche la capacité de logement.
+  --
+  --    a) Le logement (`0x7BF3D0`) : la ville vise `citoyens ÷ 100 + 1` maisons,
+  --       et si elle croît elle en bâtit DEVANT — c'est cette avance qui crée la
+  --       capacité libre où la population monte.
+  local avance = 0
+  if faim <= 0 and note > SEUIL_STAGNATION then
+    avance = (niveau >= 5) and MAISONS_AVANCE_PROSPERE or MAISONS_AVANCE_CROISSANCE
+  end
+  local cible_maisons = math.floor(ville.habitants / 100) + 1 + avance
+  if niveau == 6 and ville.habitants >= POP_OPULENCE * 1.8 then
+    cible_maisons = math.floor(ville.habitants / 100) + 1   -- l'Opulence cesse de pousser
+  end
+  local maisons = ville.maisons or (math.floor(ville.habitants / 100) + 1)
+  if maisons < cible_maisons then
+    maisons = math.min(cible_maisons, maisons + 1)          -- une maison par jour
+  elseif maisons * 100 > ville.habitants + 1500 then
+    maisons = maisons - 1                                   -- on retire le surplus (PR3)
+  end
+  if maisons < 1 then maisons = 1 end
+  ville.maisons = maisons
+  local capacite = maisons * Economie.LOGES_PAR_MAISON
+  ville.capacite = capacite
+
+  --    b) La population.
   if faim > 0 then
-    taux = -DECLIN_PAR_ALIMENT * faim
+    ville.habitants = ville.habitants * (1 - borner(DECLIN_PAR_ALIMENT * faim, 0, DECLIN_MAX))
+    ville.tendance = -1
   elseif note <= 20 then
-    taux = DECLIN_PAUVRETE
+    ville.habitants = ville.habitants * (1 + DECLIN_PAUVRETE)
+    ville.tendance = -1
   elseif note <= SEUIL_RECESSION then
-    taux = DECLIN_RECESSION
-  elseif note <= SEUIL_STAGNATION then
-    taux = 0
+    ville.habitants = ville.habitants * (1 + DECLIN_RECESSION)
+    ville.tendance = -1
+  elseif note <= SEUIL_STAGNATION or capacite <= ville.habitants then
+    ville.tendance = 0                                      -- stagnation, ou plus de logement
   else
-    -- Prospérité (colons chaque jour) ou simple redressement : la croissance est
-    -- freinée par la subsistance, et l'Opulence cesse de pousser au-delà d'un
-    -- plafond, comme PR3 borne la montée à la population.
-    local base = (niveau >= 5) and CROISSANCE_PROSPERITE or CROISSANCE_REDRESSEMENT
-    if niveau == 6 and ville.habitants >= POP_OPULENCE * 1.8 then base = 0 end
-    taux = base * (ville.subsistance or 1.0)
+    -- Croissance vers la capacité, freinée par la subsistance : une ville qui ne
+    -- nourrit pas déjà tous ses gens n'attire plus de colons (frein au carré, pour
+    -- qu'elle ne dépasse pas ce que sa nourriture porte et ne bascule pas en
+    -- famine — la sim ne veut pas de la famine que PR3 corrige par l'exode).
+    local subsist = ville.subsistance or 1.0
+    local croissance = (capacite - ville.habitants) * CROISSANCE_FACTEUR
+                       / CROISSANCE_DIVISEUR * subsist * subsist
+    ville.habitants = ville.habitants + croissance
+    ville.tendance = croissance > 0.01 and 1 or 0
   end
-  -- La peste tue et fait fuir tant qu'elle dure, par-dessus le reste.
+  -- La peste tue tant qu'elle dure, par-dessus le reste.
   if ville.fleau and ville.fleau.type == "peste" then
-    taux = taux - PESTE_MORTALITE
+    ville.habitants = ville.habitants * (1 - PESTE_MORTALITE)
+    ville.tendance = -1
   end
-  taux = borner(taux, -DECLIN_MAX, CROISSANCE_PROSPERITE)
-  -- La tendance affichée suit le taux réel, non plus un raccourci sur la faim :
-  -- la flèche du panneau et la démographie ne peuvent pas se contredire.
-  ville.tendance = (taux > 0 and 1) or (taux < 0 and -1) or 0
-  ville.habitants = borner(ville.habitants * (1 + taux), 120, 12000)
+  ville.habitants = borner(ville.habitants, 120, 12000)
 
   -- 7. Les fléaux : on décompte celui qui court, sinon on tire. Une ville mal
   --    lotie (note basse) est bien plus exposée — c'est ainsi que PR3 frappe les
