@@ -236,7 +236,7 @@ séquence exacte** de vingt étapes (esi = la ville, edi = le monde) :
 | 4 | `0x7C0040` | **Production** : chaque atelier consomme ses intrants (`0x75FDA0`) et produit ses sorties dans l'entrepôt (`0x75FD40`) **au prix = coût de production** (`Grundkosten` + salaires ÷ production). C'est ici que le stock d'un bien produit augmente | **décortiqué** |
 | 5 | `0x7BF160` | **Conseiller** : pour chaque problème qui dure depuis > 15 jours, lève un message avec une probabilité croissante `(nb × 3 + 10) × ancienneté` contre un tirage sur 1 000 (`0x841830` crée l'événement) | **lu** (décortiqué) |
 | 6 | `0x7C2400` | Événements et conseiller : famine, fléaux, bits de prospérité | **lu** |
-| 7 | `0x7C2B30` | Livraison de la production aux entrepôts (parcourt les ateliers) | lu (structure) |
+| 7 | `0x7C2B30` | **Efficacité des ateliers** : une manufacture qui ne peut tourner (manque d'ouvriers/intrants, test `0x946310`) perd **1 point d'efficacité/jour** (`[+0x92]−1`, `0x7632D0`) ; les chantiers (type `0x29`) émettent un événement. La production (étape 4) est mise à l'échelle par cette efficacité | **décortiqué** |
 | 8 | `0x7C26C0` | Niveau de prospérité (note → niveau, seuils 20/40/60/90, portes 2 000/6 000) | **lu** |
 | 9 | `0x7C2900` | Recalcul des réserves + arrivée/départ des colons par les convois | lu (structure) |
 | 10 | `0x7C0920` | Emploi et efficacité : lit les ouvriers d'un atelier (`+0x84`), la **réduit de moitié** en cas de manque d'ouvriers ou d'intrants, et déclenche les vérifications de construction (`0x7CBD40`/`0x7CB8E0`) | **décortiqué** |
