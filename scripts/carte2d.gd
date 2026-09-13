@@ -95,6 +95,7 @@ var _infos_ville: VillePanneau
 var _routes: RoutesPanneau
 var _chantier: ChantierPanneau
 var _radial: RadialVille
+var _quai: QuaiPanneau
 
 # Les cinq marchands des nations, relus à chaque image : ils bougent tout
 # seuls, y compris pendant que le joueur regarde ailleurs.
@@ -176,10 +177,16 @@ func _ready() -> void:
 	# Le menu radial au clic sur une ville : infos, dock, chantier (si elle en a un).
 	_radial = RadialVille.new()
 	add_child(_radial)
+	# Le quai d'un port : convois à quai et navires sans convoi qui y sont.
+	_quai = QuaiPanneau.new()
+	add_child(_quai)
+	_quai.negoce_demande.connect(func(port: Dictionary) -> void:
+		_ouvrir_comptoir(port))
 	_radial.infos_demandee.connect(func(port: Dictionary) -> void:
 		_ouvrir_infos_ville(port))
 	_radial.dock_demande.connect(func(port: Dictionary) -> void:
-		_ouvrir_comptoir(port))
+		if _quai != null:
+			_quai.ouvrir(sim, port))
 	_radial.chantier_demande.connect(func(port: Dictionary) -> void:
 		if _chantier != null:
 			_chantier.ouvrir(sim, port))

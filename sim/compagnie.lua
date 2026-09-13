@@ -287,6 +287,7 @@ function Compagnie.dissoudre_route(indice)
   local m = Compagnie.convois[indice]
   if not m then return 0 end
   for _, s in ipairs(m.navires_joueur or {}) do
+    s.attache = m.ville or m.attache   -- les navires rentrent au port où l'on dissout
     Compagnie.flotte[#Compagnie.flotte + 1] = s
   end
   local recup = math.floor(math.max(0, m.or_) + 0.5)
@@ -349,6 +350,7 @@ function Compagnie.retirer_navire_convoi(indice_convoi, indice_navire)
   local s = m.navires_joueur[indice_navire]
   if not s then return false, "Navire inconnu." end
   table.remove(m.navires_joueur, indice_navire)
+  s.attache = m.ville or m.attache   -- il rejoint la flotte là où on le débarque
   Compagnie.flotte[#Compagnie.flotte + 1] = s
   if #m.navires_joueur == 0 then
     local recup = math.floor(math.max(0, m.or_) + 0.5)
