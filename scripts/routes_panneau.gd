@@ -26,7 +26,7 @@ var _strategie: OptionButton
 var _capital: SpinBox
 var _routes_box: VBoxContainer
 var _msg: Label
-var _navires: Array = []      # index de ligne -> dico du type de navire
+var _flotte: Array = []       # index de ligne -> navire possédé (avec son indice sim)
 var _villes: Array = []       # index de ligne -> dico de ville
 var _strats: Array = []       # index -> nom de stratégie
 
@@ -39,8 +39,9 @@ func _ready() -> void:
 
 func ouvrir(sim_obj: Object) -> void:
 	_sim = sim_obj
-	if _navires.is_empty():
-		_remplir_choix()
+	if _villes.is_empty():
+		_remplir_villes_strats()
+	_remplir_flotte()
 	rafraichir()
 	visible = true
 
@@ -111,7 +112,7 @@ func _construire() -> void:
 	deux.add_child(gauche)
 
 	gauche.add_child(_label("Nouvelle route", 18, BOIS_CLAIR))
-	gauche.add_child(_label("Navires (choix multiple)", 13, ENCRE))
+	gauche.add_child(_label("Navires de la flotte (choix multiple)", 13, ENCRE))
 	_liste_navires = ItemList.new()
 	_liste_navires.select_mode = ItemList.SELECT_MULTI
 	_liste_navires.custom_minimum_size = Vector2(0, 130)
@@ -164,16 +165,9 @@ func _construire() -> void:
 	defil.add_child(_routes_box)
 
 
-func _remplir_choix() -> void:
+func _remplir_villes_strats() -> void:
 	if _sim == null:
 		return
-	_navires = _sim.navires_marchands()
-	_liste_navires.clear()
-	for n in _navires:
-		_liste_navires.add_item("%s — %d t, %s pièces, entretien %d/j" % [
-			String(n.get("nom", "?")), int(n.get("cale", 0)),
-			_nombre(int(n.get("prix", 0))), int(n.get("entretien", 0))])
-
 	_villes = _sim.ports()
 	_liste_villes.clear()
 	for v in _villes:
@@ -185,17 +179,34 @@ func _remplir_choix() -> void:
 		_strategie.add_item(String(_strats[i]), i)
 
 
+# La flotte change (achat, construction, affectation) : on la relit à chaque
+# ouverture et à chaque rafraîchissement.
+func _remplir_flotte() -> void:
+	if _sim == null:
+		return
+	var garde := _liste_navires.get_selected_items()
+	_flotte = _sim.flotte()
+	_liste_navires.clear()
+	for n in _flotte:
+		_liste_navires.add_item("%s — %d t, entretien %d/j" % [
+			String(n.get("nom", "?")), int(n.get("cale", 0)), int(n.get("entretien", 0))])
+	# On reprend la sélection tant que la flotte n'a pas changé de taille.
+	for i in garde:
+		if i < _liste_navires.item_count:
+			_liste_navires.select(i, false)
+
+
 func _armer() -> void:
 	if _sim == null:
 		return
-	var navires_cles: Array = []
+	var navires_indices: Array = []
 	for i in _liste_navires.get_selected_items():
-		navires_cles.append(String(_navires[i].get("cle", "")))
+		navires_indices.append(int(_flotte[i].get("indice", 0)))
 	var circuit: Array = []
 	for i in _liste_villes.get_selected_items():
 		circuit.append(String(_villes[i].get("cle", "")))
-	if navires_cles.is_empty():
-		_msg.text = "Choisis au moins un navire."
+	if navires_indices.is_empty():
+		_msg.text = "Choisis au moins un navire de la flotte (achète-en au chantier)."
 		return
 	if circuit.size() < 2:
 		_msg.text = "Choisis au moins deux escales."
@@ -203,10 +214,11 @@ func _armer() -> void:
 	var strat := "profit"
 	if _strategie.selected >= 0 and _strategie.selected < _strats.size():
 		strat = String(_strats[_strategie.selected])
-	var res: Dictionary = _sim.armer_route(navires_cles, circuit, strat, int(_capital.value))
+	var res: Dictionary = _sim.armer_route(navires_indices, circuit, strat, int(_capital.value))
 	if bool(res.get("ok", false)):
 		_msg.add_theme_color_override("font_color", Color(0.1, 0.4, 0.1))
 		_msg.text = "Route armée."
+		_remplir_flotte()
 		rafraichir()
 	else:
 		_msg.add_theme_color_override("font_color", Color(0.5, 0.1, 0.1))
@@ -249,6 +261,7 @@ func _ligne_route(r: Dictionary) -> Control:
 	var indice := int(r.get("indice", 0))
 	diss.pressed.connect(func() -> void:
 		_sim.dissoudre_route(indice)
+		_remplir_flotte()
 		rafraichir())
 	t.add_child(diss)
 

@@ -93,6 +93,7 @@ var _message_fin := 0.0
 var _comptoir: MarchePanneau
 var _infos_ville: VillePanneau
 var _routes: RoutesPanneau
+var _chantier: ChantierPanneau
 
 # Les cinq marchands des nations, relus à chaque image : ils bougent tout
 # seuls, y compris pendant que le joueur regarde ailleurs.
@@ -163,6 +164,9 @@ func _ready() -> void:
 	# L'écran des routes commerciales automatiques du joueur.
 	_routes = RoutesPanneau.new()
 	add_child(_routes)
+	# L'écran du chantier naval : y constituer sa flotte.
+	_chantier = ChantierPanneau.new()
+	add_child(_chantier)
 	# Le bouton « Infos ville » du comptoir passe par ici : c'est la carte qui
 	# arbitre lequel des deux panneaux est à l'écran.
 	_comptoir.infos_demandees.connect(func(port: Dictionary) -> void:
@@ -1251,6 +1255,9 @@ func _process(delta: float) -> void:
 	# routes doit se relire s'il est ouvert.
 	if _routes != null and _routes.visible:
 		_routes.rafraichir()
+	# Les constructions avancent avec le temps : le chantier aussi se relit.
+	if _chantier != null and _chantier.visible:
+		_chantier.rafraichir()
 	queue_redraw()
 
 
@@ -1649,6 +1656,19 @@ func _creer_hud() -> void:
 		if _routes != null:
 			_routes.ouvrir(sim))
 	couche.add_child(routes_b)
+
+	# Le bouton du chantier naval, juste à gauche de « Routes ».
+	var chantier_b := Button.new()
+	chantier_b.text = "Chantier"
+	chantier_b.add_theme_font_size_override("font_size", 16)
+	chantier_b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	chantier_b.offset_left = -234
+	chantier_b.offset_top = 14
+	chantier_b.offset_right = -128
+	chantier_b.pressed.connect(func() -> void:
+		if _chantier != null:
+			_chantier.ouvrir(sim))
+	couche.add_child(chantier_b)
 
 	_lbl_message = Label.new()
 	_lbl_message.set_anchors_preset(Control.PRESET_TOP_WIDE)

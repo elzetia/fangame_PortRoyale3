@@ -141,6 +141,33 @@ func dissoudre_route(indice: int) -> int:
 	return int(r) if r != null else 0
 
 
+# --- chantier naval : acheter, construire, flotte possédée -------------------
+
+func flotte() -> Array:
+	var r = _appel("flotte", [])
+	return r if r is Array else []
+
+
+func chantier_file() -> Array:
+	var r = _appel("chantier_file", [])
+	return r if r is Array else []
+
+
+func chantier_infos(cle_type: String) -> Dictionary:
+	var r = _appel("chantier_infos", [cle_type])
+	return r if r is Dictionary else {}
+
+
+func acheter_navire(cle_ville: String, cle_type: String) -> Dictionary:
+	var r = _appel("acheter_navire", [cle_ville, cle_type])
+	return r if r is Dictionary else {}
+
+
+func construire_navire(cle_ville: String, cle_type: String) -> Dictionary:
+	var r = _appel("construire_navire", [cle_ville, cle_type])
+	return r if r is Dictionary else {}
+
+
 func etat_ville(cle_ville: String) -> Dictionary:
 	var r = _appel("etat_ville", [cle_ville])
 	return r if r is Dictionary else {}
