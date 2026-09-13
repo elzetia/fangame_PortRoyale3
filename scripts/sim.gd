@@ -114,6 +114,33 @@ func marchands() -> Array:
 	return r if r is Array else []
 
 
+# --- routes commerciales automatiques du joueur ------------------------------
+
+func strategies() -> Array:
+	var r = _appel("strategies", [])
+	return r if r is Array else []
+
+
+func navires_marchands() -> Array:
+	var r = _appel("navires_marchands", [])
+	return r if r is Array else []
+
+
+func routes() -> Array:
+	var r = _appel("routes", [])
+	return r if r is Array else []
+
+
+func armer_route(navires: Array, circuit: Array, strategie: String, capital: int) -> Dictionary:
+	var r = _appel("armer_route", [navires, circuit, strategie, capital])
+	return r if r is Dictionary else {}
+
+
+func dissoudre_route(indice: int) -> int:
+	var r = _appel("dissoudre_route", [indice])
+	return int(r) if r != null else 0
+
+
 func etat_ville(cle_ville: String) -> Dictionary:
 	var r = _appel("etat_ville", [cle_ville])
 	return r if r is Dictionary else {}

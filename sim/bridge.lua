@@ -10,6 +10,7 @@ local Marchandises = require("sim.marchandises")
 local Economie     = require("sim.economie")
 local Compagnie    = require("sim.compagnie")
 local Marchands    = require("sim.marchands")
+local Navires      = require("sim.navires")
 
 local Bridge = {}
 
@@ -454,5 +455,92 @@ function Bridge.source_reglages()
   -- outils avant d'arriver ici, et l'echappement s'y perd.
   return table.concat(lignes, string.char(10)) .. string.char(10)
 end
+
+-- --- routes commerciales automatiques du joueur -----------------------------
+
+-- Les stratégies proposables au joueur (voir `sim/strategies.lua`).
+function Bridge.strategies()
+  local a = Array()
+  for _, s in ipairs({ "profit", "resources", "construct", "storage",
+                       "office", "distribute", "central", "wealth" }) do
+    a:append(s)
+  end
+  return a
+end
+
+-- Les types de navires marchands armables, avec prix, cale et entretien.
+function Bridge.navires_marchands()
+  local a = Array()
+  for _, n in ipairs(Navires.marchands) do
+    local d = Dictionary()
+    d.cle = n.cle
+    d.nom = n.nom
+    d.cale = n.cale
+    d.prix = n.prix
+    d.entretien = n.entretien
+    a:append(d)
+  end
+  return a
+end
+
+-- Les routes du joueur, pour l'écran de gestion.
+function Bridge.routes()
+  local sortie = Array()
+  for i, m in ipairs(Compagnie.convois) do
+    local charge = 0
+    for _, q in pairs(m.cale) do charge = charge + q end
+    local circ = Array()
+    for _, c in ipairs(m.circuit or {}) do
+      local p = Archipel.portsParCle[c]
+      circ:append(p and p.nom or c)
+    end
+    local d = Dictionary()
+    d.indice      = i
+    d.nom         = m.nom
+    d.strategie   = m.strategie
+    d.or_         = math.floor(m.or_ + 0.5)
+    d.capacite    = m.capacite
+    d.charge      = math.floor(charge + 0.5)
+    d.navires     = #(m.navires or {})
+    d.a_quai      = m.ville ~= nil
+    d.ville       = m.ville or ""
+    d.destination = m.destination or ""
+    d.circuit     = circ
+    d.cargaison   = Marchands.cargaison(m)
+    sortie:append(d)
+  end
+  return sortie
+end
+
+-- Convertit une liste venue de Godot (Array, transmise en userdata, indexée à
+-- partir de 0) OU une table Lua (indexée à partir de 1) en table Lua simple.
+local function en_table(liste)
+  local t = {}
+  if not liste then return t end
+  local base = (liste[0] ~= nil) and 0 or 1
+  local i = base
+  while liste[i] ~= nil do
+    t[#t + 1] = liste[i]
+    i = i + 1
+  end
+  return t
+end
+
+-- Arme une route : `navires` et `circuit` sont des listes de clés (types de
+-- navires, clés de villes). Renvoie { ok, message }.
+function Bridge.armer_route(navires, circuit, strategie, capital)
+  local nv, ci = en_table(navires), en_table(circuit)
+  local m, err = Compagnie.armer_route(nv, ci, strategie, capital)
+  local d = Dictionary()
+  d.ok = m ~= nil
+  d.message = err or ""
+  return d
+end
+
+-- Dissout la route d'indice donné, rend l'or récupéré.
+function Bridge.dissoudre_route(indice)
+  return math.floor(Compagnie.dissoudre_route(indice) + 0.5)
+end
+
 
 return Bridge
