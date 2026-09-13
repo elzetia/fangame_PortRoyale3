@@ -100,6 +100,11 @@ var _radial: RadialVille
 # seuls, y compris pendant que le joueur regarde ailleurs.
 var _marchands: Array = []
 
+# Les convois du JOUEUR, relus à chaque image : on les dessine, on en sélectionne
+# un (clic gauche), et on l'envoie à un port (clic droit) s'il est manuel.
+var _convois_joueur: Array = []
+var _convoi_selectionne := -1     # indice sim du convoi choisi, -1 = aucun
+
 
 func _ready() -> void:
 	# L'écran de chargement d'abord, et UNE image laissée au moteur avant de
@@ -692,6 +697,7 @@ func _draw() -> void:
 	if _mode_edition:
 		_dessiner_reperes_edition()
 	_dessiner_marchands()
+	_dessiner_convois_joueur()
 	_dessiner_navire()
 	# Les cartouches passent EN DERNIER, donc au-dessus des navires. Un convoi
 	# qui passe devant l'étiquette de son port la rend illisible juste au moment
@@ -1084,6 +1090,39 @@ func _dessiner_navire() -> void:
 	_poser_navire(p, a, NAV_TAILLE * u, Color(1, 1, 1, 1), _modele_du_joueur())
 
 
+# Les convois du joueur, dessinés comme le sien (voiles du joueur), avec un anneau
+# d'or sous le convoi sélectionné. Ils naviguent dans la simulation ; ici on ne
+# fait que les montrer et repérer celui qu'on commande.
+func _dessiner_convois_joueur() -> void:
+	var u := _par_unite_brut()
+	for m in _convois_joueur:
+		var pos: Vector2 = m["position"]
+		var p := proj.vers_carte(pos.x, pos.y)
+		var a := proj.angle_ecran(cos(float(m["cap"])), sin(float(m["cap"])))
+		var quai := bool(m.get("a_quai", false))
+		if not quai:
+			_dessiner_sillage(p, a, u)
+		if int(m.get("indice", -1)) == _convoi_selectionne:
+			draw_arc(p, NAV_TAILLE * 0.5 * u, 0.0, TAU, 32, Color(0.95, 0.83, 0.4, 0.95), 2.5 * u)
+		draw_circle(p, NAV_TAILLE * 0.20 * u, Color(0, 0, 0, 0.22))
+		_poser_navire(p, a, NAV_TAILLE * 0.9 * u, Color(1, 1, 1, 1),
+			_modele_voile(str(m.get("modele", "")), NAV_VOILE_JOUEUR))
+
+
+# L'indice du convoi du joueur sous un point du monde, ou -1. Sert à en sélectionner
+# un d'un clic en pleine mer.
+func _convoi_sous_monde(monde: Vector2) -> int:
+	var meilleur := -1
+	var d2 := RAYON_CLIC_PORT * RAYON_CLIC_PORT
+	for m in _convois_joueur:
+		var pos: Vector2 = m["position"]
+		var dd := monde.distance_squared_to(pos)
+		if dd < d2:
+			d2 = dd
+			meilleur = int(m.get("indice", -1))
+	return meilleur
+
+
 # Le modèle du navire du joueur, demandé une seule fois à la simulation : il ne
 # change pas en cours de route, et la question traverse le pont Lua.
 func _modele_du_joueur() -> String:
@@ -1253,6 +1292,7 @@ func _process(delta: float) -> void:
 	sim.avancer_temps(delta)
 	navire.avancer(delta * vitesse)
 	_marchands = sim.marchands()
+	_convois_joueur = sim.convois_joueur()
 	_maj_survol()
 	_maj_hud()
 	if _comptoir != null and _comptoir.visible:
@@ -1529,15 +1569,19 @@ func _finir_survol() -> void:
 
 
 func _clic_gauche() -> void:
+	var monde := proj.vers_monde(get_global_mouse_position())
 	var port := _port_survole
 	if port.is_empty():
-		var monde := proj.vers_monde(get_global_mouse_position())
 		port = _port_proche(monde, RAYON_CLIC_PORT)
 	if not port.is_empty() and _radial != null:
-		# La couronne s'ouvre au curseur, en pixels écran (elle vit dans une
-		# CanvasLayer, hors de la transformée de la caméra). Dock et chantier ne
-		# s'ouvrent que si un convoi du joueur est à ce port.
+		# Un port : la couronne s'ouvre au curseur, en pixels écran (elle vit dans
+		# une CanvasLayer, hors de la transformée de la caméra). Dock et chantier
+		# ne s'ouvrent que si un convoi du joueur est à ce port.
 		_radial.ouvrir(port, get_viewport().get_mouse_position(), _joueur_au_port(port))
+		return
+	# Pas de port : on sélectionne un convoi du joueur en pleine mer (anneau d'or),
+	# ou on désélectionne si le clic tombe dans le vide.
+	_convoi_selectionne = _convoi_sous_monde(monde)
 
 
 # Le joueur a-t-il un navire ou un convoi à quai dans ce port ? Son navire (à quai
@@ -1549,9 +1593,23 @@ func _joueur_au_port(port: Dictionary) -> bool:
 	return sim.convoi_au_port(String(port.get("cle", "")))
 
 
-# Clic droit : on COMMANDE. Le navire met le cap sur la mer cliquée, ou sur la
-# rade du port visé.
+# Clic droit : on COMMANDE. Si un convoi du joueur est sélectionné, on l'envoie au
+# port visé. Sinon, le navire met le cap sur la mer cliquée, ou sur la rade du port.
 func _clic_droit() -> void:
+	# Un convoi sélectionné : le clic droit lui donne un port de destination.
+	if _convoi_selectionne != -1:
+		var monde0 := proj.vers_monde(get_global_mouse_position())
+		var port0 := _port_survole
+		if port0.is_empty():
+			port0 = _port_proche(monde0, RAYON_CLIC_PORT)
+		if port0.is_empty():
+			_noter("Clique sur un port pour y envoyer le convoi sélectionné.")
+		else:
+			var res := sim.ordonner_convoi(_convoi_selectionne, String(port0.get("cle", "")))
+			if not bool(res.get("ok", false)):
+				_noter(String(res.get("message", "Ordre refusé.")))
+		return
+
 	var port := _port_survole
 	var cible := Vector2.ZERO
 

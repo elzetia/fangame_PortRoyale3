@@ -506,6 +506,7 @@ function Bridge.routes()
     local d = Dictionary()
     d.indice      = i
     d.nom         = m.nom
+    d.mode        = m.mode or "route"
     d.strategie   = m.strategie
     d.or_         = math.floor(m.or_ + 0.5)
     d.capacite    = m.capacite

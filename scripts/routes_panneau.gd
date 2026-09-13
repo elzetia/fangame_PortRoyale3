@@ -162,10 +162,20 @@ func _construire() -> void:
 	_capital.value = 10000
 	reglages.add_child(_capital)
 
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 8)
+	gauche.add_child(actions)
 	var armer_b := Button.new()
 	armer_b.text = "Armer la route"
 	armer_b.pressed.connect(_armer)
-	gauche.add_child(armer_b)
+	actions.add_child(armer_b)
+	# Fabriquer un convoi MANUEL (sans route) : on le commandera à la main sur la
+	# carte. Il naît au port d'attache des navires cochés.
+	var creer_b := Button.new()
+	creer_b.text = "Créer un convoi manuel"
+	creer_b.tooltip_text = "Forme un convoi des navires cochés, à commander sur la carte"
+	creer_b.pressed.connect(_creer_convoi)
+	actions.add_child(creer_b)
 
 	_msg = _label("", 13, Color(0.5, 0.1, 0.1))
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -247,6 +257,31 @@ func _armer() -> void:
 		_msg.text = String(res.get("message", "Échec."))
 
 
+# Fabrique un convoi MANUEL depuis les navires cochés, à leur port d'attache. On le
+# commandera ensuite sur la carte (le sélectionner, clic droit sur un port).
+func _creer_convoi() -> void:
+	if _sim == null:
+		return
+	var lignes := _liste_navires.get_selected_items()
+	if lignes.is_empty():
+		_msg.add_theme_color_override("font_color", Color(0.5, 0.1, 0.1))
+		_msg.text = "Coche au moins un navire de la flotte."
+		return
+	var indices: Array = []
+	for i in lignes:
+		indices.append(int(_flotte[i].get("indice", 0)))
+	var port := String(_flotte[lignes[0]].get("attache", ""))
+	var res: Dictionary = _sim.creer_convoi(indices, port)
+	if bool(res.get("ok", false)):
+		_msg.add_theme_color_override("font_color", Color(0.1, 0.4, 0.1))
+		_msg.text = "Convoi créé — sélectionne-le sur la carte, clic droit sur un port."
+		_remplir_flotte()
+		rafraichir()
+	else:
+		_msg.add_theme_color_override("font_color", Color(0.5, 0.1, 0.1))
+		_msg.text = String(res.get("message", "Échec."))
+
+
 func rafraichir() -> void:
 	if _sim == null or _routes_box == null:
 		return
@@ -288,8 +323,11 @@ func _ligne_route(r: Dictionary) -> Control:
 	t.add_child(diss)
 
 	var circ: Array = r.get("circuit", [])
-	v.add_child(_label("%s · %s" % [String(r.get("strategie", "")),
-		" → ".join(PackedStringArray(circ))], 12, ENCRE))
+	if String(r.get("mode", "route")) == "manuel":
+		v.add_child(_label("manuel · commandé à la main sur la carte", 12, ENCRE))
+	else:
+		v.add_child(_label("route %s · %s" % [String(r.get("strategie", "")),
+			" → ".join(PackedStringArray(circ))], 12, ENCRE))
 	var lieu := String(r.get("ville", ""))
 	if lieu == "":
 		lieu = "en mer → " + String(r.get("destination", ""))

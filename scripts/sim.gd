@@ -146,6 +146,21 @@ func convoi_au_port(cle_ville: String) -> bool:
 	return bool(r) if r != null else false
 
 
+func convois_joueur() -> Array:
+	var r = _appel("convois_joueur", [])
+	return r if r is Array else []
+
+
+func creer_convoi(navires: Array, cle_port: String) -> Dictionary:
+	var r = _appel("creer_convoi", [navires, cle_port])
+	return r if r is Dictionary else {}
+
+
+func ordonner_convoi(indice_convoi: int, cle_port_dest: String) -> Dictionary:
+	var r = _appel("ordonner_convoi", [indice_convoi, cle_port_dest])
+	return r if r is Dictionary else {}
+
+
 func ajouter_navire_convoi(indice_convoi: int, navires: Array) -> Dictionary:
 	var r = _appel("ajouter_navire_convoi", [indice_convoi, navires])
 	return r if r is Dictionary else {}
