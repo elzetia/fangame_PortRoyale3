@@ -279,11 +279,19 @@ avec des ordres par ville et par bien** (charger / décharger, avec des seuils),
 pas une recherche de profit à la volée — le joueur trace les mêmes routes.
 
 C'est le modèle que la sim approxime par « acheter le surplus au-dessus de X3,
-décharger dans le manque » (`sim/marchands.lua`). Copier PR3 exactement ici
-demande de décompiler la **structure des ordres de route** et l'arbre de décision
-complet (`0x7CE600`, `0x7CEC10`, `0x7CE790`, `0x7CE4D0`, `0x7CE9F0`…) — un
-sous-chantier à part entière, mais dont l'entrée et la forme sont désormais
-connues.
+décharger dans le manque » (`sim/marchands.lua`).
+
+**La cible par bien** (`0x7CE790`) construit un tableau de vingt quantités visées —
+une par marchandise — à partir de la taille de la ville (`[ville+0x158]`), des
+`Minimalmengen`, de la production par ouvrier (struct économie `+0x34`) et des
+masques de groupe (`0x854D50`). Le convoi charge ou décharge pour rapprocher le
+stock de la ville de cette cible. C'est, au fond, **le même travail que les seuils
+X1…X4 de la sim** comparés au stock : combien ce port veut de chaque bien.
+
+Copier PR3 au bit près ici demanderait de décompiler ce calcul de cible
+(230 instructions + `0x854D50`, `0x75B9E0`, la struct éco) et la structure des
+ordres de route. L'entrée et la forme sont connues ; c'est un sous-chantier à part
+entière, au gain comportemental modeste puisque la sim équilibre déjà la carte.
 
 ## Les signaux d'une ville (le conseiller)
 
