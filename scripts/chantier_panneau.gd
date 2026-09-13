@@ -153,7 +153,7 @@ func _construire() -> void:
 	_file_box.add_theme_constant_override("separation", 3)
 	droite.add_child(_file_box)
 
-	droite.add_child(_label("Flotte à quai", 16, BOIS_CLAIR))
+	droite.add_child(_label("Navires à ce port (revente / réparation)", 16, BOIS_CLAIR))
 	var defil := ScrollContainer.new()
 	defil.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	defil.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -239,27 +239,54 @@ func _apres_commande(res: Dictionary) -> void:
 func rafraichir() -> void:
 	if _sim == null or _flotte_box == null:
 		return
+	var ici := String(_port_courant.get("cle", ""))
+
+	# Les constructions en cours À CE PORT.
 	for e in _file_box.get_children():
 		e.queue_free()
-	var file: Array = _sim.chantier_file()
-	if file.is_empty():
-		_file_box.add_child(_label("Aucune construction en cours.", 12, ENCRE))
-	else:
-		for b in file:
-			_file_box.add_child(_label("%s — %s, %d j" % [
-				String(b.get("nom", "?")), String(b.get("ville", "?")),
-				int(b.get("jours", 0))], 12, ENCRE))
+	var n_file := 0
+	for b in _sim.chantier_file():
+		if String(b.get("ville_cle", "")) == ici:
+			_file_box.add_child(_label("%s — %d j" % [
+				String(b.get("nom", "?")), int(b.get("jours", 0))], 12, ENCRE))
+			n_file += 1
+	if n_file == 0:
+		_file_box.add_child(_label("Aucune construction en cours ici.", 12, ENCRE))
 
+	# Les navires possédés À CE PORT : chacun vendable (ou réparable, à terme).
 	for e in _flotte_box.get_children():
 		e.queue_free()
-	var flotte: Array = _sim.flotte()
-	if flotte.is_empty():
-		_flotte_box.add_child(_label("Flotte vide. Achète ou construis un navire.", 12, ENCRE))
-	else:
-		for s in flotte:
-			_flotte_box.add_child(_label("%s — %s, %d t" % [
-				String(s.get("nom", "?")), String(s.get("type", "?")),
-				int(s.get("cale", 0))], 13, BOIS))
+	var n_ici := 0
+	for s in _sim.flotte():
+		if String(s.get("attache", "")) != ici:
+			continue
+		n_ici += 1
+		var ligne := HBoxContainer.new()
+		ligne.add_theme_constant_override("separation", 8)
+		var nom := _label("%s — %s, %d t" % [
+			String(s.get("nom", "?")), String(s.get("type", "?")), int(s.get("cale", 0))], 13, BOIS)
+		nom.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ligne.add_child(nom)
+		var vendre := Button.new()
+		vendre.text = "Vendre %s" % _nombre(int(_sim.chantier_infos(String(s.get("cle", ""))).get("prix_revente", 0)))
+		vendre.add_theme_font_size_override("font_size", 11)
+		var idx := int(s.get("indice", 0))
+		vendre.pressed.connect(func() -> void:
+			var res: Dictionary = _sim.vendre_navire(idx)
+			if bool(res.get("ok", false)):
+				_msg.add_theme_color_override("font_color", Color(0.1, 0.4, 0.1))
+				_msg.text = "Navire vendu (%s pièces)." % _nombre(int(res.get("somme", 0)))
+			else:
+				_msg.add_theme_color_override("font_color", Color(0.5, 0.1, 0.1))
+				_msg.text = String(res.get("message", "Échec."))
+			rafraichir())
+		ligne.add_child(vendre)
+		_flotte_box.add_child(ligne)
+	if n_ici == 0:
+		_flotte_box.add_child(_label("Aucun navire à ce port. Achète ou construis.", 12, ENCRE))
+	# La réparation viendra avec le combat : sans avarie de coque, rien à réparer.
+	_flotte_box.add_child(_label("Réparation : disponible quand les combats abîmeront les coques.",
+		11, Color(0.4, 0.33, 0.2)))
 
 
 func _nombre(n: int) -> String:

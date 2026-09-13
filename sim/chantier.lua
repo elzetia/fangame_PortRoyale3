@@ -32,6 +32,16 @@ Chantier.LIMITE_CONVOIS = 100  -- maxConvoys
 Chantier.REPARATION_ZEIT = 30    -- facteur de temps (plancher 1)
 Chantier.REPARATION_KOSTEN = 50  -- coût à l'unité de coque manquante
 
+-- Revente d'un navire au chantier : une fraction de son `Value`. CALER : PR3 rachète
+-- à perte (et le pétale « pirate » à un autre taux) ; on pose la moitié, à ajuster.
+Chantier.REVENTE = 0.5
+
+-- Ce que le chantier paie pour un navire d'occasion.
+function Chantier.prix_revente(cle_type)
+  local navire = Navires.get(cle_type)
+  return navire and math.floor(navire.prix * Chantier.REVENTE + 0.5) or 0
+end
+
 -- Les matières navales de PR3 : bois, cordage (gréement), tissu (voiles), et métal
 -- pour les coques armées. Jusqu'à QUATRE, comme l'offre du jeu (boucle `0x58cae0`).
 -- CALER : quantités provisoires, à l'échelle de la cale. Relever en jeu la recette

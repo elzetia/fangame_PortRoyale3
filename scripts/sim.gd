@@ -202,6 +202,11 @@ func construire_navire(cle_ville: String, cle_type: String) -> Dictionary:
 	return r if r is Dictionary else {}
 
 
+func vendre_navire(indice_flotte: int) -> Dictionary:
+	var r = _appel("vendre_navire", [indice_flotte])
+	return r if r is Dictionary else {}
+
+
 func etat_ville(cle_ville: String) -> Dictionary:
 	var r = _appel("etat_ville", [cle_ville])
 	return r if r is Dictionary else {}

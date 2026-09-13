@@ -660,9 +660,10 @@ function Bridge.chantier_file()
   for _, b in ipairs(Compagnie.file_chantier) do
     local p = Archipel.portsParCle[b.ville]
     local d = Dictionary()
-    d.nom   = b.nom
-    d.ville = p and p.nom or (b.ville or "")
-    d.jours = math.ceil(b.jours)
+    d.nom      = b.nom
+    d.ville    = p and p.nom or (b.ville or "")
+    d.ville_cle = b.ville or ""
+    d.jours    = math.ceil(b.jours)
     a:append(d)
   end
   return a
@@ -678,6 +679,7 @@ function Bridge.chantier_infos(cle_type)
   d.cout_construction = recette.or_
   d.jours       = recette.jours
   d.niveau_requis = Chantier.niveau_requis(cle_type)
+  d.prix_revente = Chantier.prix_revente(cle_type)
   local mats = Array()
   for _, mat in ipairs(recette.materiaux) do
     local m = Marchandises.get(mat.cle)
@@ -706,6 +708,16 @@ function Bridge.construire_navire(cle_ville, cle_type)
   local d = Dictionary()
   d.ok = ok
   d.message = err or ""
+  return d
+end
+
+-- Vend le navire de la flotte d'indice donné. Renvoie { ok, message, somme }.
+function Bridge.vendre_navire(indice_flotte)
+  local ok, err, somme = Compagnie.vendre_navire(indice_flotte)
+  local d = Dictionary()
+  d.ok = ok
+  d.message = err or ""
+  d.somme = somme or 0
   return d
 end
 

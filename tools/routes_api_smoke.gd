@@ -134,6 +134,18 @@ func _init() -> void:
 	if apres2 != av_diss + 2:
 		printerr("  ECHEC : les navires ne sont pas revenus à la flotte."); echecs += 1
 
+	# --- vendre un navire de la flotte ---------------------------------------
+	var av_vente = b.get("flotte").invoke().size()
+	if av_vente >= 1:
+		var or_avant := int(b.get("etat_compagnie").invoke().get("or_", 0))
+		var rv = b.get("vendre_navire").invokev([1])
+		var or_apres := int(b.get("etat_compagnie").invoke().get("or_", 0))
+		print("vendre navire 1       : ", rv, " ; or ", or_avant, " -> ", or_apres)
+		if not bool(rv.get("ok", false)) or b.get("flotte").invoke().size() != av_vente - 1:
+			printerr("  ECHEC : la vente n'a pas retiré le navire."); echecs += 1
+		if or_apres <= or_avant:
+			printerr("  ECHEC : la vente n'a pas rapporté d'or."); echecs += 1
+
 	if echecs > 0:
 		printerr("ECHEC : ", echecs, " vérification(s) en défaut.")
 		quit(1)

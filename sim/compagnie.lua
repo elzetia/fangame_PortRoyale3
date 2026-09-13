@@ -251,6 +251,18 @@ function Compagnie.armer_route(indices_flotte, circuit, strategie, capital)
 end
 
 
+-- VENDRE un navire de la flotte au chantier : il quitte la flotte, la caisse
+-- encaisse son prix de revente. Renvoie ok, message, somme.
+function Compagnie.vendre_navire(indice_flotte)
+  local s = Compagnie.flotte[indice_flotte]
+  if not s then return false, "Navire inconnu.", 0 end
+  local somme = Chantier.prix_revente(s.cle)
+  Compagnie.or_ = Compagnie.or_ + somme
+  table.remove(Compagnie.flotte, indice_flotte)
+  return true, nil, somme
+end
+
+
 -- Fabrique un NOUVEAU convoi MANUEL depuis des navires de la flotte (indices), à
 -- quai dans `cle_port`. Il ne part pas tout seul : le joueur le commande
 -- (`ordonner_convoi`) ou lui donne plus tard une route. Renvoie le convoi ou un
