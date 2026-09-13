@@ -234,7 +234,7 @@ séquence exacte** de vingt étapes (esi = la ville, edi = le monde) :
 | 2 | `0x7C1930` | Tirage d'incendie / déclin selon la surpopulation (fabriques × 2 000 vs habitants) et la qualité | lu (structure) |
 | 3 | `0x7C2080` | Consommation des habitants + surconsommation des fléaux | **lu** |
 | 4 | `0x7C0040` | Coût de production par atelier : `Grundkosten` + salaires ÷ production → prix standard | **lu** |
-| 5 | `0x7BF160` | Rendement des ateliers (efficacité selon intrants et ouvriers) + signaux `missing_raw` / `missing_worker` | lu (structure) |
+| 5 | `0x7BF160` | **Conseiller** : pour chaque problème qui dure depuis > 15 jours, lève un message avec une probabilité croissante `(nb × 3 + 10) × ancienneté` contre un tirage sur 1 000 (`0x841830` crée l'événement) | **lu** (décortiqué) |
 | 6 | `0x7C2400` | Événements et conseiller : famine, fléaux, bits de prospérité | **lu** |
 | 7 | `0x7C2B30` | Livraison de la production aux entrepôts (parcourt les ateliers) | lu (structure) |
 | 8 | `0x7C26C0` | Niveau de prospérité (note → niveau, seuils 20/40/60/90, portes 2 000/6 000) | **lu** |
@@ -260,6 +260,30 @@ sa démographie et sa dotation civique.
 chaque fonction ci-dessus marquée « structure » ou « observé », et surtout la
 décision des convois (la hiérarchie `StoreKeeper` / `TradeContainer` / `Route`).
 Ce document en est le plan : chaque adresse est un point d'entrée à décortiquer.
+
+## La décision des convois
+
+Décortiquée depuis l'orchestrateur d'escale `0x7CED60` : quand un convoi est à
+quai, il **parcourt les vingt biens** et, pour chacun, décide d'acheter ou de
+vendre par deux prédicats — `0x7CE600` (acheter ?) et `0x7CEC10` (vendre ?). Ces
+prédicats ne sont pas un simple « le meilleur profit » : ils croisent
+
+- le **type d'atelier** de la ville (`0x763F70`, `== 4` = elle produit ce bien) ;
+- l'**état économique** (`[ville+0x6C]`) et des drapeaux (`[ville+0xAD]`) ;
+- surtout l'**ordre de la route commerciale** : la quantité cible vient des seuils
+  de l'ordre (`0x7CE790` lit `[+0x1E]`→`[+0x1C]` et la compare au stock).
+
+L'échange est ensuite exécuté par `0x783E80` (qui déplace le prix, `0x859C20`, et
+la réputation, `0x7839E0`). Autrement dit, **les convois de PR3 suivent des routes
+avec des ordres par ville et par bien** (charger / décharger, avec des seuils),
+pas une recherche de profit à la volée — le joueur trace les mêmes routes.
+
+C'est le modèle que la sim approxime par « acheter le surplus au-dessus de X3,
+décharger dans le manque » (`sim/marchands.lua`). Copier PR3 exactement ici
+demande de décompiler la **structure des ordres de route** et l'arbre de décision
+complet (`0x7CE600`, `0x7CEC10`, `0x7CE790`, `0x7CE4D0`, `0x7CE9F0`…) — un
+sous-chantier à part entière, mais dont l'entrée et la forme sont désormais
+connues.
 
 ## Les signaux d'une ville (le conseiller)
 
@@ -304,7 +328,7 @@ sim, qui ne simule pas le combat.
 |---|---|
 | Économie, villes, prix, prospérité, réputation | **complet et appliqué à la sim** |
 | Navires (caractéristiques), carte, eau, formats | **complet** |
-| Convois de l'IA (modèle d'objet, taille, classes) | **structure lue**, décision dans une hiérarchie de classes |
+| Convois de l'IA (modèle d'objet, taille, classes) | **structure + entrée de décision lues** : routes à ordres par bien (`0x7CED60`) |
 | Bâtiments (coûts, matériaux, effets) | **complet** (effets lus des descriptions) |
 | Combat naval (canon, abordage, forteresse) | **paramètres relevés**, formules à tracer en exécution |
 | Diplomatie, rangs, licences, donations, lettres de marque | **mécanique lue** (18 rangs à la richesse, réputation double + dérive sinusoïdale) |
