@@ -147,6 +147,8 @@ function Bridge.avancer_temps(dt)
     -- faire la traversée — seulement disparaître d'un port et réapparaître à
     -- l'autre. Les entrepôts, eux, ont raison de ne bouger qu'une fois par jour.
     Marchands.avancer(heures / 24.0)
+    -- Les convois automatiques du joueur avancent au même rythme que ceux de l'IA.
+    Compagnie.avancer_convois(heures / 24.0)
   end
   return heures
 end

@@ -566,7 +566,46 @@ local function investir()
 end
 
 
--- Avance les convois de `jours` jours de jeu (fraction acceptée).
+-- Piloter UN convoi d'un pas de `jours` : entretien, escale (commerce) ou
+-- navigation. Le même code sert les convois de l'IA et ceux du joueur — un convoi
+-- du joueur (`m.joueur`) garde tout son or (pas de plafond ni de fonds commun).
+local function piloter_convoi(m, jours)
+  m.or_ = m.or_ - (m.entretien or 0) * jours
+  if not m.joueur and m.or_ > OR_PLAFOND then
+    -- Le débordement de la caisse d'un convoi IA part au fonds de construction :
+    -- il ne garde qu'un capital de travail.
+    Marchands.fonds = Marchands.fonds + (m.or_ - OR_PLAFOND)
+    m.or_ = OR_PLAFOND
+  end
+  if m.ville then
+    m.escale = m.escale - jours
+    if m.escale <= 0 then
+      m.escale = ESCALE
+      appareiller(m)
+    end
+  else
+    local reste = m.vitesse * jours
+    while reste > 0 and #m.route > 0 do
+      local cible = m.route[1]
+      local d = distance(m.x, m.z, cible[1], cible[2])
+      if d <= reste then
+        m.x, m.z = cible[1], cible[2]
+        table.remove(m.route, 1)
+        reste = reste - d
+      else
+        m.cap = math.atan2 and math.atan2(cible[2] - m.z, cible[1] - m.x)
+                or math.atan(cible[2] - m.z, cible[1] - m.x)
+        m.x = m.x + (cible[1] - m.x) / d * reste
+        m.z = m.z + (cible[2] - m.z) / d * reste
+        reste = 0
+      end
+    end
+    if #m.route == 0 then accoster(m) end
+  end
+end
+
+
+-- Avance les convois de l'IA de `jours` jours de jeu (fraction acceptée).
 function Marchands.avancer(jours)
   if #Marchands.liste == 0 then Marchands.reinitialiser() end
   if not jours or jours <= 0 then return end
@@ -578,40 +617,34 @@ function Marchands.avancer(jours)
   end
 
   for _, m in ipairs(Marchands.liste) do
-    -- L'entretien des navires, au jour le jour, à quai comme en mer.
-    m.or_ = m.or_ - (m.entretien or 0) * jours
-    -- Le débordement de la caisse part au fonds de construction : un convoi ne
-    -- garde qu'un capital de travail.
-    if m.or_ > OR_PLAFOND then
-      Marchands.fonds = Marchands.fonds + (m.or_ - OR_PLAFOND)
-      m.or_ = OR_PLAFOND
-    end
-    if m.ville then
-      m.escale = m.escale - jours
-      if m.escale <= 0 then
-        m.escale = ESCALE
-        appareiller(m)
-      end
-    else
-      local reste = m.vitesse * jours
-      while reste > 0 and #m.route > 0 do
-        local cible = m.route[1]
-        local d = distance(m.x, m.z, cible[1], cible[2])
-        if d <= reste then
-          m.x, m.z = cible[1], cible[2]
-          table.remove(m.route, 1)
-          reste = reste - d
-        else
-          m.cap = math.atan2 and math.atan2(cible[2] - m.z, cible[1] - m.x)
-                  or math.atan(cible[2] - m.z, cible[1] - m.x)
-          m.x = m.x + (cible[1] - m.x) / d * reste
-          m.z = m.z + (cible[2] - m.z) / d * reste
-          reste = 0
-        end
-      end
-      if #m.route == 0 then accoster(m) end
-    end
+    piloter_convoi(m, jours)
   end
+end
+
+
+-- Piloter un convoi EXTERNE (celui du joueur) avec la même logique — mouvement,
+-- commerce à l'escale, stratégie. Le convoi commerce sur SON propre or, alimenté
+-- par le joueur ; ses achats et ventes passent par `Economie`, donc ils déplacent
+-- réellement les cours comme ceux de l'IA.
+function Marchands.piloter(m, jours)
+  if not jours or jours <= 0 then return end
+  piloter_convoi(m, jours)
+end
+
+
+-- Armer un convoi pour le JOUEUR : une flotte de navires, un circuit de villes, une
+-- stratégie (voir `sim/strategies.lua`), et un capital de départ. Réutilise
+-- exactement la structure des convois de l'IA — donc `Marchands.piloter` le fait
+-- naviguer et commercer tout seul.
+function Marchands.armer_joueur(cle_attache, navires, circuit, strategie, capital)
+  local port = Archipel.portsParCle[cle_attache]
+  if not port then return nil end
+  if #Marchands.voisins == 0 or not next(Marchands.voisins) then construire_voisinage() end
+  local m = armer(port, "joueur", navires, circuit or { cle_attache })
+  m.strategie = strategie or "profit"
+  m.joueur = true
+  m.or_ = capital or 0
+  return m
 end
 
 

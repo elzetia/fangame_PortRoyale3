@@ -12,6 +12,7 @@ local Archipel     = require("sim.archipel")
 local Economie     = require("sim.economie")
 local Marchandises = require("sim.marchandises")
 local Navires      = require("sim.navires")
+local Marchands    = require("sim.marchands")
 
 local Compagnie = {}
 
@@ -74,9 +75,68 @@ function Compagnie.reputation_nation(cle_nation)
   return n > 0 and somme / n or Compagnie.REP_DEPART
 end
 
+-- Les convois AUTOMATIQUES du joueur : des flottes lancées sur un circuit avec une
+-- stratégie (voir `sim/strategies.lua`), qui commercent seules — le cœur de Port
+-- Royale. Ils réutilisent la machinerie des convois de l'IA (`sim/marchands.lua`),
+-- mais gardent leur or, alimenté par le joueur. La richesse totale du joueur, c'est
+-- sa caisse plus l'or embarqué sur ses convois.
+Compagnie.convois = {}
+
+-- Arme un convoi du joueur : une liste de clés de navires (types de `sim/navires`),
+-- un circuit de villes, une stratégie, et un capital prélevé sur la caisse. Renvoie
+-- le convoi, ou un message d'échec.
+function Compagnie.armer_route(cles_navires, circuit, strategie, capital)
+  local navires = {}
+  for _, cle in ipairs(cles_navires or {}) do
+    local n = Navires.get(cle)
+    if n then navires[#navires + 1] = n end
+  end
+  if #navires == 0 then return nil, "Aucun navire." end
+  if not circuit or #circuit < 1 then return nil, "Circuit vide." end
+  capital = math.max(0, capital or 0)
+  if capital > Compagnie.or_ then return nil, "Or insuffisant pour le capital." end
+
+  local m = Marchands.armer_joueur(circuit[1], navires, circuit, strategie, capital)
+  if not m then return nil, "Port d'attache inconnu." end
+  Compagnie.or_ = Compagnie.or_ - capital
+  Compagnie.convois[#Compagnie.convois + 1] = m
+  return m, nil
+end
+
+
+-- Dissout un convoi du joueur : rapatrie son or dans la caisse, sa cargaison est
+-- perdue (ou à vendre avant). Rend l'or récupéré.
+function Compagnie.dissoudre_route(indice)
+  local m = Compagnie.convois[indice]
+  if not m then return 0 end
+  local recup = math.floor(math.max(0, m.or_) + 0.5)
+  Compagnie.or_ = Compagnie.or_ + recup
+  table.remove(Compagnie.convois, indice)
+  return recup
+end
+
+
+-- Fait avancer les convois automatiques du joueur d'un pas de `jours`. Appelé par
+-- le pont, en même temps que les convois de l'IA.
+function Compagnie.avancer_convois(jours)
+  for _, m in ipairs(Compagnie.convois) do
+    Marchands.piloter(m, jours)
+  end
+end
+
+
+-- La richesse totale du joueur : caisse + or des convois automatiques.
+function Compagnie.richesse()
+  local total = Compagnie.or_
+  for _, m in ipairs(Compagnie.convois) do total = total + math.max(0, m.or_) end
+  return total
+end
+
+
 function Compagnie.reinitialiser()
   local sloop = Navires.get("sloop")
   Compagnie.or_ = 20000
+  Compagnie.convois = {}
   Compagnie.reputation = {}
   for _, port in ipairs(Archipel.ports or {}) do
     Compagnie.reputation[port.cle] = Compagnie.REP_DEPART
