@@ -238,7 +238,7 @@ séquence exacte** de vingt étapes (esi = la ville, edi = le monde) :
 | 6 | `0x7C2400` | Événements et conseiller : famine, fléaux, bits de prospérité | **lu** |
 | 7 | `0x7C2B30` | **Efficacité des ateliers** : une manufacture qui ne peut tourner (manque d'ouvriers/intrants, test `0x946310`) perd **1 point d'efficacité/jour** (`[+0x92]−1`, `0x7632D0`) ; les chantiers (type `0x29`) émettent un événement. La production (étape 4) est mise à l'échelle par cette efficacité | **décortiqué** |
 | 8 | `0x7C26C0` | Niveau de prospérité (note → niveau, seuils 20/40/60/90, portes 2 000/6 000) | **lu** |
-| 9 | `0x7C2900` | Recalcul des réserves + arrivée/départ des colons par les convois | lu (structure) |
+| 9 | `0x7C2900` | **Dispatcher de croissance** : somme le stock des 20 biens (`E+0xE2`) ; si `stock × 4 > capacité d'entrepôt (E+0xC8)` ou mauvais état → décline/ralentit (`0x7C0BD0`), sinon croît vers la capacité (`0x7C0F90`) ; gère les jalons de grande ville (> 8 000 citoyens) et met à jour les colons | **décortiqué** |
 | 10 | `0x7C0920` | Emploi et efficacité : lit les ouvriers d'un atelier (`+0x84`), la **réduit de moitié** en cas de manque d'ouvriers ou d'intrants, et déclenche les vérifications de construction (`0x7CBD40`/`0x7CB8E0`) | **décortiqué** |
 | 11 | `0x7C1E40` | Construction par l'IA : bâtit un atelier si demande > `Bauquotient` × production | **lu** |
 | 12 | `0x7C1A80` | Accumulation offre/demande par bien | observé |
