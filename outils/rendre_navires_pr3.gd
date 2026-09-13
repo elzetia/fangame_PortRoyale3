@@ -38,12 +38,29 @@ const CAPS := 32
 const COLONNES := 8
 const COTE := 160
 const VARIANTES := 9          # trois sur trois
-# Plus bas que l'atlas procédural (72°). Celui-là n'avait qu'une voile triangulaire
-# et une coque ; les navires de PR3 portent des voiles carrées sur de hauts mâts,
-# et à 72° on les voyait par la tranche — une flûte marchande se réduisait à une
-# coque noire barrée de traits. À 60° la toile se montre.
-const ELEVATION := 60.0
+
+# L'ANGLE DE PR3. Sa vue de carte (`seamap` dans `default.sceneviewmgr`, et la
+# même position deux fois dans `constdata.dat`) pose la caméra en
+# (0 ; 280,083 ; −400) et la fait viser l'origine : 280,083 / 400 = tan 35°. Ses
+# navires allégés sont faits pour être vus sous cet angle, presque de profil.
+#
+# On les rendait à 72° puis à 60°, par analogie avec la plongée de la carte
+# peinte : vus d'aussi haut, leurs mâts se couchaient sur le pont et les voiles
+# carrées ne montraient que leur tranche. Les navires sortaient aplatis.
+const ELEVATION := 35.0
+
+# LA LUMIÈRE DE PR3, relue dans la scène de sa carte (`seamap.sceneview`) : un
+# soleil d'intensité 2,5, un ciel de (1,5 ; 1,45 ; 1,4), et une direction
+# (−1 ; −1 ; −1), soit un soleil à 35,26° au-dessus de l'horizon. C'est trois à
+# quatre fois plus que ce qu'on donnait — les navires sortaient sombres.
+#
+# L'AZIMUT, lui, reste celui de la carte peinte : haut à gauche, comme sur toutes
+# ses planches. Le soleil de PR3 vient de la droite ; le reprendre tel quel
+# éclairerait les navires du côté où les îles ont leur ombre.
+const SOLEIL_INTENSITE := 2.5
+const SOLEIL_HAUTEUR := 35.26
 const AZIMUT_SOLEIL := 135.0
+const CIEL := Color(1.5, 1.45, 1.4)
 
 var _dossier := ""
 var _travaux: Array = []          # [modele, variante]
@@ -154,28 +171,24 @@ func _initialize() -> void:
 	cam.far = dist * 3.0
 	monde.add_child(cam)
 
-	# Une lumière de plein jour, surtout AMBIANTE. La texture de PR3 porte déjà
-	# son modelé — l'occlusion des couleurs de sommets creuse les recoins — et le
-	# soleil n'a qu'à dire de quel côté il vient. Au premier réglage (ambiance bleue
-	# à 0,45, soleil seul à porter la lumière) les voiles tournées de biais
-	# tombaient dans le noir, et le navire sortait en silhouette sombre sur la mer.
-	#
-	# L'ambiance est pleine et blanche : à elle seule elle rend la texture telle
-	# que PR3 la multiplie à l'occlusion, et le soleil ne fait qu'ajouter son côté
-	# éclairé. À 0,80 d'ambiance les voiles blanches sortaient encore grises.
 	var soleil := DirectionalLight3D.new()
-	soleil.light_energy = 0.55
+	soleil.light_energy = SOLEIL_INTENSITE
 	var az := deg_to_rad(AZIMUT_SOLEIL)
-	soleil.look_at_from_position(Vector3(cos(az) * 50.0, 60.0, sin(az) * 50.0),
-		Vector3.ZERO, Vector3.UP)
+	var h := deg_to_rad(SOLEIL_HAUTEUR)
+	soleil.look_at_from_position(
+		Vector3(cos(az) * cos(h), sin(h), sin(az) * cos(h)) * 50.0, Vector3.ZERO, Vector3.UP)
 	monde.add_child(soleil)
 
+	# Le ciel de PR3 dépasse 1 sur chaque canal : c'est une intensité, pas une
+	# couleur. On garde sa teinte — un blanc à peine bleuté vers le rouge — et on
+	# en fait l'énergie de l'ambiance.
 	var ciel := WorldEnvironment.new()
 	var env := Environment.new()
 	env.background_mode = Environment.BG_CLEAR_COLOR
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(1.0, 1.0, 0.97)
-	env.ambient_light_energy = 1.0
+	var fort := maxf(CIEL.r, maxf(CIEL.g, CIEL.b))
+	env.ambient_light_color = Color(CIEL.r / fort, CIEL.g / fort, CIEL.b / fort)
+	env.ambient_light_energy = fort
 	ciel.environment = env
 	monde.add_child(ciel)
 

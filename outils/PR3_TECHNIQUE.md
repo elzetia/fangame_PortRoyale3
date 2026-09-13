@@ -112,6 +112,17 @@ Chaque type existe en seconde version pour la carte du monde, suffixée `_wm`
 - **Repère** : PR3 est en Direct3D, main gauche. Pour Godot, on retourne l'axe x et
   l'ordre des sommets de chaque triangle.
 
+- **Caméra de la carte** : la vue `seamap` de `default.sceneviewmgr` place la caméra
+  en (0 ; 280,083 ; −400), visant l'origine, soit **35°** au-dessus de l'horizon
+  (280,083 / 400 = tan 35°). Le même triplet revient deux fois dans
+  `constdata.dat`. Suivent un champ de 60° et des plans à 0,1 et 1 000. Les
+  navires allégés sont faits pour cet angle : rendus à 60° ou 72°, ils sortent
+  aplatis.
+- **Lumière de la carte** (`seamap.sceneview`) : soleil `g_sunColor` à 2,5, ciel
+  `g_skyColor` à (1,5 ; 1,45 ; 1,4), `LightDirection` (−1 ; −1 ; −1), donc un
+  soleil à 35,26° de hauteur. Les autres vues ont un soleil à (2,3 ; 2,2 ; 2,1) et
+  un ciel à (1,05 ; 1,15 ; 1,25).
+
 Chaîne locale, sans rien copier dans le dépôt :
 
     py -3 outils/extraire_navires_pr3.py              → reference_pr3/navires_wm/
