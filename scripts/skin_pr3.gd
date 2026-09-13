@@ -30,15 +30,22 @@ static var _cache: Dictionary = {}
 # Rend la texture `reference_pr3/ui/<swf>/<id>.png`, ou `null` si absente.
 # `cle` est "<swf>/<id>", p. ex. "skinlib_pr3/801".
 static func texture(cle: String) -> Texture2D:
-	if _cache.has(cle):
-		return _cache[cle]
+	return fichier(RACINE + cle + ".png")
+
+
+# Charge N'IMPORTE QUELLE image de `reference_pr3/` par son chemin `res://`, au
+# runtime — les atlas de navires comme le skin d'interface. Rend `null` si elle
+# n'est pas là, ce qui laisse l'appelant se passer d'elle.
+static func fichier(chemin_res: String) -> Texture2D:
+	if _cache.has(chemin_res):
+		return _cache[chemin_res]
 	var res: Texture2D = null
-	var chemin := ProjectSettings.globalize_path(RACINE + cle + ".png")
+	var chemin := ProjectSettings.globalize_path(chemin_res)
 	if FileAccess.file_exists(chemin):
 		var img := Image.load_from_file(chemin)
 		if img != null:
 			res = ImageTexture.create_from_image(img)
-	_cache[cle] = res
+	_cache[chemin_res] = res
 	return res
 
 

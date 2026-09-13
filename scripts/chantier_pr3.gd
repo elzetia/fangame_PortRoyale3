@@ -51,8 +51,25 @@ const TITRES := {
 	0: ["ID_GUI_BUILDING_SHIPYARD", "Petit chantier naval"],
 }
 
+# Le plan du navire, au niveau de la SCÈNE et non d'un onglet : `cr_ship` est un
+# Visual_CustomRender, c'est-à-dire un rendu 3D en temps réel dans PR3. On en
+# donne l'équivalent plat : le plan d'architecte extrait du .swf (18.png,
+# 374x228) en fond, et le modèle vu de profil par-dessus, pris dans les atlas de
+# navires déjà rendus pour la carte.
+#
+# Un atlas fait 8 colonnes sur 4 rangées de 160 px ; la case i porte l'étrave au
+# cap i x 11,25° depuis le nord. La case 8 est donc le plein est — le profil.
+const PLAN := "dialog_shipyard_pc/18"
+const PLAN_TAILLE := Vector2(374, 228)
+const ATLAS := "res://reference_pr3/navires_wm/atlas/"
+const ATLAS_COTE := 160
+const ATLAS_COLONNES := 8
+const CAP_PROFIL := 8
+
 var _sim: Object
 var _port: Dictionary = {}
+var _plan: TextureRect
+var _navire: TextureRect
 var _racine: Control
 var _onglets_boite: Control
 var _page: Control
@@ -131,6 +148,27 @@ func _batir() -> void:
 	fermer_b.add_theme_color_override("font_color", Color(0.93, 0.88, 0.78))
 	fermer_b.pressed.connect(fermer)
 	_racine.add_child(fermer_b)
+
+	# Le plan et le navire, au point que Scene_Shipyard donne à `cr_ship`. Ils
+	# vivent dans le cadre et non dans la page : PR3 les garde d'un onglet à
+	# l'autre, comme le rendu 3D qu'ils remplacent.
+	var pt := EcranPR3.point(SWF, RACINE, "cr_ship")
+	_plan = TextureRect.new()
+	_plan.texture = SkinPR3.texture(PLAN)
+	_plan.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_plan.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_plan.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_plan.position = pt
+	_plan.size = PLAN_TAILLE
+	_racine.add_child(_plan)
+
+	_navire = TextureRect.new()
+	_navire.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_navire.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_navire.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_navire.size = Vector2(PLAN_TAILLE.y, PLAN_TAILLE.y)
+	_navire.position = pt + Vector2((PLAN_TAILLE.x - PLAN_TAILLE.y) / 2.0, 0)
+	_racine.add_child(_navire)
 
 	_onglets_boite = Control.new()
 	_onglets_boite.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -315,6 +353,7 @@ func _rafraichir_page() -> void:
 	# Canons, équipage et tirant d'eau ne sont PAS dans la table navires de
 	# constdata : tant qu'on n'a pas trouvé leur source, on ne montre pas un
 	# chiffre inventé.
+	_poser_navire(str(fiche.get("modele", "")))
 	_poser("tf_barrels", str(int(fiche.get("cale", 0))))
 	_poser("tf_heart", str(int(fiche.get("coque", 0))))
 	_poser("tf_knot", str(int(fiche.get("vmax", 0))))
@@ -339,6 +378,26 @@ func _rafraichir_page() -> void:
 		"exports.Tab_Shipyard_repair":
 			_poser("tf_cost_val", "—")
 			_poser("tf_time_val", "—")
+
+
+# Le navire choisi, vu de profil, découpé dans son atlas.
+func _poser_navire(modele: String) -> void:
+	if _navire == null:
+		return
+	if modele == "":
+		_navire.texture = null
+		return
+	var atlas := SkinPR3.fichier(ATLAS + modele + "_0.png")
+	if atlas == null:
+		_navire.texture = null
+		return
+	var a := AtlasTexture.new()
+	a.atlas = atlas
+	a.region = Rect2(
+		(CAP_PROFIL % ATLAS_COLONNES) * ATLAS_COTE,
+		(CAP_PROFIL / ATLAS_COLONNES) * ATLAS_COTE,
+		ATLAS_COTE, ATLAS_COTE)
+	_navire.texture = a
 
 
 func _poser(nom: String, valeur: String) -> void:

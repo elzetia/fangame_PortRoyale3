@@ -88,6 +88,18 @@ static func decalage_onglet(swf: String, scene_racine: String, onglet: String) -
 	return Vector2.ZERO
 
 
+# La position d'un élément NOMMÉ dans une scène — `cr_ship`, `mc_bg`… Certains
+# vivent au niveau de la scène et non dans un onglet : on va donc chercher leur
+# point plutôt que de le fixer à la main.
+static func point(swf: String, scene: String, nom: String) -> Vector2:
+	var ecrans: Dictionary = agencement(swf).get("ecrans", {})
+	for el in (ecrans.get(scene, []) as Array):
+		var d: Dictionary = el
+		if str(d.get("nom", "")) == nom:
+			return Vector2(float(d.get("x", 0.0)), float(d.get("y", 0.0)))
+	return Vector2.ZERO
+
+
 # --- fabrique de nœuds ---------------------------------------------------------
 
 static func _taille_police(classe: String) -> int:
