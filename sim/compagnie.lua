@@ -306,6 +306,46 @@ function Compagnie.ordonner_convoi(indice, cle_port_dest)
 end
 
 
+-- MET un convoi EN ROUTE DE COMMERCE : on lui donne un circuit et une stratégie,
+-- et un capital de travail prélevé sur la caisse. Il commerce alors seul. Un convoi
+-- n'est donc pas « manuel OU route » de naissance : il naît manuel, on lui applique
+-- une route quand on veut (et on la lui retire avec `retirer_route`). Renvoie ok, msg.
+function Compagnie.mettre_en_route(indice, circuit, strategie, capital)
+  local m = Compagnie.convois[indice]
+  if not m then return false, "Convoi inconnu." end
+  if not circuit or #circuit < 2 then return false, "Une route demande au moins deux escales." end
+  capital = math.max(0, capital or 0)
+  if capital > Compagnie.or_ then return false, "Or insuffisant pour le capital." end
+
+  m.mode = "route"
+  m.circuit = {}
+  for _, c in ipairs(circuit) do m.circuit[#m.circuit + 1] = c end
+  m.attache = circuit[1]
+  m.strategie = strategie or "profit"
+  m.etape = 1
+  m.destination = nil
+  m.route = {}
+  Compagnie.or_ = Compagnie.or_ - capital
+  m.or_ = (m.or_ or 0) + capital
+  return true, nil
+end
+
+
+-- RETIRE la route d'un convoi : il redevient manuel (le joueur le commande), et son
+-- or de travail rentre dans la caisse. Le convoi et ses navires restent. Renvoie ok, msg.
+function Compagnie.retirer_route(indice)
+  local m = Compagnie.convois[indice]
+  if not m then return false, "Convoi inconnu." end
+  if m.mode ~= "route" then return false, "Ce convoi n'est pas en route." end
+  Compagnie.or_ = Compagnie.or_ + math.floor(math.max(0, m.or_) + 0.5)
+  m.or_ = 0
+  m.mode = "manuel"
+  m.strategie = nil
+  m.circuit = { m.ville or m.attache }
+  return true, nil
+end
+
+
 -- Envoie un convoi MANUEL vers un point de mer quelconque (clic droit en pleine
 -- mer). Renvoie ok, message.
 function Compagnie.ordonner_convoi_position(indice, x, z)

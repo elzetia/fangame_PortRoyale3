@@ -170,6 +170,16 @@ func ordonner_convoi_position(indice_convoi: int, x: float, z: float) -> Diction
 	return r if r is Dictionary else {}
 
 
+func mettre_en_route(indice_convoi: int, circuit: Array, strategie: String, capital: int) -> Dictionary:
+	var r = _appel("mettre_en_route", [indice_convoi, circuit, strategie, capital])
+	return r if r is Dictionary else {}
+
+
+func retirer_route(indice_convoi: int) -> Dictionary:
+	var r = _appel("retirer_route", [indice_convoi])
+	return r if r is Dictionary else {}
+
+
 func ajouter_navire_convoi(indice_convoi: int, navires: Array) -> Dictionary:
 	var r = _appel("ajouter_navire_convoi", [indice_convoi, navires])
 	return r if r is Dictionary else {}

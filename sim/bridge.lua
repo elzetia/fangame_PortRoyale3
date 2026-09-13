@@ -644,6 +644,24 @@ function Bridge.ordonner_convoi_position(indice, x, z)
   return d
 end
 
+-- Met le convoi d'indice donné en route de commerce (circuit = clés de villes).
+function Bridge.mettre_en_route(indice, circuit, strategie, capital)
+  local ok, err = Compagnie.mettre_en_route(indice, en_table(circuit), strategie, capital)
+  local d = Dictionary()
+  d.ok = ok
+  d.message = err or ""
+  return d
+end
+
+-- Retire la route du convoi d'indice donné : il redevient manuel.
+function Bridge.retirer_route(indice)
+  local ok, err = Compagnie.retirer_route(indice)
+  local d = Dictionary()
+  d.ok = ok
+  d.message = err or ""
+  return d
+end
+
 -- La flotte possédée du joueur : les navires à quai, prêts à être affectés à une
 -- route. L'indice sert à `armer_route`.
 function Bridge.flotte()

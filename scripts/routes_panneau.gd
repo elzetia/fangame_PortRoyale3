@@ -1,13 +1,12 @@
-# L'écran des routes commerciales automatiques du joueur.
+# L'écran des routes commerciales du joueur.
 #
-# Le cœur de Port Royale : on arme un convoi (des navires de la flotte), on lui
-# trace un circuit de villes et on lui donne une stratégie ; il navigue et commerce
-# seul. On gère aussi les convois EN SERVICE : ajouter des navires libres, en
-# retirer (ils reviennent à la flotte), dissoudre. Tout le moteur vit dans `sim/`
-# (marchands + strategies + compagnie) ; ce panneau n'est qu'une façade.
+# Un convoi n'est pas « manuel OU route » de naissance : il naît manuel (on le
+# commande à la main sur la carte), et ICI on lui APPLIQUE une route de commerce —
+# un circuit de villes, une stratégie, un capital de travail — après quoi il
+# commerce seul. On peut lui RETIRER sa route : il redevient manuel.
 #
-# Contrôles standard de Godot (listes, menu, compteur), habillés de la palette
-# de la maison. Il ne calcule rien : l'or, la cale, la cargaison viennent du pont.
+# La création des convois et la gestion de leurs navires se font à la Capitainerie
+# d'un port ; ce panneau ne s'occupe que des routes. Tout le calcul vit dans `sim/`.
 class_name RoutesPanneau
 extends CanvasLayer
 
@@ -16,24 +15,22 @@ signal ferme
 const BOIS       := Color(0.16, 0.11, 0.07)
 const BOIS_CLAIR := Color(0.26, 0.18, 0.11)
 const OR         := Color(0.86, 0.71, 0.36)
-const OR_PALE    := Color(0.98, 0.92, 0.76)
 const LIN        := Color(0.921, 0.888, 0.812)
 const ENCRE      := Color(0.16, 0.11, 0.07)
 
 var _sim: Object
-var _liste_navires: ItemList
+var _choix_convoi: OptionButton
+var _convois: Array = []      # index d'item -> convoi (dico avec son indice sim)
 var _liste_villes: ItemList
+var _villes: Array = []
 var _strategie: OptionButton
+var _strats: Array = []
 var _capital: SpinBox
 var _routes_box: VBoxContainer
 var _msg: Label
-var _flotte: Array = []       # index de ligne -> navire possédé (avec son indice sim)
-var _villes: Array = []       # index de ligne -> dico de ville
-var _strats: Array = []       # index -> nom de stratégie
-var _cadre: PanelContainer    # le cadre, pour savoir si la souris est dessus
-var _depuis_maj := 0.0        # secondes depuis le dernier rafraîchissement auto
-
-const INTERVALLE := 0.7       # cadence du rafraîchissement auto des convois
+var _cadre: PanelContainer
+var _depuis_maj := 0.0
+const INTERVALLE := 0.7
 
 
 func _ready() -> void:
@@ -42,10 +39,6 @@ func _ready() -> void:
 	_construire()
 
 
-# Les convois bougent et commercent : on relit la liste régulièrement, mais PAS à
-# chaque image — les lignes portent des boutons (retirer un navire, ajouter la
-# sélection) qu'un rebâti continu détruirait sous le curseur. On saute donc le
-# rafraîchissement tant que la souris est sur le cadre.
 func _process(delta: float) -> void:
 	if not visible or _sim == null:
 		return
@@ -62,7 +55,6 @@ func ouvrir(sim_obj: Object) -> void:
 	_sim = sim_obj
 	if _villes.is_empty():
 		_remplir_villes_strats()
-	_remplir_flotte()
 	rafraichir()
 	visible = true
 
@@ -81,7 +73,6 @@ func _label(txt: String, taille: int, couleur: Color) -> Label:
 
 
 func _construire() -> void:
-	# Voile sombre plein écran qui capte les clics hors du cadre.
 	var voile := ColorRect.new()
 	voile.color = Color(0, 0, 0, 0.55)
 	voile.anchor_right = 1.0
@@ -102,7 +93,6 @@ func _construire() -> void:
 	style.set_corner_radius_all(4)
 	style.set_content_margin_all(16)
 	cadre.add_theme_stylebox_override("panel", style)
-	# Le cadre ne laisse pas passer le clic au voile.
 	cadre.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(cadre)
 	_cadre = cadre
@@ -111,7 +101,6 @@ func _construire() -> void:
 	col.add_theme_constant_override("separation", 10)
 	cadre.add_child(col)
 
-	# Titre + bouton fermer.
 	var titre_ligne := HBoxContainer.new()
 	col.add_child(titre_ligne)
 	var titre := _label("Routes commerciales", 26, BOIS)
@@ -127,24 +116,22 @@ func _construire() -> void:
 	deux.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(deux)
 
-	# --- colonne gauche : créer une route -----------------------------------
+	# --- gauche : mettre un convoi en route ---------------------------------
 	var gauche := VBoxContainer.new()
 	gauche.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	gauche.add_theme_constant_override("separation", 6)
 	deux.add_child(gauche)
 
-	gauche.add_child(_label("Nouvelle route", 18, BOIS_CLAIR))
-	gauche.add_child(_label("Navires de la flotte (choix multiple)", 13, ENCRE))
-	_liste_navires = ItemList.new()
-	_liste_navires.select_mode = ItemList.SELECT_MULTI
-	_liste_navires.custom_minimum_size = Vector2(0, 130)
-	_liste_navires.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gauche.add_child(_liste_navires)
+	gauche.add_child(_label("Mettre un convoi en route", 18, BOIS_CLAIR))
+	gauche.add_child(_label("Convoi (formé à la capitainerie d'un port)", 13, ENCRE))
+	_choix_convoi = OptionButton.new()
+	_choix_convoi.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gauche.add_child(_choix_convoi)
 
 	gauche.add_child(_label("Escales, dans l'ordre du clic", 13, ENCRE))
 	_liste_villes = ItemList.new()
 	_liste_villes.select_mode = ItemList.SELECT_MULTI
-	_liste_villes.custom_minimum_size = Vector2(0, 170)
+	_liste_villes.custom_minimum_size = Vector2(0, 200)
 	_liste_villes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	gauche.add_child(_liste_villes)
 
@@ -162,31 +149,21 @@ func _construire() -> void:
 	_capital.value = 10000
 	reglages.add_child(_capital)
 
-	var actions := HBoxContainer.new()
-	actions.add_theme_constant_override("separation", 8)
-	gauche.add_child(actions)
-	var armer_b := Button.new()
-	armer_b.text = "Armer la route"
-	armer_b.pressed.connect(_armer)
-	actions.add_child(armer_b)
-	# Fabriquer un convoi MANUEL (sans route) : on le commandera à la main sur la
-	# carte. Il naît au port d'attache des navires cochés.
-	var creer_b := Button.new()
-	creer_b.text = "Créer un convoi manuel"
-	creer_b.tooltip_text = "Forme un convoi des navires cochés, à commander sur la carte"
-	creer_b.pressed.connect(_creer_convoi)
-	actions.add_child(creer_b)
+	var route_b := Button.new()
+	route_b.text = "Mettre en route de commerce"
+	route_b.pressed.connect(_mettre_en_route)
+	gauche.add_child(route_b)
 
 	_msg = _label("", 13, Color(0.5, 0.1, 0.1))
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD
 	gauche.add_child(_msg)
 
-	# --- colonne droite : routes existantes ---------------------------------
+	# --- droite : convois existants -----------------------------------------
 	var droite := VBoxContainer.new()
 	droite.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	droite.add_theme_constant_override("separation", 6)
 	deux.add_child(droite)
-	droite.add_child(_label("Routes en service", 18, BOIS_CLAIR))
+	droite.add_child(_label("Tes convois", 18, BOIS_CLAIR))
 	var defil := ScrollContainer.new()
 	defil.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	defil.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -204,94 +181,68 @@ func _remplir_villes_strats() -> void:
 	_liste_villes.clear()
 	for v in _villes:
 		_liste_villes.add_item(String(v.get("nom", "?")))
-
 	_strats = _sim.strategies()
 	_strategie.clear()
 	for i in _strats.size():
 		_strategie.add_item(String(_strats[i]), i)
 
 
-# La flotte change (achat, construction, affectation) : on la relit à chaque
-# ouverture et à chaque rafraîchissement.
-func _remplir_flotte() -> void:
+# La liste des convois change (création, dissolution) : on la relit, en gardant le
+# choix courant s'il existe encore.
+func _remplir_convois() -> void:
 	if _sim == null:
 		return
-	var garde := _liste_navires.get_selected_items()
-	_flotte = _sim.flotte()
-	_liste_navires.clear()
-	for n in _flotte:
-		_liste_navires.add_item("%s — %d t, entretien %d/j" % [
-			String(n.get("nom", "?")), int(n.get("cale", 0)), int(n.get("entretien", 0))])
-	# On reprend la sélection tant que la flotte n'a pas changé de taille.
-	for i in garde:
-		if i < _liste_navires.item_count:
-			_liste_navires.select(i, false)
+	var garde := _choix_convoi.selected
+	_convois = _sim.routes()
+	_choix_convoi.clear()
+	for i in _convois.size():
+		var c: Dictionary = _convois[i]
+		_choix_convoi.add_item("%s [%s]" % [
+			String(c.get("nom", "?")), String(c.get("mode", "route"))], i)
+	if garde >= 0 and garde < _choix_convoi.item_count:
+		_choix_convoi.select(garde)
 
 
-func _armer() -> void:
+func _mettre_en_route() -> void:
 	if _sim == null:
 		return
-	var navires_indices: Array = []
-	for i in _liste_navires.get_selected_items():
-		navires_indices.append(int(_flotte[i].get("indice", 0)))
+	if _choix_convoi.selected < 0 or _choix_convoi.selected >= _convois.size():
+		_erreur("Choisis un convoi (forme-en un à la capitainerie).")
+		return
+	var indice := int(_convois[_choix_convoi.selected].get("indice", 0))
 	var circuit: Array = []
 	for i in _liste_villes.get_selected_items():
 		circuit.append(String(_villes[i].get("cle", "")))
-	if navires_indices.is_empty():
-		_msg.text = "Choisis au moins un navire de la flotte (achète-en au chantier)."
-		return
 	if circuit.size() < 2:
-		_msg.text = "Choisis au moins deux escales."
+		_erreur("Choisis au moins deux escales.")
 		return
 	var strat := "profit"
 	if _strategie.selected >= 0 and _strategie.selected < _strats.size():
 		strat = String(_strats[_strategie.selected])
-	var res: Dictionary = _sim.armer_route(navires_indices, circuit, strat, int(_capital.value))
+	var res: Dictionary = _sim.mettre_en_route(indice, circuit, strat, int(_capital.value))
 	if bool(res.get("ok", false)):
 		_msg.add_theme_color_override("font_color", Color(0.1, 0.4, 0.1))
-		_msg.text = "Route armée."
-		_remplir_flotte()
+		_msg.text = "Convoi mis en route de commerce."
 		rafraichir()
 	else:
-		_msg.add_theme_color_override("font_color", Color(0.5, 0.1, 0.1))
-		_msg.text = String(res.get("message", "Échec."))
+		_erreur(String(res.get("message", "Échec.")))
 
 
-# Fabrique un convoi MANUEL depuis les navires cochés, à leur port d'attache. On le
-# commandera ensuite sur la carte (le sélectionner, clic droit sur un port).
-func _creer_convoi() -> void:
-	if _sim == null:
-		return
-	var lignes := _liste_navires.get_selected_items()
-	if lignes.is_empty():
-		_msg.add_theme_color_override("font_color", Color(0.5, 0.1, 0.1))
-		_msg.text = "Coche au moins un navire de la flotte."
-		return
-	var indices: Array = []
-	for i in lignes:
-		indices.append(int(_flotte[i].get("indice", 0)))
-	var port := String(_flotte[lignes[0]].get("attache", ""))
-	var res: Dictionary = _sim.creer_convoi(indices, port)
-	if bool(res.get("ok", false)):
-		_msg.add_theme_color_override("font_color", Color(0.1, 0.4, 0.1))
-		_msg.text = "Convoi créé — sélectionne-le sur la carte, clic droit sur un port."
-		_remplir_flotte()
-		rafraichir()
-	else:
-		_msg.add_theme_color_override("font_color", Color(0.5, 0.1, 0.1))
-		_msg.text = String(res.get("message", "Échec."))
+func _erreur(txt: String) -> void:
+	_msg.add_theme_color_override("font_color", Color(0.5, 0.1, 0.1))
+	_msg.text = txt
 
 
 func rafraichir() -> void:
 	if _sim == null or _routes_box == null:
 		return
+	_remplir_convois()
 	for e in _routes_box.get_children():
 		e.queue_free()
-	var routes: Array = _sim.routes()
-	if routes.is_empty():
-		_routes_box.add_child(_label("Aucune route. Arme-en une à gauche.", 13, ENCRE))
+	if _convois.is_empty():
+		_routes_box.add_child(_label("Aucun convoi. Forme-en un à la capitainerie d'un port.", 13, ENCRE))
 		return
-	for r in routes:
+	for r in _convois:
 		_routes_box.add_child(_ligne_route(r))
 
 
@@ -308,72 +259,42 @@ func _ligne_route(r: Dictionary) -> Control:
 	v.add_theme_constant_override("separation", 2)
 	fond.add_child(v)
 
+	var indice := int(r.get("indice", 0))
+	var est_route := String(r.get("mode", "route")) == "route"
+
 	var t := HBoxContainer.new()
 	v.add_child(t)
 	var nom := _label(String(r.get("nom", "?")), 15, BOIS)
 	nom.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	t.add_child(nom)
+	if est_route:
+		var stop := Button.new()
+		stop.text = "Retirer la route"
+		stop.pressed.connect(func() -> void:
+			_sim.retirer_route(indice)
+			rafraichir())
+		t.add_child(stop)
 	var diss := Button.new()
 	diss.text = "Dissoudre"
-	var indice := int(r.get("indice", 0))
+	diss.tooltip_text = "Rend les navires à la flotte du port"
 	diss.pressed.connect(func() -> void:
 		_sim.dissoudre_route(indice)
-		_remplir_flotte()
 		rafraichir())
 	t.add_child(diss)
 
-	var circ: Array = r.get("circuit", [])
-	if String(r.get("mode", "route")) == "manuel":
-		v.add_child(_label("manuel · commandé à la main sur la carte", 12, ENCRE))
-	else:
+	if est_route:
+		var circ: Array = r.get("circuit", [])
 		v.add_child(_label("route %s · %s" % [String(r.get("strategie", "")),
 			" → ".join(PackedStringArray(circ))], 12, ENCRE))
+	else:
+		v.add_child(_label("manuel · commandé à la main sur la carte", 12, ENCRE))
+
 	var lieu := String(r.get("ville", ""))
 	if lieu == "":
 		lieu = "en mer → " + String(r.get("destination", ""))
 	v.add_child(_label("%s pièces · cale %d/%d · %s · %s" % [
 		_nombre(int(r.get("or_", 0))), int(r.get("charge", 0)),
 		int(r.get("capacite", 0)), String(r.get("cargaison", "")), lieu], 12, ENCRE))
-
-	# Les navires du convoi, chacun avec un bouton pour l'en retirer (il revient
-	# à la flotte). C'est la gestion fine des convois, comme l'onglet Navires du
-	# dialogue de ville de PR3.
-	var noms: Array = r.get("navires_noms", [])
-	var quai := FlowContainer.new()
-	quai.add_theme_constant_override("h_separation", 4)
-	quai.add_theme_constant_override("v_separation", 4)
-	v.add_child(quai)
-	for k in noms.size():
-		var chip := Button.new()
-		chip.text = "%s  ✕" % String(noms[k])
-		chip.add_theme_font_size_override("font_size", 11)
-		chip.tooltip_text = "Retirer ce navire du convoi"
-		var pos := k + 1  # Lua indexe à partir de 1
-		chip.pressed.connect(func() -> void:
-			_sim.retirer_navire_convoi(indice, pos)
-			_remplir_flotte()
-			rafraichir())
-		quai.add_child(chip)
-
-	# Ajouter au convoi les navires libres cochés dans la liste de gauche.
-	var ajouter := Button.new()
-	ajouter.text = "+ Ajouter les navires cochés"
-	ajouter.add_theme_font_size_override("font_size", 12)
-	ajouter.pressed.connect(func() -> void:
-		var sel: Array = []
-		for i in _liste_navires.get_selected_items():
-			sel.append(int(_flotte[i].get("indice", 0)))
-		if sel.is_empty():
-			_msg.add_theme_color_override("font_color", Color(0.5, 0.1, 0.1))
-			_msg.text = "Coche d'abord des navires de la flotte à gauche."
-			return
-		var res: Dictionary = _sim.ajouter_navire_convoi(indice, sel)
-		if not bool(res.get("ok", false)):
-			_msg.add_theme_color_override("font_color", Color(0.5, 0.1, 0.1))
-			_msg.text = String(res.get("message", "Échec."))
-		_remplir_flotte()
-		rafraichir())
-	v.add_child(ajouter)
 	return fond
 
 

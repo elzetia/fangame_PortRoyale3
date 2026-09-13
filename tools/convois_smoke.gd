@@ -75,6 +75,19 @@ func _init() -> void:
 	if String(conv2.get("ville", "")) != arrivee:
 		printerr("  ECHEC : le 2e convoi n'est pas arrivé à ", arrivee, "."); echecs += 1
 
+	# --- mettre le 2e convoi en route de commerce, puis la retirer ----------
+	var circuit = [chantier, arrivee]
+	var rm = b.get("mettre_en_route").invokev([2, circuit, "resources", 5000])
+	var m2 = b.get("convois_joueur").invoke()[1] as Dictionary
+	print("mettre en route conv2 : ", rm, " ; mode=", m2.get("mode"))
+	if not bool(rm.get("ok", false)) or String(m2.get("mode", "")) != "route":
+		printerr("  ECHEC : le convoi n'est pas passé en route."); echecs += 1
+	var rt = b.get("retirer_route").invokev([2])
+	var m2b = b.get("convois_joueur").invoke()[1] as Dictionary
+	print("retirer route conv2   : ", rt, " ; mode=", m2b.get("mode"))
+	if not bool(rt.get("ok", false)) or String(m2b.get("mode", "")) != "manuel":
+		printerr("  ECHEC : le convoi n'est pas redevenu manuel."); echecs += 1
+
 	# --- envoyer l'Aurore vers un POINT DE MER (pas un port) ----------------
 	var cible = ports[5]["rade"]     # un mouillage = un point de mer navigable
 	var rp = b.get("ordonner_convoi_position").invokev([1, cible.x, cible.z])
