@@ -56,6 +56,7 @@ local Navigation   = require("sim.navigation")
 local Economie     = require("sim.economie")
 local Marchandises = require("sim.marchandises")
 local Navires      = require("sim.navires")
+local Strategies   = require("sim.strategies")
 
 local Marchands = {}
 
@@ -413,6 +414,11 @@ local function charger(m)
                 local vente = Economie.cotation(dest, cle, lot, "vente") or 0
                 local gain = (vente - achat) * lot
                 if dest == m.attache then gain = gain * 1.35 end
+                -- La STRATÉGIE de la route (PR3) : si elle vise ce bien à cette
+                -- escale et que le stock y est sous la cible, on le privilégie.
+                -- Le caboteur « resources » pousse ainsi les matières premières.
+                local cible = Strategies.cible(m.strategie, dest, cle)
+                if cible and (ld.stock or 0) < cible then gain = gain * 1.5 end
                 gain = gain / (1 + 0.12 * (rang - 1))
                 if gain > 0 and (not meilleur or gain > meilleur.gain) then
                   meilleur = { cle = cle, lot = lot, achat = achat, gain = gain }
