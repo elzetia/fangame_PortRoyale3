@@ -161,9 +161,24 @@ droits :
   puis manufactures — « plus votre rang est élevé et plus vous êtes présent dans
   de nombreuses villes, plus l'architecte fait payer cher la concession ».
 
-Les seuils sont dans `[Licence]` (`Rank`, `RepNation`, `RepTown`, `Buildings`) et
-`[MinRank]` (`Hospital`, `ShipYard` exigent un rang minimal). Les navires ont aussi
-un rang requis (`minRankMil`, `maxRankMil`, `minRankPir` — voir `PR3_TECHNIQUE.md`).
+Les seuils, décodés dans le grand chargeur de config (`0x8297e1`, `0x865a90`) :
+- **Droit aux convois** : on démarre à `[Initial] Konvois` = **3** ; le rang le fait
+  monter jusqu'au plafond dur `[Limits] maxConvoys` = **100** (avec `maxConvoyMembers`
+  50 et `maxShips` 50, voir la section chantier).
+- **Concessions de l'architecte** : `[Licence]` = `Rank` **10**, `RepNation` **5**,
+  `RepTown` **5**, `Buildings` **3** (le seuil de base pour obtenir une licence).
+- **Exigences par bâtiment / palier** : des sections `[Requirements%02u]`, chacune
+  avec un tableau `Rank` de 4 (rang et réputations requis) — c'est la grille fine des
+  droits de construction.
+- **Bâtiments à rang minimal** : `[MinRank]` `ShipYard`, `Hospital`.
+- **Navires** : rang requis `minRankMil`, `maxRankMil`, `minRankPir` (par `[Ship%02u]`,
+  voir la section chantier).
+- **Annexion** : `[NationReputation] Annexed` = 200.
+
+Les DIX-HUIT titres eux-mêmes (`ID_RANK_MALE_00…17`) et la table des seuils de
+richesse qui les sépare vivent dans les données localisées (`.fuk`), pas dans
+l'exécutable : c'est un relevé à part si l'on veut la courbe exacte. La sim ne modélise
+pas encore le rang du joueur ; elle prendra ces chiffres quand elle le fera.
 
 **La réputation** est double (voir `ECONOMIE_PR3.md` §10.10) : par ville
 (le commerce) et par nation (`NationReputation`, `[Licence]` `RepNation`). Une
@@ -596,7 +611,7 @@ Cinq niveaux : **porté** (dans `sim/`), **décodé** (math/structure exacte lue
 | Bâtiments : coûts, matériaux, effets (école, hôpital, ambassade…) | **décodé** |
 | Chantier : 5 onglets (build/buy/sell/repair), stats `[Ship%02u]`, limites, réparation, montée de niveau | **décodé** (mécanisme) ; recette de construction **bloquée-dynamique** |
 | Journée d'une ville : les 20 étapes de `0x7C2D20`, dans l'ordre | **décodé** |
-| Diplomatie : 18 rangs à la richesse, licences, donations, lettres de marque | **sémantique** |
+| Diplomatie : 18 rangs à la richesse, licences, donations, lettres de marque | **sémantique** ; seuils numériques (convois 3→100, `[Licence]`, `[Requirements%02u]`, `[MinRank]`) **décodés**, titres/courbe de richesse dans les `.fuk` |
 | Réputation de nation, dérive sinusoïdale (`Offset`/`Amplitude`/`Phase`) | **sémantique** |
 | Pirates, tempêtes, sauterelles, mines, patrouilles, météo | **décodé** (paramètres) |
 | Signaux de ville (conseiller) — taxonomie | **décodé** |
