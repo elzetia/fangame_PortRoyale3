@@ -6,7 +6,7 @@
 # classe de composant et sa position au pixel. Ce script lit ce JSON et pose les
 # nœuds Godot aux mêmes coordonnées, avec l'art extrait du jeu.
 #
-# Trois pièges, tous payés comptant :
+# Les pièges, tous payés comptant :
 #
 #  1. PR3 instancie ses composants par PlaceObject3 « HasClassName » — une chaîne
 #     de classe glissée avant le charId. Tant qu'on ne la saute pas, le nom
@@ -15,19 +15,18 @@
 #     à (102,-123), l'info-ville à (15,113)). Sans lui, la grille de statistiques
 #     tombe hors du cadre. Voir `decalage_onglet()`.
 #  3. Un Control libre n'a pas de taille : `custom_minimum_size` ne vaut que dans
-#     un conteneur. Il faut poser `size` — sinon les plaques s'étirent sur toute
-#     la largeur et les icônes sortent à leur taille native.
+#     un conteneur. Il faut poser `size`.
+#  4. Un TextureRect a pour taille MINIMALE celle de sa texture : sans
+#     `expand_mode = EXPAND_IGNORE_SIZE`, il refuse de rétrécir et une icône de
+#     marchandise s'affiche à sa taille native.
+#  5. L'échelle d'un placement étire la LARGEUR du champ, pas sa police. Un
+#     `Visual_Textfeld_16` mesure environ 82 px avant étirement — vérifié sur
+#     `tf_ships` (×0,703) dont la plaque fait 13×4,62 = 60 px, et 82 × 0,703 = 58.
+#     Sans cette largeur, « Espagne, neutre » s'affiche « agne, ne ».
 #
 # L'art (cadres, icônes) vient de `reference_pr3/`, ignoré par git — sous droits,
 # lu au runtime comme les modèles de navires. Absent, l'écran se bâtit quand même
 # en aplats : la STRUCTURE ne dépend jamais de l'art.
-#
-# Conventions de PR3 relevées dans le skin :
-#   components.textfield.Visual_Textfeld_NN  -> un texte de NN pixels
-#   exports.Text_Bg_Nomal                    -> la plaque sombre sous un chiffre,
-#                                               13x20 de base, étirée par l'échelle
-#   components.button.Visual_IconButton_X    -> une icône (table icones.txt)
-#   components.textbutton.*                  -> un bouton à libellé
 class_name EcranPR3
 extends RefCounted
 
@@ -36,12 +35,16 @@ const SKIN := "skinlib_pr3/"
 
 # Le cadre à onglets de PR3 (exports.Dialog_Tabbed), large de 430 px :
 # un bandeau de bois, un parchemin répété, un culot bordé de corde dorée.
+# (777 et 750 sont des CULOTS arrondis, pas des tuiles — les répéter empile des
+# plaques au lieu de remplir le fond. Seul 753 se répète.)
 const CADRE := {"bandeau": "757", "corps": "753", "culot": "750"}
 const CADRE_LARGEUR := 430
 const CADRE_HAUTEUR := 572
 
-# La plaque `Text_Bg_Nomal` mesure 13x20 avant étirement.
+# La plaque `Text_Bg_Nomal` mesure 13x20 avant étirement ; un champ de texte
+# environ 82 de large.
 const PLAQUE := Vector2(13, 20)
+const LARGEUR_TEXTE := 82.0
 
 static var _json: Dictionary = {}
 static var _icones: Dictionary = {}
@@ -102,6 +105,17 @@ static func _icone(classe: String) -> Texture2D:
 	return SkinPR3.texture(SKIN + fichier.replace(".png", ""))
 
 
+static func _image(tex: Texture2D, taille: Vector2) -> TextureRect:
+	var t := TextureRect.new()
+	t.texture = tex
+	# Sans cela un TextureRect ne descend jamais sous la taille de sa texture.
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	t.size = taille
+	return t
+
+
 # Bâtit UN élément selon sa classe de composant PR3, À SA TAILLE.
 static func _noeud(el: Dictionary) -> Control:
 	var classe := str(el.get("classe", ""))
@@ -115,8 +129,7 @@ static func _noeud(el: Dictionary) -> Control:
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		l.clip_text = true
-		# Largeur provisoire : `batir` la recalera sur la plaque qui l'accompagne.
-		l.size = Vector2(60, PLAQUE.y)
+		l.size = Vector2(LARGEUR_TEXTE * sx, PLAQUE.y)
 		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		return l
 
@@ -134,15 +147,24 @@ static func _noeud(el: Dictionary) -> Control:
 		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		return p
 
-	if classe.contains("IconButton") or classe.begins_with("icon"):
-		var t := TextureRect.new()
-		t.texture = _icone(classe)
-		t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		t.size = t.texture.get_size() if t.texture != null else Vector2(24, 24)
-		return t
+	# `Visual_Button_Empty` est une zone de clic invisible dans PR3 : la rendre
+	# en bouton posait un rectangle gris fantôme sous l'action.
+	if classe.contains("Visual_Button_Empty") or classe.contains("Button_Mask"):
+		var vide := Control.new()
+		vide.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vide.size = Vector2(1, 1)
+		return vide
 
-	if classe.contains("Textbutton") or classe.contains("Visual_Button"):
+	if classe.contains("IconButton") or classe.begins_with("icon"):
+		var tex := _icone(classe)
+		return _image(tex, tex.get_size() if tex != null else Vector2(24, 24))
+
+	# Beaucoup de `Visual_Button_*` sont en fait des icônes (le « i » d'info, les
+	# flèches…) : on les pose en image si la table en connaît une.
+	if classe.contains("Visual_Button") or classe.contains("Textbutton"):
+		var ti := _icone(classe)
+		if ti != null:
+			return _image(ti, ti.get_size())
 		var b := Button.new()
 		b.focus_mode = Control.FOCUS_NONE
 		b.add_theme_font_size_override("font_size", 13)
@@ -168,9 +190,6 @@ static func batir(swf: String, scene: String) -> Control:
 	if not ecrans.has(scene):
 		return racine
 
-	var plaques: Array = []   # [position, largeur] — pour recaler les textes
-	var textes: Array = []
-
 	for el in (ecrans[scene] as Array):
 		var d: Dictionary = el
 		if str(d.get("type", "")) == "texte":
@@ -181,32 +200,10 @@ static func batir(swf: String, scene: String) -> Control:
 			n.name = nom
 		n.position = Vector2(float(d.get("x", 0.0)), float(d.get("y", 0.0)))
 		racine.add_child(n)
-		if n is Panel:
-			plaques.append(n)
-		elif n is Label:
-			textes.append(n)
-
-	# PR3 pose le texte sur sa plaque, au même point : on donne donc au texte la
-	# largeur de la plaque qui l'accompagne, sinon un chiffre déborde ou se perd.
-	for t in textes:
-		var lbl := t as Label
-		var meilleure: Panel = null
-		var ecart := 6.0
-		for p in plaques:
-			var pan := p as Panel
-			var d2 := (pan.position - lbl.position).length()
-			if d2 < ecart:
-				ecart = d2
-				meilleure = pan
-		if meilleure != null:
-			lbl.position = meilleure.position
-			lbl.size = meilleure.size
 	return racine
 
 
 # Le cadre à onglets de PR3 : bandeau de bois, parchemin répété, culot doré.
-# (Le piège : 777 et 750 sont des CULOTS arrondis, pas des tuiles — les répéter
-# donne un empilement de plaques au lieu d'un fond plein.)
 static func cadre_tabbed(hauteur := CADRE_HAUTEUR) -> Control:
 	var c := Control.new()
 	c.name = "cadre"
@@ -217,13 +214,13 @@ static func cadre_tabbed(hauteur := CADRE_HAUTEUR) -> Control:
 	var bandeau := SkinPR3.texture(SKIN + str(CADRE["bandeau"]))
 	var h_bandeau := bandeau.get_height() if bandeau != null else 0
 
-	# Le parchemin, répété entre le bandeau et le culot.
 	var corps := SkinPR3.texture(SKIN + str(CADRE["corps"]))
 	if corps != null:
 		var y := h_bandeau
 		while y < hauteur - h_culot:
 			var tr := TextureRect.new()
 			tr.texture = corps
+			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			tr.position = Vector2(0, y)
 			tr.size = Vector2(corps.get_width(), min(corps.get_height(), hauteur - h_culot - y))
 			tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
@@ -233,20 +230,11 @@ static func cadre_tabbed(hauteur := CADRE_HAUTEUR) -> Control:
 			y += corps.get_height()
 
 	if culot != null:
-		var tc := TextureRect.new()
-		tc.texture = culot
-		tc.position = Vector2(0, hauteur - h_culot)
-		tc.size = culot.get_size()
-		tc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		c.add_child(tc)
+		c.add_child(_image(culot, culot.get_size()))
+		c.get_child(c.get_child_count() - 1).position = Vector2(0, hauteur - h_culot)
 
 	if bandeau != null:
-		var tb := TextureRect.new()
-		tb.texture = bandeau
-		tb.position = Vector2.ZERO
-		tb.size = bandeau.get_size()
-		tb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		c.add_child(tb)
+		c.add_child(_image(bandeau, bandeau.get_size()))
 	return c
 
 
