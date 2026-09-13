@@ -578,6 +578,10 @@ local function piloter_convoi(m, jours)
     m.or_ = OR_PLAFOND
   end
   if m.ville then
+    -- Un convoi MANUEL reste à quai : c'est le joueur qui décide quand repartir
+    -- et où (voir `Marchands.ordonner`). Seuls les convois sur ROUTE réappareillent
+    -- tout seuls vers l'escale suivante.
+    if m.mode == "manuel" then return end
     m.escale = m.escale - jours
     if m.escale <= 0 then
       m.escale = ESCALE
@@ -643,8 +647,29 @@ function Marchands.armer_joueur(cle_attache, navires, circuit, strategie, capita
   local m = armer(port, "joueur", navires, circuit or { cle_attache })
   m.strategie = strategie or "profit"
   m.joueur = true
+  m.mode = "route"          -- commerce seul sur son circuit
   m.or_ = capital or 0
   return m
+end
+
+
+-- Arme un convoi MANUEL pour le joueur : il reste à quai jusqu'à ce qu'on l'envoie
+-- quelque part (`Marchands.ordonner`). Pas de circuit ni de stratégie ; c'est le
+-- joueur qui le commande et qui commerce pour lui au comptoir.
+function Marchands.armer_joueur_manuel(cle_attache, navires)
+  local m = Marchands.armer_joueur(cle_attache, navires, { cle_attache }, nil, 0)
+  if m then m.mode = "manuel" end
+  return m
+end
+
+
+-- Envoie un convoi manuel vers un port : on trace la route et il appareille. À
+-- l'arrivée il accoste et attend (il ne repart pas tout seul).
+function Marchands.ordonner(m, cle_ville)
+  if not m or not cle_ville then return false end
+  if m.ville == cle_ville and #m.route == 0 then return false end  -- déjà là
+  tracer_route(m, cle_ville)
+  return true
 end
 
 

@@ -238,6 +238,49 @@ function Compagnie.armer_route(indices_flotte, circuit, strategie, capital)
 end
 
 
+-- Fabrique un NOUVEAU convoi MANUEL depuis des navires de la flotte (indices), à
+-- quai dans `cle_port`. Il ne part pas tout seul : le joueur le commande
+-- (`ordonner_convoi`) ou lui donne plus tard une route. Renvoie le convoi ou un
+-- message d'échec.
+function Compagnie.creer_convoi(indices_flotte, cle_port)
+  if #Compagnie.convois >= Chantier.LIMITE_CONVOIS then
+    return nil, "Trop de convois." end
+  local choisis = {}
+  for _, i in ipairs(indices_flotte or {}) do
+    if Compagnie.flotte[i] then choisis[#choisis + 1] = i end
+  end
+  if #choisis == 0 then return nil, "Aucun navire choisi." end
+  if #choisis > Chantier.LIMITE_MEMBRES then
+    return nil, string.format("Un convoi ne peut porter plus de %d navires.", Chantier.LIMITE_MEMBRES)
+  end
+  table.sort(choisis, function(a, b) return a > b end)
+  local possedes, types = {}, {}
+  for _, i in ipairs(choisis) do
+    local s = Compagnie.flotte[i]
+    possedes[#possedes + 1] = s
+    types[#types + 1] = Navires.get(s.cle)
+  end
+  local m = Marchands.armer_joueur_manuel(cle_port, types)
+  if not m then return nil, "Port d'attache inconnu." end
+  m.navires_joueur = possedes
+  for _, i in ipairs(choisis) do table.remove(Compagnie.flotte, i) end
+  Compagnie.convois[#Compagnie.convois + 1] = m
+  return m, nil
+end
+
+
+-- Envoie un convoi MANUEL à un port : il appareille et navigue tout seul jusque
+-- là, puis attend. Renvoie ok, message.
+function Compagnie.ordonner_convoi(indice, cle_port_dest)
+  local m = Compagnie.convois[indice]
+  if not m then return false, "Convoi inconnu." end
+  if m.mode ~= "manuel" then return false, "Ce convoi suit une route ; dissous-la d'abord." end
+  if not Archipel.portsParCle[cle_port_dest] then return false, "Port inconnu." end
+  Marchands.ordonner(m, cle_port_dest)
+  return true, nil
+end
+
+
 -- Dissout un convoi du joueur : rend ses navires à la flotte, rapatrie son or dans
 -- la caisse (sa cargaison est perdue, ou à vendre avant). Rend l'or récupéré.
 function Compagnie.dissoudre_route(indice)

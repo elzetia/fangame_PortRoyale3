@@ -583,6 +583,49 @@ function Bridge.retirer_navire_convoi(indice_convoi, indice_navire)
   return d
 end
 
+-- Les convois du joueur avec leur POSITION, pour la carte : elle les dessine,
+-- les rend sélectionnables et leur donne des ordres.
+function Bridge.convois_joueur()
+  local sortie = Array()
+  for i, m in ipairs(Compagnie.convois) do
+    local d = Dictionary()
+    d.indice      = i
+    d.nom         = m.nom
+    d.mode        = m.mode or "route"
+    d.position    = Vector2(m.x, m.z)
+    d.cap         = m.cap or 0
+    d.a_quai      = m.ville ~= nil
+    d.ville       = m.ville or ""
+    d.destination = m.destination or ""
+    d.navires     = #(m.navires or {})
+    d.cargaison   = Marchands.cargaison(m)
+    local tete = m.navires and m.navires[1]
+    d.modele      = tete and tete.modele or ""
+    sortie:append(d)
+  end
+  return sortie
+end
+
+-- Fabrique un convoi manuel depuis des navires de la flotte (indices) à `cle_port`.
+function Bridge.creer_convoi(navires, cle_port)
+  local indices = {}
+  for _, v in ipairs(en_table(navires)) do indices[#indices + 1] = math.floor(v + 0.5) end
+  local m, err = Compagnie.creer_convoi(indices, cle_port)
+  local d = Dictionary()
+  d.ok = m ~= nil
+  d.message = err or ""
+  return d
+end
+
+-- Envoie le convoi manuel d'indice donné vers un port.
+function Bridge.ordonner_convoi(indice, cle_port_dest)
+  local ok, err = Compagnie.ordonner_convoi(indice, cle_port_dest)
+  local d = Dictionary()
+  d.ok = ok
+  d.message = err or ""
+  return d
+end
+
 -- La flotte possédée du joueur : les navires à quai, prêts à être affectés à une
 -- route. L'indice sert à `armer_route`.
 function Bridge.flotte()
