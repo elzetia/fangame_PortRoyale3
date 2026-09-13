@@ -87,9 +87,10 @@ function Bridge.ports()
     -- Le rendu s'en sert pour hierarchiser les etiquettes, qui a soixante ports
     -- se recouvriraient toutes.
     d.taille       = port.taille or 1
-    -- A-t-elle un chantier naval ? Le menu radial n'affiche le pétale chantier
-    -- que si oui.
+    -- A-t-elle un chantier naval, et de quel niveau ? Le radial n'affiche le
+    -- pétale chantier que si oui ; le niveau borne les navires constructibles.
     d.chantier     = port.chantier == true
+    d.niveau_chantier = port.niveau_chantier or 0
     -- Les CINQ marchandises que la ville produit, dans l'ordre de PR3. Le
     -- panneau d'infos les aligne telles quelles : c'est la carte d'identité
     -- économique du port, et elle ne change jamais en cours de partie.
@@ -555,6 +556,11 @@ function Bridge.dissoudre_route(indice)
   return math.floor(Compagnie.dissoudre_route(indice) + 0.5)
 end
 
+-- Le joueur a-t-il un convoi à quai dans cette ville ? (dock/chantier du radial)
+function Bridge.convoi_au_port(cle_ville)
+  return Compagnie.convoi_au_port(cle_ville)
+end
+
 -- Ajoute des navires de la flotte (indices) au convoi d'indice donné. Renvoie
 -- { ok, message }.
 function Bridge.ajouter_navire_convoi(indice_convoi, navires)
@@ -619,6 +625,7 @@ function Bridge.chantier_infos(cle_type)
   d.prix_achat  = Chantier.prix_achat(cle_type)
   d.cout_construction = recette.or_
   d.jours       = recette.jours
+  d.niveau_requis = Chantier.niveau_requis(cle_type)
   local mats = Array()
   for _, mat in ipairs(recette.materiaux) do
     local m = Marchandises.get(mat.cle)

@@ -76,4 +76,21 @@ function Chantier.prix_achat(cle_type)
   return navire and navire.prix or 0
 end
 
+-- Le NIVEAU de chantier qu'exige un type de navire. En PR3 un chantier plus grand
+-- construit de plus gros navires ; on l'échelonne sur la cale (CALER : paliers
+-- provisoires — petit ≤ 250, moyen ≤ 500, gros au-delà). Un chantier de niveau N
+-- construit tout ce qui exige ≤ N.
+function Chantier.niveau_requis(cle_type)
+  local navire = Navires.get(cle_type)
+  if not navire then return 99 end
+  if navire.cale <= 250 then return 1 end
+  if navire.cale <= 500 then return 2 end
+  return 3
+end
+
+-- Un chantier de niveau `niveau_port` peut-il fournir ce type de navire ?
+function Chantier.autorise(niveau_port, cle_type)
+  return (niveau_port or 0) >= Chantier.niveau_requis(cle_type)
+end
+
 return Chantier

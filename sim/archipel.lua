@@ -137,10 +137,13 @@ for _, v in ipairs(Villes) do
     -- port reste sur l'eau. C'est ce qui permet de poser joliment un village
     -- sans déplacer le mouillage ni la cible du clic.
     decalage = r.decalage or { 0.0, 0.0 },
-    -- A-t-elle un chantier naval ? En PR3 les chantiers sont dans les villes, pas
-    -- les petits bourgs. Heuristique à l'échelle de la ville (taille ≥ 2) ; à caler
-    -- sur la liste réelle de PR3 (l'emplacement « chantier » des plans de ville).
+    -- A-t-elle un chantier naval, et de quel NIVEAU ? En PR3 les chantiers ont des
+    -- paliers (`AusbauKosten Upgrade_Shipyard`) et un chantier plus grand construit
+    -- de plus gros navires. Heuristique à l'échelle de la ville : pas de chantier
+    -- dans les bourgs (taille 1), niveau 2 dans les villes, niveau 3 dans les grandes
+    -- villes. À caler sur la liste réelle de PR3 (emplacement « chantier » des plans).
     chantier = (v.taille or 1) >= 2,
+    niveau_chantier = ((v.taille or 1) >= 3 and 3) or ((v.taille or 1) >= 2 and 2) or 0,
   }
 end
 

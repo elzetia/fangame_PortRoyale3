@@ -177,7 +177,7 @@ func _ready() -> void:
 		_ouvrir_comptoir(port))
 	_radial.chantier_demande.connect(func(port: Dictionary) -> void:
 		if _chantier != null:
-			_chantier.ouvrir(sim))
+			_chantier.ouvrir(sim, port))
 	# Le bouton « Infos ville » du comptoir passe par ici : c'est la carte qui
 	# arbitre lequel des deux panneaux est à l'écran.
 	_comptoir.infos_demandees.connect(func(port: Dictionary) -> void:
@@ -1535,8 +1535,18 @@ func _clic_gauche() -> void:
 		port = _port_proche(monde, RAYON_CLIC_PORT)
 	if not port.is_empty() and _radial != null:
 		# La couronne s'ouvre au curseur, en pixels écran (elle vit dans une
-		# CanvasLayer, hors de la transformée de la caméra).
-		_radial.ouvrir(port, get_viewport().get_mouse_position())
+		# CanvasLayer, hors de la transformée de la caméra). Dock et chantier ne
+		# s'ouvrent que si un convoi du joueur est à ce port.
+		_radial.ouvrir(port, get_viewport().get_mouse_position(), _joueur_au_port(port))
+
+
+# Le joueur a-t-il un navire ou un convoi à quai dans ce port ? Son navire (à quai
+# ici) ou un de ses convois automatiques y suffit.
+func _joueur_au_port(port: Dictionary) -> bool:
+	var quai := _port_a_quai()
+	if not quai.is_empty() and String(quai.get("cle", "")) == String(port.get("cle", "")):
+		return true
+	return sim.convoi_au_port(String(port.get("cle", "")))
 
 
 # Clic droit : on COMMANDE. Le navire met le cap sur la mer cliquée, ou sur la
@@ -1668,18 +1678,8 @@ func _creer_hud() -> void:
 			_routes.ouvrir(sim))
 	couche.add_child(routes_b)
 
-	# Le bouton du chantier naval, juste à gauche de « Routes ».
-	var chantier_b := Button.new()
-	chantier_b.text = "Chantier"
-	chantier_b.add_theme_font_size_override("font_size", 16)
-	chantier_b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	chantier_b.offset_left = -234
-	chantier_b.offset_top = 14
-	chantier_b.offset_right = -128
-	chantier_b.pressed.connect(func() -> void:
-		if _chantier != null:
-			_chantier.ouvrir(sim))
-	couche.add_child(chantier_b)
+	# Plus de bouton « Chantier » global : le chantier est propre à chaque port et
+	# ne s'ouvre que depuis le menu radial d'une ville où l'on a un convoi.
 
 	_lbl_message = Label.new()
 	_lbl_message.set_anchors_preset(Control.PRESET_TOP_WIDE)

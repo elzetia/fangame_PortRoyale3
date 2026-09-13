@@ -141,6 +141,11 @@ func dissoudre_route(indice: int) -> int:
 	return int(r) if r != null else 0
 
 
+func convoi_au_port(cle_ville: String) -> bool:
+	var r = _appel("convoi_au_port", [cle_ville])
+	return bool(r) if r != null else false
+
+
 func ajouter_navire_convoi(indice_convoi: int, navires: Array) -> Dictionary:
 	var r = _appel("ajouter_navire_convoi", [indice_convoi, navires])
 	return r if r is Dictionary else {}

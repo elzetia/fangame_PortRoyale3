@@ -52,8 +52,10 @@ func _ready() -> void:
 	add_child(_racine)
 
 
-# Ouvre la couronne autour de `ecran_pos` (en pixels écran).
-func ouvrir(port: Dictionary, ecran_pos: Vector2) -> void:
+# Ouvre la couronne autour de `ecran_pos` (en pixels écran). `a_convoi` dit si un
+# convoi du joueur est à ce port : sans lui, ni dock ni chantier — comme PR3, on
+# n'entre au port qu'avec un navire.
+func ouvrir(port: Dictionary, ecran_pos: Vector2, a_convoi: bool) -> void:
 	_port = port
 	for e in _racine.get_children():
 		e.queue_free()
@@ -67,14 +69,16 @@ func ouvrir(port: Dictionary, ecran_pos: Vector2) -> void:
 
 	_centre(c)
 
-	# Les pétales, disposés en éventail au-dessus du centre. Chantier seulement
-	# si la ville en a un.
+	# Les pétales, disposés en éventail au-dessus du centre. Infos toujours ; Dock
+	# seulement si un convoi du joueur est là ; Chantier en plus s'il faut que la
+	# ville en ait un.
 	var petales: Array = [
 		{"txt": "Infos", "sig": "infos"},
-		{"txt": "Dock", "sig": "dock"},
 	]
-	if bool(port.get("chantier", false)):
-		petales.append({"txt": "Chantier", "sig": "chantier"})
+	if a_convoi:
+		petales.append({"txt": "Dock", "sig": "dock"})
+		if bool(port.get("chantier", false)):
+			petales.append({"txt": "Chantier", "sig": "chantier"})
 
 	var n := petales.size()
 	# Éventail centré sur le haut (-90°), écarté de 55° entre pétales.

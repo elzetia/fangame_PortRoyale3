@@ -19,14 +19,14 @@ const LIN        := Color(0.921, 0.888, 0.812)
 const ENCRE      := Color(0.16, 0.11, 0.07)
 
 var _sim: Object
-var _ville: OptionButton
+var _titre_port: Label
 var _type: OptionButton
 var _infos: RichTextLabel
 var _msg: Label
 var _flotte_box: VBoxContainer
 var _file_box: VBoxContainer
-var _villes: Array = []       # index -> dico de ville
-var _types: Array = []        # index -> dico de type de navire
+var _port_courant: Dictionary = {}   # le chantier est propre à CE port
+var _types: Array = []               # index -> dico de type de navire (constructibles ici)
 
 
 func _ready() -> void:
@@ -35,10 +35,12 @@ func _ready() -> void:
 	_construire()
 
 
-func ouvrir(sim_obj: Object) -> void:
+func ouvrir(sim_obj: Object, port: Dictionary) -> void:
 	_sim = sim_obj
-	if _villes.is_empty():
-		_remplir_choix()
+	_port_courant = port
+	_titre_port.text = "Chantier de %s — niveau %d" % [
+		String(port.get("nom", "?")), int(port.get("niveau_chantier", 0))]
+	_remplir_choix()
 	_maj_infos()
 	rafraichir()
 	visible = true
@@ -107,10 +109,9 @@ func _construire() -> void:
 	deux.add_child(gauche)
 
 	gauche.add_child(_label("Commander un navire", 18, BOIS_CLAIR))
-	gauche.add_child(_label("Chantier de la ville", 13, ENCRE))
-	_ville = OptionButton.new()
-	_ville.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gauche.add_child(_ville)
+	# Le chantier est propre à ce port : son nom et son niveau, pas de choix de ville.
+	_titre_port = _label("", 13, BOIS)
+	gauche.add_child(_titre_port)
 
 	gauche.add_child(_label("Type de navire", 13, ENCRE))
 	_type = OptionButton.new()
@@ -166,15 +167,19 @@ func _construire() -> void:
 func _remplir_choix() -> void:
 	if _sim == null:
 		return
-	_villes = _sim.ports()
-	_ville.clear()
-	for v in _villes:
-		_ville.add_item(String(v.get("nom", "?")))
-
-	_types = _sim.navires_marchands()
+	# Seuls les navires que le chantier de CE port peut fournir (niveau requis ≤
+	# niveau du chantier).
+	var niveau := int(_port_courant.get("niveau_chantier", 0))
+	_types = []
+	for n in _sim.navires_marchands():
+		var req := int(_sim.chantier_infos(String(n.get("cle", ""))).get("niveau_requis", 99))
+		if req <= niveau:
+			_types.append(n)
 	_type.clear()
 	for i in _types.size():
 		_type.add_item(String(_types[i].get("nom", "?")), i)
+	if _types.is_empty():
+		_type.add_item("(aucun navire à ce niveau)", -1)
 
 
 func _type_choisi() -> String:
@@ -184,9 +189,7 @@ func _type_choisi() -> String:
 
 
 func _ville_choisie() -> String:
-	if _ville.selected >= 0 and _ville.selected < _villes.size():
-		return String(_villes[_ville.selected].get("cle", ""))
-	return ""
+	return String(_port_courant.get("cle", ""))
 
 
 func _maj_infos() -> void:

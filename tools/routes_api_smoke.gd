@@ -30,7 +30,15 @@ func _init() -> void:
 	var ports = b.get("ports").invoke()
 	if ports.size() < 3:
 		printerr("ECHEC : moins de trois ports."); quit(1); return
-	var ville: String = ports[0]["cle"]
+	# Le chantier est par port : il faut un port doté d'un chantier de niveau ≥ 2
+	# (une flûte de 500 t exige le niveau 2).
+	var ville := ""
+	for p in ports:
+		if int(p.get("niveau_chantier", 0)) >= 2:
+			ville = String(p["cle"]); break
+	if ville == "":
+		printerr("ECHEC : aucun port avec chantier de niveau 2."); quit(1); return
+	print("port chantier choisi  : ", ville)
 
 	# --- chantier : acheter un sloop ----------------------------------------
 	var infos = b.get("chantier_infos").invokev(["sloop"])

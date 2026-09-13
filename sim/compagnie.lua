@@ -111,11 +111,29 @@ function Compagnie.nombre_navires()
 end
 
 
+-- Le chantier est PROPRE À CHAQUE PORT : on n'achète et on ne construit qu'au port
+-- où l'on est, et seulement s'il a un chantier assez grand pour ce navire. Renvoie
+-- un message d'erreur, ou nil si tout va bien.
+local function verifier_chantier(cle_ville, cle_type)
+  local port = Archipel.portsParCle[cle_ville]
+  if not port or not port.chantier then
+    return "Ce port n'a pas de chantier naval."
+  end
+  if not Chantier.autorise(port.niveau_chantier, cle_type) then
+    return string.format("Le chantier de %s (niveau %d) est trop petit pour ce navire.",
+      port.nom, port.niveau_chantier or 0)
+  end
+  return nil
+end
+
+
 -- ACHETER un navire tout fait : on paie son plein prix (`Value`) et il rejoint la
 -- flotte tout de suite. Renvoie ok, message.
 function Compagnie.acheter_navire(cle_ville, cle_type)
   local navire = Navires.get(cle_type)
   if not navire then return false, "Type de navire inconnu." end
+  local err = verifier_chantier(cle_ville, cle_type)
+  if err then return false, err end
   if Compagnie.nombre_navires() >= Chantier.LIMITE_NAVIRES then
     return false, string.format("Flotte pleine (%d navires).", Chantier.LIMITE_NAVIRES)
   end
@@ -134,6 +152,8 @@ end
 function Compagnie.construire_navire(cle_ville, cle_type)
   local recette = Chantier.recette(cle_type)
   if not recette then return false, "Type de navire inconnu." end
+  local err = verifier_chantier(cle_ville, cle_type)
+  if err then return false, err end
   if Compagnie.nombre_navires() >= Chantier.LIMITE_NAVIRES then
     return false, string.format("Flotte pleine (%d navires).", Chantier.LIMITE_NAVIRES)
   end
@@ -304,6 +324,16 @@ function Compagnie.avancer_convois(jours)
   for _, m in ipairs(Compagnie.convois) do
     Marchands.piloter(m, jours)
   end
+end
+
+
+-- Le joueur a-t-il un convoi à quai dans cette ville ? Le radial n'ouvre le dock
+-- et le chantier que si oui — comme PR3, on n'entre au port qu'avec un navire.
+function Compagnie.convoi_au_port(cle_ville)
+  for _, m in ipairs(Compagnie.convois) do
+    if m.ville == cle_ville then return true end
+  end
+  return false
 end
 
 
