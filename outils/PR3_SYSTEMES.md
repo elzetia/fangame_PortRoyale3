@@ -244,7 +244,7 @@ séquence exacte** de vingt étapes (esi = la ville, edi = le monde) :
 | 12 | `0x7C1A80` | Accumulation offre/demande par bien | observé |
 | 13 | `0x7C1600` | Défense / garnison selon la taille de la ville | observé |
 | 14 | `0x7BF2E0` | Mendiants et immigration selon la prospérité | observé |
-| 15 | `0x7BF3D0` | Conversion colons ↔ citoyens (≤ 10/jour vers la cible) | **lu** |
+| 15 | `0x7BF3D0` | Conversion colons ↔ citoyens : ≤ 10/jour vers la cible de logement, tamponnée par le vivier de colons (voir « La démographie exacte ») | **décortiqué** |
 | 16 | `0x7BF500` | Compteurs par nation | observé |
 | 17-19 | `0x855BD0`, `0x855C00`, `0x767F20` | Finalisation de la structure économique | observé |
 | 20 | `0x7C1B10` | Logement : bâtit des maisons à `FillRate` de remplissage | lu (structure) |
@@ -292,6 +292,45 @@ Copier PR3 au bit près ici demanderait de décompiler ce calcul de cible
 (230 instructions + `0x854D50`, `0x75B9E0`, la struct éco) et la structure des
 ordres de route. L'entrée et la forme sont connues ; c'est un sous-chantier à part
 entière, au gain comportemental modeste puisque la sim équilibre déjà la carte.
+
+## La démographie exacte — décortiquée (`0x7BF3D0`)
+
+C'est le cœur de la population, et la copie exacte diffère du modèle en pourcentage
+de la sim. La ville tient trois nombres sur son objet économie (`[ville+0x6C]`) :
+
+- **`+0xD0` = les colons** (le vivier, `0x765160` l'écrit) ;
+- **`+0xD4` = les citoyens** (la population active, `0x765190`) ;
+- **`+0xD8` = la cible** (population désirée, `0x7651C0`), calculée par `0x7BD9C0`
+  à partir du logement et de `citoyens ÷ 4` (les quatre citoyens par ouvrier).
+
+**Chaque jour, les citoyens se rapprochent de la cible d'AU PLUS DIX** (`0xA`), et
+le vivier de colons bouge à l'inverse :
+
+    si citoyens (d4) > cible (d8) :          -- trop de monde
+        n = min(d4 − d8, 10)
+        colons  += n                          -- ils repartent au vivier
+        citoyens −= n
+    sinon si citoyens (d4) < cible (d8) :     -- de la place
+        n = min(d8 − d4, colons, 10)          -- bornée aussi par les colons dispo
+        colons  −= n                          -- ils s'installent
+        citoyens += n
+
+**La conséquence est forte pour une copie fidèle** : PR3 ne fait pas croître une
+ville d'un pourcentage, mais d'un **nombre plat, dix habitants par jour au plus**,
+vers une cible bornée par le logement. Un bourg de 900 âmes croît donc à ~1 %/jour,
+une ville de 9 000 à ~0,1 %/jour — la croissance relative ralentit toute seule avec
+la taille, sans qu'aucun taux ne soit écrit. Et rien ne bouge sans **colons dans le
+vivier** : c'est là qu'entrent l'immigration (église, ambassade, hospice, école)
+et la sortie par la mer.
+
+**Le logement**, ensuite : la ville vise `citoyens ÷ 100 + 1` maisons (plafonné à
+10 par passe), et bâtit (`0x7BDD00`) tant qu'il en manque, ou en retire quand
+`maisons × 1000 > citoyens + 1500`. Cent locataires par maison, confirmé.
+
+*Implication pour la sim* : sa démographie en pourcentage (Pauvreté −2 %/j, etc.)
+est une approximation raisonnable ; le modèle exact de PR3 est une **file de dix
+par jour vers une cible de logement, tamponnée par un vivier de colons**. Candidat
+de raffinement, à porter si l'on veut la courbe de population au plus près.
 
 ## Les signaux d'une ville (le conseiller)
 
