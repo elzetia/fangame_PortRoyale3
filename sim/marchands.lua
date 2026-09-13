@@ -223,9 +223,14 @@ local function armer(port, genre, navires, circuit)
   local nation = Archipel.nations[port.nation]
   local rx, rz = rade(port.cle)
   local capacite = Navires.cale(navires)
+  -- La stratégie de PR3 (enum `0x63D6E0`) : le caboteur RÉPARTIT les biens vers ses
+  -- voisins qui en manquent (RESOURCES), le long-courrier court le PROFIT. Elle dit
+  -- quels ordres `set_goods` la route génère (voir `outils/PR3_SYSTEMES.md`).
+  local strategie = (genre == "caboteur") and "resources" or "profit"
   return {
     cle = genre .. "_" .. port.cle,
     genre = genre,
+    strategie = strategie,
     nom = nom_flotte(navires, port),
     nation = nation.cle,
     attache = port.cle,
@@ -368,6 +373,13 @@ end
 -- 2. CHARGER. On achète ici ce que la ville a en trop et qui manquera plus loin
 --    sur le circuit, du plus rentable au moins rentable, jusqu'à remplir la
 --    cale.
+--
+--    C'EST LE MODÈLE `set_goods` DE PR3 (voir `outils/PR3_SYSTEMES.md`) : un ordre
+--    de route pousse chaque bien vers une quantité cible par escale. Ici la cible
+--    de chargement est le plateau X3 (`l.seuils[4]`) — on n'emporte que le surplus
+--    au-dessus —, et la cible de livraison est le manque (barres < seuil). PR3 fixe
+--    ces cibles par des ordres explicites ; on les calcule des seuils de prix, ce
+--    qui revient au même flux : du trop-plein vers le creux.
 --
 --    Le gain se mesure sur le LOT ENTIER, pas à la tonne. C'est l'erreur qui
 --    m'avait coûté deux tours de réglage : une route annoncée à +230 la tonne

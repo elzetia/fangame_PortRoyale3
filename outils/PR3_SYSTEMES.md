@@ -325,10 +325,32 @@ l'interface de route (« charger jusqu'à X », « décharger jusqu'à X »). Le
 construction, Entrepôts vides — voir `PR3_TECHNIQUE.md` §5) sont des générateurs
 qui remplissent ces mêmes ordres tout seuls.
 
-C'est le modèle exact de PR3, joueur comme IA. La sim l'approxime par « charger le
-surplus au-dessus de X3, décharger dans le manque » (`sim/marchands.lua`) : porter
-les ordres `set_goods` par escale donnerait le comportement fidèle, et surtout
-permettrait au joueur de tracer de vraies routes automatiques.
+C'est le modèle exact de PR3, joueur comme IA. La sim l'implémente déjà **en
+esprit** : ses convois chargent ce qui dépasse le plateau (`stock − X3`) et
+déchargent dans le manque — c'est-à-dire qu'ils poussent chaque bien vers une
+cible par escale, la cible étant le seuil de référence. Le mot `set_goods` n'est
+que l'étiquette de sérialisation ; le générateur pose une action-entier.
+
+### Les neuf stratégies automatiques (`0x63D6E0`)
+
+L'index de stratégie (0 à 8) d'une route, et son sens (les six premières sont
+décrites au tutoriel, `PR3_TECHNIQUE.md` §5) :
+
+| # | Stratégie | Ce qu'elle génère comme ordres |
+|---|---|---|
+| 0 | `MANUAL` | aucun — le joueur pose les ordres à la main |
+| 1 | `WEALTH` (Prospérité) | échange les produits qui promettent le plus de profit |
+| 2 | `PROFIT` | achète bas, vend haut, tous biens confondus |
+| 3 | `STORAGE` (Entrepôts vides) | vide un entrepôt et décharge au premier suivant |
+| 4 | `RESOURCES` (Matières premières) | répartit les matières premières là où elles manquent |
+| 5 | `OFFICE` | approvisionne les comptoirs du joueur |
+| 6 | `CONSTRUCT` (Matériaux de construction) | bois et briques, jusqu'à 500 / 1 000 |
+| 7 | `DISTRIBUTE` | disperse les biens depuis un centre vers les voisins |
+| 8 | `CENTRAL` | rassemble les biens des voisins vers un centre |
+
+Chaque stratégie est un générateur qui remplit les ordres `set_goods` d'une route
+automatiquement ; leur logique fine (par stratégie) reste à décompiler une à une,
+mais leur sémantique est connue (tutoriel + noms).
 
 ## Population, main-d'œuvre et logement — la carte des champs
 
