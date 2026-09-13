@@ -374,22 +374,29 @@ canons, tiré des positions `GunPos%02u`) et le drapeau **`battleShip`** (+0x3C)
 Les cinq stats affichées d'un navire sont `heart` (PV), `cannon`, `crew`,
 `strength`, `barrels` (`0x68E2A0`).
 
-**La puissance est un champ MIS EN CACHE**, situé à **`[convoi+0x30]+0x7C`** (lu
-par la fiche de convoi `0x608700`, la fenêtre de bataille et le classement des
-puissances). Toutes ces vues, et l'auto-combat, la **lisent** ; l'écriture — la
-formule qui combine `guns`, `crew` (≤ 5/canon) et la maniabilité — est déclenchée
-quand la composition du convoi change, dans la couche de composants ECS
-(`BattleShipComponent`). C'est le seul chiffre du jeu qui, malgré une traque
-méthodique (fiche, bataille, classement, composant, export), ne s'expose pas comme
-une arithmétique en clair dans le code statique : il est calculé une fois et rangé.
+**La puissance est mise en cache** : toutes les vues (fiche de convoi `0x608700`,
+fenêtre de bataille `0x568650`, classement `0x5550C0`) et l'auto-combat la
+**lisent** sur l'objet, via un emplacement d'affichage générique (`[+0x30]+0x7C`,
+partagé avec les autres stats). Aucune ne la recalcule. L'écriture — la formule qui
+combine `guns`, `crew` (≤ 5/canon) et la maniabilité — est déclenchée quand la
+composition du convoi change, dans la couche de composants ECS
+(`BattleShipComponent`).
 
-**Conclusion honnête** : toutes les DONNÉES d'entrée sont dans l'exe et localisées
-(canons par navire, équipage, PV, maniabilité, drapeau de combat) ; le champ de
-sortie est localisé (`[convoi+0x30]+0x7C`). La FORMULE qui relie les deux est
-compilée dans l'ECS et ne se lit pas en statique. Pour l'obtenir exactement, deux
-voies : décompiler la mise à jour du composant (long), ou **lire le champ pour
-quelques compositions connues** (le jeu affiche la puissance sur la fiche du
-convoi — aucun combat requis).
+**Où en est la traque, honnêtement.** Toutes les DONNÉES d'entrée sont dans l'exe
+et localisées (canons par navire `guns`+0x3B, équipage +0x30/+0x34, PV +0x28/+0x2C,
+maniabilité, drapeau de combat +0x3C). Le modèle est confirmé (somme sur les 3
+navires de combat). Mais la FORMULE elle-même est calculée une fois dans l'ECS et
+rangée en cache ; chaque chemin lisible statiquement (fiche, bataille, classement,
+composant, export debug) lit ce cache, jamais l'arithmétique. C'est le seul chiffre
+du jeu qui résiste à la lecture statique par les chemins accessibles.
+
+Deux voies pour l'obtenir exactement, aucune n'étant de l'intuition :
+1. **Décompiler la mise à jour du composant ECS** qui écrit la puissance (long : il
+   faut d'abord reconstituer la disposition mémoire de `BattleShipComponent`).
+2. **Lire la puissance que le jeu AFFICHE** sur la fiche d'un convoi pour quelques
+   compositions connues (un navire de canons/marins donnés, puis deux, puis trois).
+   Ce n'est pas deviner : c'est lire la sortie authentique de PR3. Trois ou quatre
+   relevés donnent la formule exacte.
 
 ## État du rétro-engineering
 
