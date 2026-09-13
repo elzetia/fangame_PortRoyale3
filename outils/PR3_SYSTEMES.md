@@ -321,14 +321,43 @@ Les missions et quêtes de la campagne sont une couche scriptée par-dessus (dur
 d'affichage `[MissionDuration]`, comptage `[EventCount]`, drapeaux de nations
 `[Flags]`), qui déclenche ces mêmes signaux — hors du modèle économique.
 
-## Combat naval — formules à confirmer
+## Combat naval — deux régimes
 
-Les paramètres sont relevés (§ « Le combat naval ») ; les formules exactes —
-comment un boulet touche selon l'angle et la dispersion, comment `DmgHull` /
-`DmgSail` / `DmgCrew` s'appliquent aux points de vie d'un navire, comment
-l'abordage se résout pas à pas — vivent dans des fonctions qui ne se lisent bien
-qu'en exécution (traçage dynamique). Elles ne sont pas dans le périmètre de la
-sim, qui ne simule pas le combat.
+Il faut distinguer deux combats, et c'est décisif pour la copie :
+
+**1. Le combat MANUEL (temps réel)** — celui qu'on joue. Le boulet a une physique
+(`AmmoTrajectory` : gravité, dispersion), touche selon l'angle et la distance, et
+`DmgHull` / `DmgSail` / `DmgCrew` s'appliquent en continu. Ces formules-là vivent
+dans des fonctions temps réel (`0x86C470` et suivantes) qui ne se lisent bien
+qu'en exécution. À garder pour la fin, et par traçage dynamique.
+
+**2. Le combat AUTOMATIQUE (déterministe) — LISIBLE STATIQUEMENT.** Quand la
+bataille n'est pas jouée à la main — IA contre IA, choix « combat automatique »
+(`ID_GUI_AUTOMATIC_BATTLE`, `0x56CAE0`), ou fin du compte à rebours en multijoueur,
+« le résultat est déterminé automatiquement, de la même façon que le mode
+automatique » — PR3 **calcule l'issue d'une formule**, pas d'une simulation.
+
+Le modèle, confirmé par la fenêtre de bataille (`0x568650`) et les textes, repose
+sur une **PUISSANCE par camp**, affichée poste par poste : navires de combat,
+navires marchands, canons, marins, et la **puissance de convoi** qui en résulte.
+La puissance d'un navire « reflète le nombre de canons, sa maniabilité et le
+nombre de marins à bord » — avec **4 marins par canon idéalement, 5 au maximum**
+(`CrewmenAtGun`). Seuls les **navires d'escorte (3 au plus)** combattent ; les
+marins du convoi y sont répartis automatiquement au début du combat. L'issue
+compare les deux puissances (`tf_convoystrength_attacker` / `_defender`,
+`0x568650` / `0x6C5970`) et en déduit le vainqueur et les pertes ; le résultat est
+gardé dans le journal (`TabChronicPower`, `info_last_battle`).
+
+Réglages associés : `[Equipment]` (`PriceStandard`, `PricePirates` — prix des
+canons/munitions), `[Repairs]` (`Zeit`, `Kosten` — temps et coût de réparation),
+`[Tactic]` (`MaxFleeDist`, `SecUpdateFleetAi` — l'IA décide d'attaquer ou fuir sur
+le rapport de puissance).
+
+**Prochaine cible précise** : la fonction de puissance de convoi (qui somme la
+puissance par navire) et la fonction de résolution (qui écrit le résultat dans le
+journal de dernière bataille). Le modèle et ses points d'entrée sont désormais
+connus — et, contrairement au combat manuel, **cette voie est décompilable sans
+lancer le jeu.**
 
 ## État du rétro-engineering
 
@@ -338,7 +367,8 @@ sim, qui ne simule pas le combat.
 | Navires (caractéristiques), carte, eau, formats | **complet** |
 | Convois de l'IA (modèle d'objet, taille, classes) | **structure + entrée de décision lues** : routes à ordres par bien (`0x7CED60`) |
 | Bâtiments (coûts, matériaux, effets) | **complet** (effets lus des descriptions) |
-| Combat naval (canon, abordage, forteresse) | **paramètres relevés**, formules à tracer en exécution |
+| Combat AUTOMATIQUE (puissance par camp, issue déterministe) | **modèle et entrées lus** ; formule décompilable statiquement |
+| Combat MANUEL (canon temps réel, abordage) | **paramètres relevés**, formules à tracer en exécution |
 | Diplomatie, rangs, licences, donations, lettres de marque | **mécanique lue** (18 rangs à la richesse, réputation double + dérive sinusoïdale) |
 | Pirates, tempêtes, sauterelles, patrouilles, météo | **paramètres relevés** |
 | Signaux de ville (conseiller) | **taxonomie complète lue** |
