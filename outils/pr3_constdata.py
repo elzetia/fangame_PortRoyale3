@@ -1,18 +1,23 @@
 """Les tables chiffrees de Port Royale 3, lues dans `ini/constdata.dat`.
 
-Le fichier est un flux serialise sans etiquettes : les noms de cles vivent dans
-l'exe (`Standardpreise`, `Preisfaktoren`, `Warenverbrauch`...), les valeurs ici,
-dans l'ordre ou le chargeur les lit. On ne peut donc pas le parcourir de bout en
-bout sans le code du chargeur. Mais les tableaux sont prefixes par leur compte
-(`u32 20` puis vingt valeurs), et c'est ce qui permet de les retrouver.
+Le fichier est la SERIALISATION des structures que le jeu remplit en lisant ses
+reglages : les champs se suivent dans l'ordre de la structure, sans nom. Les noms,
+eux, sont dans l'executable, dans le code qui remplit ces structures a partir
+d'un ini par section et par cle (voir `outils/PR3_TECHNIQUE.md`, « Le chargeur
+des reglages ») :
 
-Les ancres ont ete posees par TEXTE CONNU : les prix de base releves a l'ecran
-(33, 33, 33, 50...) sortent d'un bloc, en u16. Tout le reste s'est lu a partir de
-la, en suivant la structure.
+    lecteur(section, cle, defaut)   -> rangé a tel decalage de la structure
 
-Rien n'est copie dans le depot : le script lit l'installation du joueur.
+C'est ce code, desassemble, qui donne le nom, le type et parfois la
+transformation de chaque valeur — la consommation est rangee x100 x Faktor, les
+quantites des recettes x64. Sans lui, on lisait des tableaux anonymes et on
+devinait leur sens.
 
-    py -3 outils/pr3_constdata.py            toutes les tables
+Les ancres de lecture sont structurelles : les tableaux ont leur compte devant
+(`u32 20` puis vingt valeurs). Rien n'est copie dans le depot : le script lit
+l'installation du joueur.
+
+    py -3 outils/pr3_constdata.py
 """
 import os
 import struct
@@ -44,8 +49,7 @@ def charger():
 
 def chercher_prix(cd):
     """Le tableau des prix standard : u32 20, puis 20 u16, puis l'en-tete des
-    facteurs de prix (u32 3, u32 2). Pas de valeurs attendues dans le motif :
-    seulement la structure, pour ne pas tourner en rond."""
+    facteurs de prix (u32 3, u32 2)."""
     for o in range(len(cd) - 60):
         if cd[o:o + 4] == b"\x14\x00\x00\x00" and \
            cd[o + 44:o + 52] == b"\x03\x00\x00\x00\x02\x00\x00\x00":
@@ -53,22 +57,24 @@ def chercher_prix(cd):
     raise LookupError("tableau des prix introuvable")
 
 
-def u16s(cd, o, n=20):
+def tableau(cd, o, fmt, n=20):
     assert struct.unpack_from("<I", cd, o)[0] == n, f"compte attendu {n} a {o:#x}"
-    return list(struct.unpack_from(f"<{n}H", cd, o + 4)), o + 4 + 2 * n
+    taille = struct.calcsize("<" + fmt)
+    return list(struct.unpack_from(f"<{n}{fmt}", cd, o + 4)), o + 4 + taille * n
 
 
 def main():
     cd = charger()
+
+    # --- prix -----------------------------------------------------------------
     o = chercher_prix(cd)
-    prix, o = u16s(cd, o)
-    print("== Standardpreise (prix standard)")
+    prix, o = tableau(cd, o, "H")
+    print("== Standardpreise (section Standardpreise, cles Ware%02u_SWP)")
     for d, p in zip(DENREES, prix):
         print(f"   {d:10s} {p}")
 
-    # Trois jeux, chacun deux series de cinq : normale, puis « knapp » (penurie).
     o += 8
-    print("\n== Preisfaktoren (5 paliers de stock, du vide au plein)")
+    print("\n== Preisfaktoren (cles X%u et X%uknapp) : 5 coefficients, stock vide -> plein")
     for jeu in range(3):
         series = []
         for _ in range(2):
@@ -77,50 +83,116 @@ def main():
             series.append([round(x, 2) for x in struct.unpack_from(f"<{n}f", cd, o + 4)])
             o += 4 + 4 * n
         o += 4
-        print(f"   jeu {jeu}: normal {series[0]}   penurie {series[1]}")
+        print(f"   cran {jeu}: normal {series[0]}   penurie {series[1]}")
 
-    # Le bloc production : chercher le compte 20 suivi de 275 (bois, u16).
+    # --- bloc economie : l'ordre est celui de la structure ------------------------
     b = cd.find(b"\x14\x00\x00\x00\x13\x01", o)
-    conso, b = u16s(cd, b)
-    rendement, b = u16s(cd, b)
-    minima, b = u16s(cd, b)
-    print("\n== consommation (A) / rendement par manufacture (B) / C")
-    for i, d in enumerate(DENREES):
-        print(f"   {d:10s} A={conso[i]:4d}  B={rendement[i]:4d}  C={minima[i]}")
+    conso, b = tableau(cd, b, "H")          # +0x0c  Warenverbrauch x100 x Faktor
+    par_ouvrier, b = tableau(cd, b, "H")    # +0x34  Produktion : sortie / ouvriers
+    grundbedarf, b = tableau(cd, b, "H")    # +0x5c  Grundbedarf
+    ouvriers, b = tableau(cd, b, "B")       # +0x84  Produktion : ouvriers
+    minimales, b = tableau(cd, b, "B")      # +0x98  Minimalmengen
 
-    # Deux tableaux d'octets, puis les recettes : pour chaque denree, 4 octets
-    # d'index d'intrants (0xff = rien) ; puis, en regard, 4 octets de quantites
-    # en 1/32 d'unite par unite produite.
-    b += 4 + 20
-    b += 4 + 20
+    # Recettes (+0xfc) : 4 index d'intrants par denree, puis 4 quantites x64.
     assert struct.unpack_from("<I", cd, b)[0] == 20
-    intrants = []
-    for i in range(20):
-        intrants.append([x for x in cd[b + 8 + 8 * i:b + 12 + 8 * i] if x != 0xff])
+    intrants = [[x for x in cd[b + 8 + 8 * i:b + 12 + 8 * i] if x != 0xff] for i in range(20)]
     b += 4 + 8 * 20
     assert struct.unpack_from("<I", cd, b)[0] == 20
-    print("\n== recettes (intrant x quantite par unite produite)")
-    for i, d in enumerate(DENREES):
-        q = cd[b + 8 + 8 * i:b + 12 + 8 * i]
-        if intrants[i]:
-            txt = " + ".join(f"{DENREES[k]} x{q[j] / 32:g}" for j, k in enumerate(intrants[i]))
-            print(f"   {d:10s} <- {txt}")
+    quantites = [cd[b + 8 + 8 * i:b + 12 + 8 * i] for i in range(20)]
     b += 4 + 8 * 20
 
     n = struct.unpack_from("<I", cd, b)[0]
     assert n == len(BATIMENTS), f"{n} batiments"
     b += 4
-    print("\n== batiments : couts x3, X, jours ?, paire (probablement ouvriers)")
+    batiments = []
     for nom in BATIMENTS:
         couts = struct.unpack_from("<3I", cd, b + 5)
-        x = struct.unpack_from("<I", cd, b + 17)[0]
-        jours = cd[b + 21]
-        paire = struct.unpack_from("<2H", cd, b + 34)
-        if any(couts):
-            print(f"   {nom:16s} {couts}  X={x:6d}  {jours:2d}  {paire}")
+        valeur = struct.unpack_from("<I", cd, b + 17)[0]
+        duree = cd[b + 21]
+        biens = [x for x in cd[b + 26:b + 30]]
+        nb = struct.unpack_from("<I", cd, b + 30)[0]
+        montants = struct.unpack_from(f"<{nb // 2}H", cd, b + 34)
+        batiments.append((nom, couts, valeur, duree, biens, montants))
         b += 42
 
-    print("\n== navires : prix, cale, coque, D, E, rangs, Vmin, Vmax, maniabilite")
+    # Les reglages scalaires : apres les modificateurs de construction
+    # (Bauquotient_Mod, vingt flottants) et le loyer d'entrepot (Lagermiete, trois).
+    m = b
+    while True:
+        m = cd.find(b"\x14\x00\x00\x00", m + 1)
+        vals = struct.unpack_from("<20f", cd, m + 4)
+        if all(0.1 <= v <= 10 for v in vals) and struct.unpack_from("<I", cd, m + 84)[0] == 3:
+            break
+    mods = vals
+    lagermiete = struct.unpack_from("<3f", cd, m + 88)
+    s = m + 100
+    faktor, bettler, reparation = struct.unpack_from("<3f", cd, s)
+    fass, start_fabriken = struct.unpack_from("<2H", cd, s + 12)
+    (grundkosten, lohn, heuer, verwalter, vorrat, neubau_office, neubau_welt,
+     neubau_alq, konvois) = cd[s + 16:s + 25]
+    # Un octet de plus apres Konvois (a +0x879 dans la structure, non nomme), puis
+    # l'alignement : les mots commencent a s + 27.
+    verkauf, einkauf, einlauf, ki_convoy, min_area, basic_cap = struct.unpack_from("<6H", cd, s + 27)
+
+    print("\n== Reglages de la section Data, Time et Initial")
+    for nom, v, sens in (
+        ("1Fass", fass, "unites par tonneau"),
+        ("Faktor", round(faktor, 3), "multiplicateur de la consommation"),
+        ("Lohn", lohn, "salaire d'un ouvrier, par jour"),
+        ("Grundkosten", grundkosten, "frais fixes d'un atelier de 25 ouvriers, par jour"),
+        ("Heuer", heuer, "solde d'un marin, par jour"),
+        ("VerwalterLohn", verwalter, "salaire de l'administrateur"),
+        ("VorratTage", vorrat, "jours de production gardes en reserve"),
+        ("NeubauOfficeVorratTage", neubau_office, "seuil de reserve du comptoir pour batir"),
+        ("NeubauWeltVorratTage", neubau_welt, "seuil de reserve mondiale pour batir"),
+        ("NeubauMinAlq", neubau_alq, "chomage minimal pour batir un atelier"),
+        ("StartFabriken", start_fabriken, "ateliers au depart"),
+        ("Konvois (Initial)", konvois, "convois IA par ville au depart"),
+        ("Verkaufszeit", verkauf, "temps de vente a quai"),
+        ("Einkaufszeit", einkauf, "temps d'achat a quai"),
+        ("Einlaufzeit", einlauf, "temps d'entree au port"),
+        ("KiUpdateConvoySize", ki_convoy, "intervalle de redimensionnement des convois IA"),
+        ("MinAreaFactor", min_area, ""),
+        ("BasicCapacity", basic_cap, "capacite de base d'un comptoir"),
+        ("Bettlerfaktor", round(bettler, 3), "facteur des mendiants"),
+        ("Repairs/Zeit (probable)", round(reparation, 3), "duree de reparation"),
+        ("Lagermiete", [round(x, 3) for x in lagermiete], "loyer d'entrepot, trois paliers"),
+    ):
+        print(f"   {nom:26s} {str(v):>18s}   {sens}")
+
+    print("\n== Consommation, production, recettes")
+    print("   denree       Verbrauch  A(range)  par_ouvrier  ouvriers  Grundbedarf  Minimal  Bauquotient")
+    for i, d in enumerate(DENREES):
+        print(f"   {d:10s} {conso[i] / (100 * faktor):9.2f} {conso[i]:9d} {par_ouvrier[i]:12d}"
+              f" {ouvriers[i]:9d} {grundbedarf[i]:12d} {minimales[i]:8d} {mods[i]:11.2f}")
+
+    print("\n== Recettes (intrant x quantite par unite produite ; rangee x64)")
+    for i, d in enumerate(DENREES):
+        if intrants[i]:
+            txt = " + ".join(f"{DENREES[k]} x{quantites[i][j] / 64:g}"
+                             for j, k in enumerate(intrants[i]))
+            print(f"   {d:10s} <- {txt}")
+
+    # La preuve : le prix standard est le cout de production d'un tonneau.
+    print("\n== Prix standard recalcule = (Grundkosten + ouvriers x Lohn) / production + intrants")
+    cout = {}
+    for i in range(20):
+        par_jour = ouvriers[i] * par_ouvrier[i] / fass
+        c = (grundkosten + ouvriers[i] * lohn) / par_jour
+        for j, k in enumerate(intrants[i]):
+            c += quantites[i][j] / 64 * cout.get(k, prix[k])
+        cout[i] = c
+        print(f"   {DENREES[i]:10s} calcule {c:7.1f}   jeu {prix[i]}")
+
+    print("\n== Batiments : Bauplatzkosten x3, valeur des materiaux, duree, materiaux (Baukosten Betriebe)")
+    for nom, couts, valeur, duree, biens, montants in batiments:
+        if any(couts):
+            mats = ", ".join(f"{montants[j]} {DENREES[k]}" for j, k in enumerate(biens)
+                             if k < 20 and j < len(montants) and montants[j])
+            print(f"   {nom:16s} {str(couts):26s} {valeur:7d} {duree:3d}  {mats}")
+
+    print("\n== Navires : Value, Capacity, Hitpoints, HitpointsSail, Construct (or),"
+          " DailyCosts, rangs mil/mil/pir, Vmin, Vmax, Wendig")
     fin = 0
     for nom in NAVIRES:
         pos = cd.find(struct.pack("<I", len(nom) + 1) + nom.encode() + b"\x00", fin)
@@ -129,15 +201,14 @@ def main():
             a, c = struct.unpack_from("<II", cd, i)
             if a == c and 20000 <= a <= 2000000:
                 p = i
-        prix_n = struct.unpack_from("<I", cd, p - 6)[0]
+        valeur_n = struct.unpack_from("<I", cd, p - 6)[0]
         cale = struct.unpack_from("<H", cd, p - 2)[0]
-        coque = struct.unpack_from("<I", cd, p)[0]
-        d = struct.unpack_from("<I", cd, p + 8)[0]
-        e = struct.unpack_from("<H", cd, p + 12)[0]
+        coque, voiles, construction = struct.unpack_from("<3I", cd, p)
+        entretien = struct.unpack_from("<H", cd, p + 12)[0]
         rangs = ["-" if x == 255 else x for x in cd[p + 18:p + 21]]
         vmin, vmax, wendig = cd[p + 21], cd[p + 22], cd[p + 23]
-        print(f"   {nom:17s} {prix_n:6d} {cale:4d} {coque:7d} {d:6d} {e:4d} "
-              f"{rangs} {vmin:2d} {vmax:2d} {wendig:3d}")
+        print(f"   {nom:17s} {valeur_n:6d} {cale:4d} {coque // 1000:4d} {voiles // 1000:4d}"
+              f" {construction:7d} {entretien:4d} {rangs} {vmin:2d} {vmax:2d} {wendig:3d}")
         fin = pos + len(nom)
 
 

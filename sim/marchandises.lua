@@ -56,14 +56,23 @@ Marchandises.CATEGORIES = {
 -- Les catégories restent posées sur chaque ligne : elles servent aux règles,
 -- pas au rangement.
 --
--- LES RECETTES SONT CELLES DE PR3, relues dans la même table que les prix : les
--- index des intrants, puis leur quantité par unité produite, en trente-deuxièmes.
--- Les miennes s'en écartaient sur cinq lignes — le pain fait au maïs au lieu du
--- sucre, la viande à deux maïs au lieu de quatre, les vêtements à moitié prix de
--- matière, le rhum à moitié de sucre, et le métal, le café et le cacao tirés de
--- rien. Celles de PR3 ont une propriété que les miennes n'avaient pas : ses
--- chaînes sont équilibrées UNE POUR UNE. Une ferme de maïs nourrit exactement
--- une manufacture de viande, une plantation de coton exactement un tissage.
+-- LES RECETTES SONT CELLES DE PR3, relues dans `constdata.dat` : les index des
+-- intrants, puis leur quantité par unité produite, rangée en SOIXANTE-QUATRIÈMES.
+-- Le facteur se lit dans le chargeur de l'exécutable, qui multiplie la quantité
+-- de l'ini par 64 avant de la ranger sur un octet. Un premier relevé, fait à
+-- l'oeil, avait divisé par 32 : toutes les recettes étaient deux fois trop
+-- gourmandes.
+--
+-- La preuve que c'est juste tient dans les prix. PR3 paie 25 ouvriers à 6 pièces
+-- par jour, plus 50 de frais fixes : 200 pièces par atelier. Divisés par ce que
+-- l'atelier produit, plus le coût de ses intrants à ces quantités, on retombe sur
+-- les vingt prix standard — tissu 150, métal 83, outils 200, viande 300,
+-- vêtements 450, rhum 267, pain 142. Le prix de PR3 EST le coût de production.
+--
+-- Par rapport aux recettes d'avant PR3, cinq lignes changent : le pain se fait au
+-- sucre et non au maïs, le tissu et le cordage prennent un intrant au lieu de
+-- deux, les outils à moitié, et le métal, le café et le cacao ne sont plus tirés
+-- de rien.
 Marchandises.liste = {
   { cle = "bois",      nom = "Bois",        prix =  33, categorie = "matieres",     verbrauch = 275 },
   { cle = "briques",   nom = "Briques",     prix =  33, categorie = "matieres",     verbrauch = 550 },
@@ -73,38 +82,38 @@ Marchandises.liste = {
   { cle = "sucre",     nom = "Sucre",       prix =  50, categorie = "coloniales",   verbrauch = 220 },
   { cle = "chanvre",   nom = "Chanvre",     prix =  50, categorie = "matieres",     verbrauch = 220 },
   { cle = "tissu",     nom = "Tissu",       prix = 150, categorie = "manufactures", verbrauch = 110,
-    recette = { { "coton", 2 } } },
+    recette = { { "coton", 1 } } },
   -- Le métal se fond au bois : c'est ce qui fait du bois la matière première la
   -- plus sollicitée de la carte, bien au-delà de ce que les habitants brûlent.
   { cle = "metal",     nom = "Métal",       prix =  83, categorie = "matieres",     verbrauch = 110,
-    recette = { { "bois", 1 } } },
+    recette = { { "bois", 0.5 } } },
   { cle = "coton",     nom = "Coton",       prix =  50, categorie = "matieres",     verbrauch = 220 },
   { cle = "outils",    nom = "Outils",      prix = 200, categorie = "manufactures", verbrauch = 110,
-    recette = { { "bois", 1 }, { "metal", 2 } } },
+    recette = { { "bois", 0.5 }, { "metal", 1 } } },
   -- TEINTURE, pas épice. Je l'avais nommée "Épices" parce que la vignette de
   -- PR3 s'appelle `spices.png`, et le tableau de consommation de l'utilisateur
   -- disait "Teinture" -- doute laissé ouvert pendant des jours. Sa table de
   -- textes tranche : ID_GUI_GOOD_11 vaut "Teintures". C'est l'indigo et la
   -- cochenille des colonies, et c'est ce que New Orleans produit.
   { cle = "teinture",  nom = "Teintures",   prix = 100, categorie = "coloniales",   verbrauch =  55, export = 11 },
-  -- Café et cacao demandent un demi-outil par unité : une plantation vit de ce
+  -- Café et cacao demandent un quart d'outil par unité : une plantation vit de ce
   -- que la forge lui envoie. C'est le seul lien de PR3 entre les denrées
   -- coloniales et l'industrie.
   { cle = "cafe",      nom = "Café",        prix = 140, categorie = "coloniales",   verbrauch = 110, export = 33,
-    recette = { { "outils", 0.5 } } },
+    recette = { { "outils", 0.25 } } },
   { cle = "cacao",     nom = "Cacao",       prix = 140, categorie = "coloniales",   verbrauch = 110, export = 33,
-    recette = { { "outils", 0.5 } } },
+    recette = { { "outils", 0.25 } } },
   { cle = "tabac",     nom = "Tabac",       prix = 100, categorie = "coloniales",   verbrauch = 110, export = 33 },
   { cle = "viande",    nom = "Viande",      prix = 300, categorie = "vivres",       verbrauch = 110,
-    recette = { { "mais", 4 } } },
+    recette = { { "mais", 2 } } },
   { cle = "vetements", nom = "Vêtements",   prix = 450, categorie = "manufactures", verbrauch = 110,
-    recette = { { "tissu", 2 }, { "teinture", 2 } } },
+    recette = { { "tissu", 1 }, { "teinture", 1 } } },
   { cle = "cordage",   nom = "Cordage",     prix = 150, categorie = "manufactures", verbrauch = 220,
-    recette = { { "chanvre", 2 } } },
+    recette = { { "chanvre", 1 } } },
   { cle = "rhum",      nom = "Rhum",        prix = 267, categorie = "manufactures", verbrauch = 110,
-    recette = { { "bois", 1 }, { "sucre", 2 } } },
+    recette = { { "bois", 0.5 }, { "sucre", 1 } } },
   { cle = "pain",      nom = "Pain",        prix = 142, categorie = "vivres",       verbrauch = 220,
-    recette = { { "ble", 1 }, { "sucre", 1 } } },
+    recette = { { "ble", 0.5 }, { "sucre", 0.5 } } },
 }
 
 -- Ordre de FABRICATION : les matières premières d'abord, puis ce qui les

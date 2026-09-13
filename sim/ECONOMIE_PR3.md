@@ -144,9 +144,10 @@ Deux formulations, qui ne disent pas la même chose :
   20 jours ».
 
 La seconde est plus précise et chiffrée (4 aliments sur 5, 20 jours) mais décrit
-une condition de mission ; la première est un conseil au joueur. Elles peuvent
-coexister — un seuil d'alerte et un seuil de déclenchement. **À trancher en jeu**,
-c'est le seul point de ce document où deux sources se contredisent.
+une condition de mission ; la première est un conseil au joueur. **Tranché par le
+code** (§10.8) : la consommation quotidienne compte les aliments manquants à
+partir de −3, et la ville décline au-delà de trois. C'est le tutoriel qui a
+raison ; la mission décrit un cas plus sévère.
 
 Effets : « La famine peut avoir un impact significatif sur la satisfaction des
 citoyens ». Un hôpital « réduit les risques de famine ».
@@ -319,173 +320,225 @@ marquée « probable ».
 
 C'est exactement `prix` dans `sim/marchandises.lua`.
 
-### 10.2 Facteurs de prix — certain pour les valeurs, probable pour le sens
+### 10.2 Facteurs de prix — certain
 
-Juste après les prix : **trois jeux**, chacun de deux séries de cinq
+Juste après les prix : **trois crans**, chacun avec deux séries de cinq
 coefficients, une « normale » et une « `knapp` » (pénurie) :
 
-| Jeu | Normal (5 paliers de stock) | Pénurie |
+| Cran | Normal (stock vide → plein) | Pénurie |
 |---|---|---|
 | 0 | 2,0 · 1,8 · 1,2 · 1,2 · 0,8 | 3,0 · 2,7 · 1,2 · 1,2 · 0,8 |
 | 1 | 1,8 · 1,6 · 1,2 · 1,2 · 0,7 | 2,7 · 2,4 · 1,2 · 1,2 · 0,7 |
 | 2 | 1,6 · 1,4 · 1,1 · 1,1 · 0,6 | 2,4 · 2,1 · 1,1 · 1,1 · 0,6 |
 
-Le modèle qui s'en dégage : **prix = prix standard × facteur**, le facteur étant
-interpolé selon le stock entre cinq paliers. L'outil de débogage interne du jeu
-(voir `outils/PR3_TECHNIQUE.md`) affiche pour chaque denrée de chaque ville
-quatre seuils `X1…X4` à côté du prix : ce sont les bornes de ces paliers, propres
-à chaque ville. Stock vide → ×2 (×3 en pénurie), stock plein → ×0,8.
+Le code le confirme (`outils/PR3_TECHNIQUE.md`, §7) :
+- **prix = prix standard × moyenne des coefficients** sur le lot échangé ;
+- les coefficients sont posés sur le stock 0 et les quatre seuils `X1…X4` de la
+  ville (§10.5) ;
+- le cran vient du profil de partie ;
+- la série « pénurie » s'applique quand la ville porte un indicateur d'état
+  particulier (le bit 11).
 
-Les trois jeux correspondent très probablement aux trois crans du réglage de
-partie « prix » (`PriceStandard`). Cela rejoint §4 : le plafond est **borné**
-(le premier coefficient), la chute est **progressive** (les paliers).
+### 10.3 Consommation, production, besoin de base — certain
 
-### 10.3 Consommation et rendement — certain pour les valeurs
+Les noms et les transformations viennent du chargeur des réglages de l'exe.
 
-Deux tableaux de vingt, suivis d'un troisième :
+| Denrée | `Verbrauch` (ini) | A (rangé) | Sortie par ouvrier | `Grundbedarf` |
+|---|---|---|---|---|
+| Bois | 2,5 | 275 | 480 | 30 |
+| Briques | 5 | 550 | 480 | 60 |
+| Blé | 5 | 550 | 480 | 5 |
+| Fruits | 4 | 440 | 320 | 5 |
+| Maïs | 2 | 220 | 320 | 5 |
+| Sucre | 2 | 220 | 320 | 5 |
+| Chanvre | 2 | 220 | 320 | 5 |
+| Tissu | 1 | 110 | 160 | 5 |
+| Métal | 1 | 110 | 240 | 5 |
+| Coton | 2 | 220 | 320 | 5 |
+| Outils | 1 | 110 | 160 | 5 |
+| Teinture | 0,5 | 55 | 160 | 5 |
+| Café | 1 | 110 | 160 | 5 |
+| Cacao | 1 | 110 | 160 | 5 |
+| Tabac | 1 | 110 | 160 | 5 |
+| Viande | 1 | 110 | 80 | 5 |
+| Vêtements | 1 | 110 | 80 | 5 |
+| Cordage | 2 | 220 | 160 | 5 |
+| Rhum | 1 | 110 | 80 | 5 |
+| Pain | 2 | 220 | 160 | 5 |
 
-| Denrée | A (consommation) | B (rendement d'une manufacture) | C |
-|---|---|---|---|
-| Bois | 275 | 480 | 30 |
-| Briques | 550 | 480 | 60 |
-| Blé | 550 | 480 | 5 |
-| Fruits | 440 | 320 | 5 |
-| Maïs | 220 | 320 | 5 |
-| Sucre | 220 | 320 | 5 |
-| Chanvre | 220 | 320 | 5 |
-| Tissu | 110 | 160 | 5 |
-| Métal | 110 | 240 | 5 |
-| Coton | 220 | 320 | 5 |
-| Outils | 110 | 160 | 5 |
-| Teinture | 55 | 160 | 5 |
-| Café | 110 | 160 | 5 |
-| Cacao | 110 | 160 | 5 |
-| Tabac | 110 | 160 | 5 |
-| Viande | 110 | 80 | 5 |
-| Vêtements | 110 | 80 | 5 |
-| Cordage | 220 | 160 | 5 |
-| Rhum | 110 | 80 | 5 |
-| Pain | 220 | 160 | 5 |
+- **Consommation** : A = arrondi(`Faktor` × 100 × `Verbrauch` + 0,75), avec
+  `Faktor` = 1,1. Une ville consomme A × habitants ÷ 100 unités par jour. Un
+  tonneau valant 2 000 unités, cela fait **A ÷ 200 tonneaux pour mille habitants
+  par jour**. C'est l'échelle de la table relevée par le joueur.
+- **Production** : chaque atelier a **25 ouvriers**, ce qui confirme le tutoriel
+  et `Economie.EMPLOIS_PAR_FABRIQUE`. Il produit sortie × 25 unités par jour : un
+  atelier de bois donne 6 tonneaux, une manufacture de viande 1.
+- **`Grundbedarf`** : un besoin de base, en tonneaux, ajouté au premier seuil de
+  prix (§10.5). `Minimalmengen` vaut 1 partout. Le modificateur de construction
+  `Bauquotient_Mod` vaut 0,95 pour le bois et les briques, 1 ailleurs.
+- **L'export** reste compté à part (café, cacao, tabac, teinture), comme le
+  montrait déjà la table du joueur.
 
-**A est la table de consommation.** L'ancienne `conso` de `sim/marchandises.lua`
-valait exactement A / 200, sauf pour quatre denrées : café, cacao et tabac y
-étaient à 1,3 × A / 200, et teinture à 1,2 × A / 200. Ce sont justement les
-quatre denrées exportées vers l'Europe (§3). La table relevée par le joueur
-incluait donc probablement l'export, que PR3 compte à part (`Verbr. Export` dans
-l'outil de débogage).
+**Écart de la sim.** `sim/marchandises.lua` divise A par **50**, pas par 200. Ce
+choix a été fait avant la lecture des seuils, pour qu'une cale de sloop pèse sur
+un marché. PR3 obtient cet effet autrement, par des stocks visés bien plus
+profonds (§10.5). Consommation et seuils sont à réaligner ensemble.
 
-**Ce que la sim en fait maintenant** : elle recopie A telle quelle
-(`verbrauch`), sépare l'export (`export`, le surplus de 30 % et 20 %), et divise
-par **50**. L'échelle n'est pas dans le fichier. Elle est fixée par les navires
-de PR3 : un sloop porte 200 tonneaux, et pour qu'une cale pèse sur un marché ce
-qu'elle y pèse dans le jeu, il faut une consommation quatre fois plus forte
-qu'avec l'ancien sloop de 50 tonneaux. Les rapports entre denrées ne dépendent
-pas de ce choix.
+### 10.4 Recettes et coût de production — certain
 
-**B est le rendement d'une manufacture** (probable, et fortement recoupé par les
-recettes, §10.4). L'unité de temps n'est pas établie : seuls les rapports
-comptent.
-
-**C** : 30 bois, 60 briques, 5 pour tout le reste. Probablement les stocks
-minimaux qu'une ville garde (`Minimalmengen`), les matériaux de construction à
-part.
-
-### 10.4 Recettes — certain
-
-Pour chaque denrée, jusqu'à quatre index d'intrants, puis en regard leur quantité
-par unité produite, en 1/32 :
+Le chargeur range chaque quantité **× 64**. Une première lecture divisait par 32
+et y voyait une coïncidence (« une ferme de maïs nourrit exactement une
+manufacture de viande ») : elle était fausse.
 
 | Produit | Intrants par unité |
 |---|---|
-| Tissu | 2 coton |
-| Métal | 1 bois |
-| Outils | 1 bois + 2 métal |
-| Café | 0,5 outils |
-| Cacao | 0,5 outils |
-| Viande | 4 maïs |
-| Vêtements | 2 tissu + 2 teinture |
-| Cordage | 2 chanvre |
-| Rhum | 1 bois + 2 sucre |
-| Pain | 1 blé + 1 sucre |
+| Tissu | 1 coton |
+| Métal | 0,5 bois |
+| Outils | 0,5 bois + 1 métal |
+| Café | 0,25 outils |
+| Cacao | 0,25 outils |
+| Viande | 2 maïs |
+| Vêtements | 1 tissu + 1 teinture |
+| Cordage | 1 chanvre |
+| Rhum | 0,5 bois + 1 sucre |
+| Pain | 0,5 blé + 0,5 sucre |
 
-Le recoupement avec B est parfait : **une ferme de maïs (320) nourrit exactement
-une manufacture de viande (80 × 4)**. De même, une plantation de coton nourrit
-une manufacture de tissu, une chanvrière une corderie, et un tissage plus une
-teinturerie une manufacture de vêtements. Les chaînes ont été équilibrées une
-pour une. C'est ce qui confirme que B est bien le rendement.
+**La preuve est dans les prix.** Un atelier coûte `Grundkosten` (50) + 25 ouvriers
+× `Lohn` (6) = 200 pièces par jour. Divisé par sa production, plus le coût de ses
+intrants à ces quantités, on retrouve **les vingt prix standard** :
 
-**Appliqué dans la sim.** `sim/marchandises.lua` a désormais ces recettes. Elles
-corrigent cinq écarts : le pain au maïs au lieu du sucre, la viande à 2 maïs au
-lieu de 4, les vêtements à 1 + 1 au lieu de 2 + 2, le rhum à 1 sucre + 0,5 bois
-au lieu de 2 sucre + 1 bois, et le métal, le café et le cacao sans recette.
+- bois 33,3, tissu 150, métal 83,3, outils 200 ;
+- viande 300, vêtements 450, rhum 266,7, pain 141,7.
 
-Trois changements ont suivi, sans lesquels ces recettes affamaient la carte :
+Seuls café et cacao font exception : 150 calculés pour 140 affichés. **Le prix
+standard de PR3 est son coût de production** (§4).
 
-- **La demande des ateliers** entre dans le stock visé d'une ville (`need_b` dans
-  l'outil de débogage de PR3). Sans elle, une forge ne signalait jamais qu'elle
-  manquait de métal, aucun convoi ne lui en livrait, et les ateliers d'outils
-  tournaient à 2 % de leur capacité.
-- **La famine compte trois aliments sur cinq** (§5, la version du tutoriel) :
-  une ville mange à sa faim tant que son troisième aliment le mieux servi l'est.
-  Avec la règle précédente, qui ne regardait que le pire, le pain fait au sucre
-  aurait affamé toute ville loin des cannes. Le pain rejoint la nourriture.
-- **Les convois sont armés de navires de PR3** (voir `outils/PR3_TECHNIQUE.md`,
-  « Les convois marchands de l'IA »). Avec des cales de 45 tonneaux, la carte
-  mourait de logistique.
+**Dans la sim**, `sim/marchandises.lua` a ces recettes. Trois changements les
+accompagnent, sans lesquels la carte s'affamait :
+- **les ateliers comptent** dans le stock visé d'une ville ;
+- **la famine compte trois aliments sur cinq** (§10.8), et le pain rejoint la
+  nourriture ;
+- **les convois sont armés de navires de PR3**.
 
-Mesuré par `tools/equilibre.gd` sur cinq ans, à partir de 82 500 habitants :
+Mesuré sur cinq ans par `tools/equilibre.gd`, à partir de 82 500 habitants :
 
-| | Population | Villes en disette | Outils | Café |
-|---|---|---|---|---|
-| Avant | 74 600 | 56 | 2 % | présent, sans recette |
-| Après | 118 600 | 15 | 48 % | 35 % |
+| | Population | Villes en disette | Outils | Café | Pain |
+|---|---|---|---|---|---|
+| Avant PR3 | 74 600 | 56 | 2 % | sans recette | 17 % |
+| Recettes à /32 | 118 600 | 15 | 48 % | 35 % | 48 % |
+| Recettes à /64 (justes) | 119 100 | 14 | 32 % | 57 % | 46 % |
 
-Sur dix ans, la population plafonne vers 122 000. Le rhum et les vêtements
-restent les chaînes les plus faibles : leurs ateliers sont loin de leurs
-intrants.
+Le rhum reste la chaîne la plus faible (18 %).
 
-Le prix suit aussi le modèle de PR3 (§10.2) : cinq coefficients sur quatre seuils
-de stock, les barres d'abondance lues sur le segment où tombe le stock.
+### 10.5 Le prix d'une ville et ses seuils — certain
 
-### 10.5 Bâtiments — valeurs certaines, sens des champs probable
+Chaque ville tient, pour chaque denrée, quatre seuils de stock `X1…X4`,
+recalculés régulièrement. Avec *t* le besoin de dix jours en tonneaux (habitants
+et intrants de ses ateliers) :
 
-Quarante-trois fiches, dans l'ordre de l'enum `BLD_` de l'exe : vingt
-manufactures, puis les bâtiments de ville, puis ceux du marchand. Chaque fiche :
-trois coûts, une valeur X, un octet, une paire.
+    X1 = Grundbedarf + 3 t + matériaux des chantiers − 1,5 × min(production de 10 jours, t)
+         (au moins 1)
+    X2 = X1 + t
+    X3 = X2 + production de 20, 10 ou 4 jours (réglage de partie) + 5
+    X4 = X3 + t
 
-| Bâtiment | Coûts | X | Octet | Paire |
-|---|---|---|---|---|
-| Bois, briques, blé, fruits, maïs, sucre, chanvre, teinture, tabac | 8 000 / 16 000 / 24 000 | 2 000 | 6 | 20 / 40 |
-| Coton | 8 000 / 16 000 / 24 000 | 3 000 | 9 | 30 / 60 |
-| Métal, café, cacao, rhum, pain | 10 000 / 20 000 / 30 000 | 4 000 | 12 | 40 / 80 |
-| Tissu, viande, cordage | 12 000 / 24 000 / 36 000 | 4 000 | 12 | 40 / 80 |
-| Outils | 16 000 / 32 000 / 48 000 | 6 000 | 18 | 60 / 120 |
-| Vêtements | 18 000 / 36 000 / 54 000 | 6 000 | 18 | 60 / 120 |
-| Maison (du marchand) | 14 000 / 28 000 / 42 000 | 18 000 | 12 | 40 / 80 |
-| Entrepôt | 6 000 / 12 000 / 18 000 | 8 000 | 6 | 20 / 40 |
-| École, hôpital, pompiers, hospice, ambassade, bordel | 14 000 / 28 000 / 42 000 | 20 000 | 18 | 60 / 120 |
-| Arbres, puits | 6 000 / 12 000 / 18 000 | 8 000 | 6 | 20 / 40 |
-| Chantier naval | 50 000 / 100 000 / 150 000 | 60 000 | — | 100 / 200 |
-| Hôtel de ville | 200 000 / 400 000 / 600 000 | 220 000 | — | 200 / 400 |
-| Forteresse | 100 000 / 200 000 / 300 000 | — | — | 25 / 50 |
+Les coefficients se lisent donc ainsi :
+- **2,0 → 1,8** tant que le stock est sous trente jours de besoins ;
+- **1,8 → 1,2** sur les dix jours suivants ;
+- **plateau à 1,2** sur toute la réserve de production ;
+- **1,2 → 0,8** sur dix jours de plus ;
+- **0,8** au-delà.
 
-Pour les manufactures, X = 100 × le premier nombre de la paire, et l'octet vaut
-0,3 × ce même nombre. Tout est proportionnel à la paire. Lecture probable : la
-paire est le **nombre d'ouvriers** (au premier et au second niveau
-d'agrandissement), X le coût d'entretien, l'octet la durée du chantier en jours.
-Si c'est bien ça, `Economie.EMPLOIS_PAR_FABRIQUE = 25` est une moyenne. PR3
-emploie 20 ouvriers dans une ferme et 60 dans une manufacture d'outils, soit
-80 et 240 citoyens par la règle du ×4 (§6).
+Une ville qui produit la denrée baisse son premier seuil de quinze jours de sa
+production : elle se juge moins vite en pénurie de ce qu'elle fait elle-même.
 
-### 10.6 Ce qu'il reste à trancher
+Les barres d'abondance sont le nombre de seuils franchis. C'est exactement le
+modèle déjà codé dans `sim/economie.lua`, mais ses seuils sont une fraction fixe
+d'une référence de trente jours (0,17 · 0,90 · 1,10 · 2,05), bien moins profonds
+que ceux de PR3.
 
-- L'unité de temps de A et de B (par jour ? pour 1 000 habitants ?).
-- Quel jeu de facteurs de prix s'applique, et quand bascule la série « pénurie ».
-- Les seuils `X1…X4` : leur calcul (probablement la consommation × un nombre de
-  jours, `VorratTage`).
-- La famine (§5) et le rôle du trésor (§9), toujours ouverts.
+### 10.6 Bâtiments — certain
 
-Les constantes scalaires (salaires `Lohn`, solde `Heuer`, loyer d'entrepôt
-`Lagermiete`, jours de réserve `VorratTage`, chômage minimal pour bâtir
-`NeubauMinAlq`…) sont dans le fichier, mais serrées octet contre octet sans
-compte devant. Les nommer demanderait de lire le chargeur dans l'exe.
+Quarante-trois fiches, dans l'ordre de l'enum `BLD_` de l'exe. Chaque fiche
+contient :
+- **`Bauplatzkosten`** : trois coûts en or ;
+- **`Baukosten Betriebe`** : les matériaux de construction, en bois et briques ;
+- deux valeurs dérivées : la valeur de ces matériaux, et un octet égal à leur
+  tonnage ÷ 10, probablement la durée du chantier.
+
+| Bâtiment | Coûts | Matériaux |
+|---|---|---|
+| Fermes, plantations, teinture, tabac | 8 000 / 16 000 / 24 000 | 20 bois, 40 briques |
+| Coton | 8 000 / 16 000 / 24 000 | 30 bois, 60 briques |
+| Métal, café, cacao, rhum, pain | 10 000 / 20 000 / 30 000 | 40 bois, 80 briques |
+| Tissu, viande, cordage | 12 000 / 24 000 / 36 000 | 40 bois, 80 briques |
+| Outils | 16 000 / 32 000 / 48 000 | 60 bois, 120 briques |
+| Vêtements | 18 000 / 36 000 / 54 000 | 60 bois, 120 briques |
+| Maison | 14 000 / 28 000 / 42 000 | 40 bois, 80 briques |
+| Entrepôt, arbres, puits | 6 000 / 12 000 / 18 000 | 20 bois, 40 briques |
+| École, hôpital, pompiers, hospice, ambassade, bordel | 14 000 / 28 000 / 42 000 | 60 bois, 120 briques |
+| Chantier naval | 50 000 / 100 000 / 150 000 | 100 bois, 200 briques |
+| Hôtel de ville | 200 000 / 400 000 / 600 000 | 200 bois, 400 briques |
+
+Une lecture précédente prenait les matériaux pour des nombres d'ouvriers. Tous
+les ateliers ont 25 ouvriers.
+
+Le logement (`Residential`) loge 100 locataires par maison. Un nouveau logement
+est bâti à `FillRate` de remplissage : le défaut du code est **65 %**, le
+tutoriel parle de 80 %. La valeur réelle n'a pas été retrouvée.
+
+### 10.7 Les réglages de la partie — certain
+
+| Réglage | Valeur | Sens |
+|---|---|---|
+| `1Fass` | 2 000 | unités par tonneau |
+| `Lohn` | 6 | salaire d'un ouvrier par jour |
+| `Grundkosten` | 50 | frais fixes d'un atelier par jour |
+| `Heuer` | 2 | solde d'un marin par jour |
+| `VerwalterLohn` | 50 | salaire de l'administrateur |
+| `VorratTage` | 15 | jours de production gardés par un atelier |
+| `NeubauOfficeVorratTage` / `NeubauWeltVorratTage` | 5 / 15 | seuils de réserve pour bâtir |
+| `NeubauMinAlq` | 50 | chômage minimal pour bâtir un atelier |
+| `StartFabriken` | 20 | ateliers au départ |
+| `Konvois` | 2 | convois IA par ville au départ |
+| `Einlaufzeit` / `Einkaufszeit` / `Verkaufszeit` | 128 / 64 / 64 | temps à quai |
+| `BasicCapacity` | 1 000 | capacité de base d'un comptoir |
+| `Lagermiete` | 0,1 / 0,2 / 0,3 | loyer d'entrepôt |
+| `Bettlerfaktor` | 1,4 | facteur des mendiants |
+
+### 10.8 Faim, fléaux, prospérité — certain
+
+**La faim.** Chaque jour, chaque denrée non servie incrémente deux compteurs :
+- les **aliments manquants, à partir de −3** ;
+- **toutes les denrées manquantes, à partir de −12**.
+
+La ville évolue selon le premier : la famine commence au-delà de **trois
+aliments manquants**, ce qui tranche la contradiction du §5 en faveur du
+tutoriel. Une ville de moins de 300 habitants n'entre jamais en famine.
+
+**Les fléaux** ajoutent une consommation en pourcentage de A :
+- **peste** : tissu et vêtements ;
+- **sauterelles** : fruits, chanvre et pain ;
+- **feu** : bois et briques.
+
+**La prospérité** a sept niveaux nommés, du plus bas au plus haut :
+
+| Niveau | Effet |
+|---|---|
+| Pauvreté | 2 % des citoyens redeviennent colons par jour ; ni bâtiments ni nouveaux ouvriers |
+| Récession | 1 % par jour ; pas de nouveaux ouvriers |
+| Stagnation | aucun effet encore |
+| État d'urgence | un événement en cours |
+| Redressement | la ville se remet d'un événement |
+| Croissance | monte tant que la ville dépasse 2 000 habitants |
+| Prospérité | entretien −5 %, colons chaque jour ; niveau suivant au-delà de 6 000 habitants |
+
+### 10.9 Ce qu'il reste à trancher
+
+- **Café et cacao** : 150 calculés pour 140 affichés.
+- **Taille des convois IA** : elle vaut une somme de la ville × 420 ÷ 1 900 ; la
+  nature de cette somme reste à lire.
+- **Déclin en famine** : ce que la fonction `0x7685D0` fait du compteur (vitesse
+  du déclin, passage d'un niveau de prospérité à l'autre).
+- **Logement** : la vraie valeur de `FillRate`.
+- **Trésor** : son rôle (§9).

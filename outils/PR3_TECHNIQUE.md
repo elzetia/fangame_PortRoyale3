@@ -271,6 +271,145 @@ de Fresnel ne varie presque pas à 58° de plongée : ce qui rend les vaguelette
 lisibles, c'est l'éclairage des pentes. Et une écume tirée des courbes de
 profondeur dessine des courbes de niveau.
 
+## 7. Le code de l'exécutable
+
+L'exe est un x86 32 bits (base 0x400000, code à 0x401000, données en lecture
+seule à 0xB38000), sans symboles. On le lit avec capstone : chaque nom de
+réglage est une chaîne de `.rdata`, et l'unique `push offset` qui la charge mène
+au code qui s'en sert.
+
+### Le chargeur des réglages
+
+Les réglages sont lus dans un ini par section et par clé, avec un défaut, puis
+rangés dans une structure. `constdata.dat` est cette structure **sérialisée** :
+les champs y sont dans l'ordre de la structure, sans nom. C'est pourquoi le
+fichier ne contient aucun nom, ni en clair ni haché (vérifié sur 9 412
+identifiants et huit fonctions de hachage).
+
+| Fonction | Rôle |
+|---|---|
+| `0x89D6E0` | entier (section, clé, défaut) |
+| `0x89D750` | flottant |
+| `0x89D7C0` | tableau d'entiers |
+| `0x89D8A0` | tableau de flottants |
+| `0x89E270` | chaîne |
+| `0x854E00` | renvoie la structure économique |
+
+Transformations faites **au chargement**, et donc visibles dans le fichier :
+
+- consommation rangée = arrondi(`Faktor` × 100 × `Ware%02u_Verbrauch` + 0,75),
+  avec `Faktor` = 1,1 ;
+- `Produktion/Betrieb%02u` = (ouvriers, sortie) ; on range les ouvriers (25) et
+  la sortie par ouvrier ;
+- quantités des recettes (`Rohstoffbedarf`) × 64, sur un octet ;
+- points de vie des navires × 1 000.
+
+La table complète, avec les noms, sort de `outils/pr3_constdata.py`.
+
+### Les unités, et la preuve par les prix
+
+- Un **tonneau** (`1Fass`) vaut 2 000 unités.
+- **Production** d'un atelier par jour : sortie par ouvrier × ouvriers (25).
+  Bois : 480 × 25 = 12 000 unités = 6 tonneaux.
+- **Consommation** d'une ville par jour (`0x7C2080`) : A × habitants ÷ 100
+  unités, soit **A ÷ 200 tonneaux pour mille habitants**.
+- **Coût** d'un atelier par jour (`0x7C00D0`) : `Grundkosten` (50) × ouvriers ÷ 25
+  + `Lohn` (6) × ouvriers = 200 pièces.
+
+Coût ÷ production + intrants redonne **les vingt prix standard** (bois 33,3,
+tissu 150, métal 83,3, outils 200, viande 300, vêtements 450, rhum 266,7, pain
+141,7). Seuls café et cacao donnent 150 pour 140 affichés. Le prix standard de
+PR3 est son coût de production.
+
+### Le prix d'une ville
+
+- Chaque marché range, par denrée, son stock et **quatre seuils X1…X4**.
+- `0x856780` intègre les cinq coefficients de `Preisfaktoren` posés sur 0, X1, X2,
+  X3 et X4, entre le stock avant et le stock après l'échange : le prix est une
+  **moyenne sur le lot**, × prix standard (`0x858100` achat, `0x8581A0` vente).
+- Acheter au-delà du stock facture le manque au premier coefficient.
+- La série « pénurie » s'applique quand la ville porte le **bit 11** de ses
+  indicateurs d'état ; le cran vient du profil de partie (`0x8629B0`).
+- Les barres d'abondance sont le nombre de seuils franchis (`0x765310`), ou leur
+  version décimale interpolée (`0x764FB0`).
+
+**Les seuils** sont recalculés par `0x7BF8A0`. Avec *t* le besoin de 10 jours en
+tonneaux (habitants, plus les intrants des ateliers de la ville) :
+
+    X1 = Grundbedarf + 3 t + matériaux des chantiers − 1,5 × min(production de 10 jours, t)
+         (au moins 1)
+    X2 = X1 + t
+    X3 = X2 + production de 20, 10 ou 4 jours (réglage de partie) + 5
+    X4 = X3 + t
+
+Une ville vise donc un stock profond : les prix de pénurie commencent sous 30
+jours de besoins, le plateau à 120 % s'étend sur la réserve de production.
+
+### La faim et les fléaux
+
+Dans la consommation quotidienne (`0x7C2080`), chaque denrée non servie
+incrémente deux compteurs. L'un compte les **aliments manquants à partir de −3**,
+l'autre **toutes les denrées manquantes à partir de −12**. Le premier va à
+`0x7685D0`, qui fait évoluer la ville. La famine commence donc au-delà de
+**trois aliments manquants**, comme le dit le tutoriel. Une ville de moins de
+300 habitants a son compteur forcé à −10 : elle n'entre jamais en famine.
+
+Trois fléaux sont des bits d'état de la ville. Chacun ajoute une consommation de
+A × habitants × pourcentage ÷ 10 000 sur une liste de denrées :
+
+| Fléau | Bit | Réglage | Denrées |
+|---|---|---|---|
+| Peste | 1 | `Verbrauch/Pest` | tissu, vêtements |
+| Sauterelles | 5 | `Verbrauch/Heuschrecken` | fruits, chanvre, pain |
+| Feu | 6 | `Verbrauch/Feuer` | bois, briques |
+
+### Les convois de l'IA
+
+`0x79DB00` crée pour chaque ville **`Konvois` convois**, soit **2**, d'une
+taille proportionnelle à une somme de la ville (× 420 ÷ 1 900). La taille est
+revue tous les `KiUpdateConvoySize` (7 680). À quai, un convoi passe
+`Einlaufzeit` (128) à entrer, puis `Einkaufszeit` et `Verkaufszeit` (64 chacun).
+
+### La prospérité
+
+Sept niveaux nommés par les textes (`ID_GUI_TOWN_WEALTH_01…07`) :
+
+| Niveau | Effet décrit |
+|---|---|
+| Pauvreté | 2 % des citoyens redeviennent colons par jour, ni bâtiments ni nouveaux ouvriers |
+| Récession | 1 % par jour, pas de nouveaux ouvriers |
+| Stagnation | aucun effet encore |
+| État d'urgence | un événement en cours |
+| Redressement | la ville se remet d'un événement |
+| Croissance | peut monter tant que la ville dépasse 2 000 habitants |
+| Prospérité | entretien −5 %, colons chaque jour ; niveau suivant au-delà de 6 000 habitants |
+
+### Les autres chargeurs
+
+- **Navires** (`0x85F7E0`), dans l'ordre :
+  - `Capacity`, `Hitpoints`, `HitpointsSail`, `Value` ;
+  - rangs `minRankMil`/`maxRankMil`/`minRankPir` ;
+  - `Vmin`, `Vmax`, `Wendig` ;
+  - assets, dimensions de coque et de voiles, positions des canons ;
+  - `Nations` (masque), `Masts`, `Gauge` (tirant d'eau), `DailyCosts` (entretien
+    par jour), `Construct` (coût et matériaux au chantier).
+- **Bâtiments** : `Bauplatzkosten` (trois coûts) et `Baukosten Betriebe` (les
+  matériaux : 20 bois et 40 briques pour une ferme, 60 et 120 pour une
+  manufacture d'outils).
+- **Logement** (`Residential`, `0x84E150`) : loyer en six paliers, 100
+  locataires, construction à `FillRate` (défaut 65 %), entretien 50, seuils
+  `Wohlstand%u`.
+- **Partie** (`0x829840`) :
+  - fléaux et exode (`Abwanderung`, `Pesttote`) ;
+  - licences et réputation ;
+  - limites de 100 convois, 50 navires par convoi, 50 navires ;
+  - facteur de réputation selon la difficulté, prix de l'équipement ;
+  - or, capital et navires de départ.
+- **Villes** (`0x8282C0`) : position sur la minimap, biens produits, position,
+  type, nations, région, région sonore.
+- Les couleurs de voiles (`SailColor_*`) ne sont lues que par une table de
+  pointeurs, sans référence directe dans le code.
+
 ### Ce que les noms de clés laissent deviner
 
 Les réglages économiques de l'exe (sections `Konvois`, `Produktion`, `Hausbau`…)
