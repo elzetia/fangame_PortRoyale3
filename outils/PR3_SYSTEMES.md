@@ -353,11 +353,27 @@ canons/munitions), `[Repairs]` (`Zeit`, `Kosten` — temps et coût de réparati
 `[Tactic]` (`MaxFleeDist`, `SecUpdateFleetAi` — l'IA décide d'attaquer ou fuir sur
 le rapport de puissance).
 
-**Prochaine cible précise** : la fonction de puissance de convoi (qui somme la
-puissance par navire) et la fonction de résolution (qui écrit le résultat dans le
-journal de dernière bataille). Le modèle et ses points d'entrée sont désormais
-connus — et, contrairement au combat manuel, **cette voie est décompilable sans
-lancer le jeu.**
+**Le modèle des 3 navires de combat est confirmé dans le code.** Un convoi porte
+un compteur de navires de combat (`[convoi+0xF9C]`, `0x4B7A50` le gère : « nombre
+de navires de combat du convoi ») ; seuls ces navires d'escorte (3 au plus)
+comptent. Chaque navire de combat est un composant ECS `Client::BattleShipComponent`
+(`0x677F70`), et la **puissance par camp** est affichée par la fenêtre de bataille
+(`0x568650`), le classement des puissances (`0x5550C0`, `power.li`) et le journal
+(`TabChronicPower`).
+
+**Mais la puissance est une valeur MISE EN CACHE.** Toutes ces vues la *lisent*
+sur l'objet (un champ flottant du camp de bataille, p. ex. `[+0x74]`) ; aucune ne
+la recalcule. L'arithmétique qui la remplit vit dans la mise à jour du composant,
+recalculée quand la composition d'escorte change — et elle résiste aux points
+d'entrée statiques (ECS + GUI l'enveloppent).
+
+**La voie la plus courte vers la formule exacte** n'est donc pas le traçage d'un
+combat (comme le manuel), mais **la lecture du champ de puissance en cache** : sous
+un débogueur, prendre un convoi, y mettre un seul navire de combat de canons et de
+marins connus, lire la puissance affichée ; changer les canons, puis les marins,
+puis la maniabilité, et relever. Trois ou quatre mesures suffisent à retrouver
+`puissance = f(canons, marins ≤ 5/canon, maniabilité)`. Pas besoin de livrer
+bataille — il suffit d'ouvrir la fiche du convoi.
 
 ## État du rétro-engineering
 
