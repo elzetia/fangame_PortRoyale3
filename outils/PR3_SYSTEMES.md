@@ -831,8 +831,10 @@ architecturale, pas un réglage.
 Les coefficients, eux, sont symétriques : gain et perte de ville valent tous deux
 `100 × part/X1` en unités d'accumulateur (`RepFactor` vaut 1000 par défaut —
 `fld1` × la constante `1000.0` en `0xB3D9B8` — et le gain vaut `RepFactor/10`).
-`[Reputation] Offset/Amplitude/Phase` se chargent avec `fldz` : **aucune érosion
-passive**. L'asymétrie vient d'ailleurs :
+`[Reputation] Offset/Amplitude/Phase` se chargent avec `fldz`, donc la dérive
+SINUSOÏDALE est nulle — mais **il existe bel et bien une érosion passive**,
+mesurée en jeu à environ **−16 points par minute** (voir plus bas). Elle ne passe
+pas par `0x75C700`, qui n'a qu'un seul appelant : elle écrit ailleurs. L'asymétrie vient d'ailleurs :
 
 1. **La punition est collective** — `0x783510` boucle sur les quatre nations : une
    attaque sans lettre de marque coûte partout à la fois. Le gain ne concerne
@@ -856,3 +858,29 @@ sites le bornent par `cmp al,4; jae`) ; `0x759F00` ne touche jamais `ebx`, donc
 l'objet ville survit ; et l'exe est **sans ASLR** (`DllCharacteristics` 0x8100,
 table de relocations vide), si bien que toutes les adresses absolues restent
 valides. L'en-tête PE a 120 octets libres — assez pour une dixième section.
+
+
+### Mesuré en jeu, sur l'exécutable instrumenté
+
+Relevé par lecture de la mémoire du processus (`joueur+0x1B8+nation*4+0x20`),
+pendant qu'une route commerciale automatique desservait les villes d'une nation :
+
+| nation | cumul reçu du greffon | variation nette sur 90 s |
+|---|---:|---:|
+| 0 (desservie) | +52 | **+28** |
+| 1 (effleurée) | +12 | −12 |
+| 2 et 3 (jamais touchées) | **0** | **−24** |
+
+Les nations 2 et 3 n'ont reçu aucun apport et perdent pourtant 24 points : c'est
+l'**érosion native**, soit **≈ −16 points/minute (−1,6 %/min)**. C'est elle qui
+explique « la réputation baisse vite et ne remonte jamais » — rien, dans le jeu
+d'origine, ne la compensait en continu.
+
+Vérifié aussi : les quatre octets de « nation liée » (`magasin+0x40`) valent tous
+**0xFF**, donc ≥ 4, donc la branche de moyenne de `0x75C700` n'est jamais prise.
+Le greffon ne peut pas déplacer la réputation d'une nation voisine — chaque gain
+reste sur la couronne visée.
+
+Avec `valeur = 2`, une route active rapporte ≈ +35/min bruts contre ≈ −16/min
+d'érosion : elle renverse la pente sans l'emballer. C'est le réglage par défaut
+de `outils/pr3_patch_reputation.py`, modifiable en troisième argument.
