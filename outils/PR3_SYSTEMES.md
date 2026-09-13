@@ -706,7 +706,8 @@ Cinq niveaux : **porté** (dans `sim/`), **décodé** (math/structure exacte lue
 | Affectation équipage/escorte au combat (3 navires, ≤ 5 marins/canon) | **décodé** (règle) |
 | Guerre terrestre : batailles de ville (soldats, points marché/forteresse, `[Soldier]`, `TownBattle`, `Fortress`) | **mappé** — structure + params scalaires ; stats soldats (tableaux `constdata`) à extraire ; résolution ECS avec le combat |
 | Missions et campagne | **contenu** (à réécrire, pas à décompiler) |
-| Rendu, caméra, interface, audio, réseau | **hors-jeu** |
+| UI — structure des écrans (`.swf`) : catalogues de composants, hiérarchie, placements nommés | **décodé** (`swf_ui.py`, `PR3_UI.md`) — positions fines/images restantes |
+| Rendu, caméra, audio, réseau | **hors-jeu** |
 
 **Verdict.** Toute la logique de JEU lisible statiquement est décortiquée : l'économie
 entière (portée dans la sim), les convois et le commerce, la ville et sa population,
@@ -749,7 +750,7 @@ extensible. Prochaines briques, par ordre d'utilité :
 3. **Combat** : fonctions d'application du coup + formule de puissance auto (RE
    profonde de `BattleShipComponent` / `0x86C470` et suivantes).
 4. **Guerre terrestre** (`[Soldier]`, sièges) : structure et paramètres.
-5. **UI/menus exacts** : décodeur `.swf` Iggy pour les layouts (au-delà des chaînes).
+5. **UI/menus — structure FAITE.** `outils/swf_ui.py` + `PR3_UI.md` : catalogue de composants et hiérarchie de chaque écran (radial, ville/convoi/chantier, HUD, routes, capitainerie), extraits des `.swf`. Restent les positions fines (bruit CXFORM) et les images (droits, non extraites).
 6. **Campagne/missions** : script à lire et réécrire.
 
 La liste exhaustive des 134 sections et 421 clés est reproductible par
