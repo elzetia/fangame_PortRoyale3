@@ -673,15 +673,21 @@ pour le combat était un choix de rapidité, pas une limite.
 Objectif : une bible complète tirée des seuls fichiers, et le fan game bâti dessus,
 extensible. Prochaines briques, par ordre d'utilité :
 
-1. **Parseur de l'arbre de config `constdata`** — la clé qui débloque TOUTES les
-   valeurs chiffrées d'un coup (dégâts de munition, prix des canons, coûts
-   d'agrandissement, capitaine, etc.), là où l'exe ne donne que les défauts. À
-   écrire une fois, réutilisé partout.
-2. **Combat** : fonctions d'application du coup + formule de puissance auto (RE
+1. **Config scalaire — FAIT.** `outils/PR3_CONFIG.md` (généré par
+   `outils/config_defauts.py`) donne les **146 sections / 421 clés avec leurs
+   défauts**. Découverte : il n'y a **pas** d'arbre de config texte ; `constdata.dat`
+   est fait de **TABLES BINAIRES** (navires, villes, munitions, prix…) et l'exe porte
+   la logique + les défauts scalaires. Pour les scalaires, le défaut EST la valeur du
+   jeu.
+2. **Tables binaires de `constdata`** — parser table par table pour les VALEURS des
+   tableaux (`i[]`/`f[]`) : munitions (`AmmoData` DmgHull/Sail/Crew), prix des canons
+   (`Equipment`), coûts d'agrandissement (`AusbauKosten`/`Waren`), capitaine, etc.
+   Navires et villes déjà faits (`navires.lua`, `pr3data.py`).
+3. **Combat** : fonctions d'application du coup + formule de puissance auto (RE
    profonde de `BattleShipComponent` / `0x86C470` et suivantes).
-3. **Guerre terrestre** (`[Soldier]`, sièges) : structure et paramètres.
-4. **UI/menus exacts** : décodeur `.swf` Iggy pour les layouts (au-delà des chaînes).
-5. **Campagne/missions** : script à lire et réécrire.
+4. **Guerre terrestre** (`[Soldier]`, sièges) : structure et paramètres.
+5. **UI/menus exacts** : décodeur `.swf` Iggy pour les layouts (au-delà des chaînes).
+6. **Campagne/missions** : script à lire et réécrire.
 
 La liste exhaustive des 134 sections et 421 clés est reproductible par
 `py -3 outils/config_map.py` (l'outil lit l'exécutable local, jamais commité).
