@@ -294,3 +294,58 @@ d'instance figurent dans les placements.
     tab_1                              @(19,140) x1 <exports.TabHarbourmasterEquip>
   -- champs texte (bounds px, variable) --
 
+
+---
+
+## Le skin partagé (skinlib_pr3.swf) — d'où vient le look
+
+Décodé par `outils/swf_noms.py` (table SymbolClass id→classe AS3),
+`outils/swf_resoudre.py` (sprite→bitmaps feuilles), `outils/swf_formes.py`
+(FillStyle/LineStyle d'une DefineShape) et `outils/swf_bitmaps.py` (extraction
+des bitmaps). Les .swf de dialogue ne portent presque PAS d'art : tout le skin
+(cadres, onglets, boutons, scrollbars) vit dans `skinlib_pr3.swf` — 1013 classes
+exportées, 868 bitmaps, 669 sprites.
+
+### Les cadres de dialogue sont des BITMAPS peints (pas du vectoriel)
+
+Le fond d'un dialogue est une DefineShape à remplissage bitmap (FillStyle 0x40).
+Chaque type de cadre a son bitmap plein, à sa taille native :
+
+| Classe AS3 (skinlib)          | Bitmap | Taille   | Usage                     |
+|-------------------------------|--------|----------|---------------------------|
+| exports.Dialog_Big            | 845    | 748x578  | dialogue simple           |
+| exports.Dialog_Tabbed_Big     | 801    | 748x578  | dialogue à onglets        |
+| exports.Dialog_XXL            | 738    | 748x642  | grand dialogue            |
+| Dialog_Tabbed_BG_Tabs         | 820    | 430x80   | bande d'onglets           |
+| (carreau de fond)             | 714    | 16x16    | texture du parchemin      |
+
+Conséquence pour le port : on charge ces bitmaps depuis l'install locale
+(`reference_pr3/ui/skinlib_pr3/<id>.png`, ignoré par git) et on les pose en
+StyleBoxTexture 9-tranches. Voir `scripts/skin_pr3.gd`. Absent l'art, repli sur
+un parchemin dessiné — le comportement ne dépend jamais de l'art.
+
+### Le contenu des onglets est monté au RUNTIME (ActionScript)
+
+`Tab_TownInfo`, `Tab_Shipyard_build`, etc. n'ont aucun agencement statique dans
+la timeline (une seule case « modif » à 0,0) : les champs, listes et icônes sont
+créés par le code AS3 à partir de composants (`components.list.Visual_List_*`,
+`Visual_Wealth_Text_Trend`, `customrenderelement`). Le .swf livre donc le SKIN et
+les COMPOSANTS, pas des coordonnées pixel. On reconstruit l'agencement à partir
+du contenu connu de chaque onglet + le modèle de données décodé.
+
+### L'info-ville n'est pas un écran à part
+
+`dialog_trade.swf` = `scenes.Scene_Trade`, dialogue à onglets :
+**Tab_TownInfo · Tab_TownGoods · Tab_Equipment · Tab_Trade** (+ variantes
+Office_Convoy / Town_Office / Pirate selon le sens d'échange). Cliquer une ville
+ouvre CE dialogue ; la « fiche de ville » est son premier onglet. Composants clés :
+`Visual_Wealth_Text_Trend` (prospérité + flèche), `Visual_List_Town_Goods`,
+icônes de sens d'échange (`icon_trade_town_convoy/office_convoy/town_office`).
+Porté par `scripts/ville_panneau.gd` (onglet Infos ville).
+
+### Le chantier
+
+`dialog_shipyard_pc.swf` = `scenes.Scene_Shipyard`, onglets dans l'ordre :
+**Tab_Shipyard_build · _repair · _buy · _sell** (+ _sell_pirate). Cadre =
+Dialog_Tabbed_Big (801). Illustration propre : `dialog_shipyard_pc/18.png`
+(374x228). Porté par `scripts/chantier_panneau.gd`.

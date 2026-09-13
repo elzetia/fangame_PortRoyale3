@@ -1,87 +1,68 @@
-# Les infos d'une ville : ce qu'elle est, pas ce qu'on peut lui acheter.
+# L'info-ville de Port Royale 3 : l'onglet `Tab_TownInfo` du dialogue de ville.
 #
-# Le comptoir (`marche_panneau.gd`) montre des prix ; celui-ci montre une ville.
-# La séparation est celle de Port Royale 3, et elle tient à ce qu'on regarde :
-# devant un prix on décide d'un achat, devant une population on décide d'une
-# route.
+# Décodage (dialog_trade.swf) : cliquer une ville ouvre `scenes.Scene_Trade`, un
+# dialogue à onglets — Tab_TownInfo, Tab_TownGoods, Tab_Equipment, Tab_Trade. La
+# « fiche de ville » n'est pas un écran à part : c'est le PREMIER onglet de ce
+# dialogue. Son contenu n'est pas posé dans la timeline du .swf mais monté au
+# runtime par l'ActionScript (composants Visual_List_Town_Goods,
+# Visual_Wealth_Text_Trend, customrenderelement) ; le .swf ne nous livre donc que
+# le SKIN et les composants, pas des coordonnées. On reconstruit l'agencement à
+# partir du contenu connu de TownInfo et du modèle de données décodé.
 #
-# Comme le comptoir, il ne calcule rien. Les fabriques, les maisons et le taux
-# d'occupation viennent de `Economie.demographie`, qui les déduit des habitants
-# selon les constantes de PR3 — 25 emplois par manufacture, 4 citoyens par
-# emploi. Les recalculer ici les ferait diverger de la simulation au premier
-# réglage.
+# Le look vient du skin PR3 (skinlib_pr3) : le cadre est le panneau peint
+# `Dialog_Tabbed_Big` (748x578), chargé depuis l'install locale du joueur via
+# SkinPR3 — art sous droits, ignoré par git. Absent, on retombe sur un parchemin
+# dessiné : le comportement ne dépend jamais de l'art, seul le look en dépend.
+#
+# Comme dans PR3, ce panneau ne calcule rien : population, prospérité, fabriques
+# et occupation viennent de `Sim.etat_ville`, qui les déduit selon les constantes
+# de PR3. Il ne décide rien non plus : il émet ce que le joueur demande (voir les
+# marchandises), la carte arbitre.
 class_name VillePanneau
 extends CanvasLayer
 
 signal ferme
-
-# Comme le comptoir, ce panneau n'ouvre rien lui-même : il dit ce que le joueur
-# a demandé, la carte arbitre.
 signal denrees_demandees(port: Dictionary)
 
 const ICONES := "res://sprites/marchandises/"
-const VILLES := "res://sprites/villes/"
 const PAVILLONS := "res://sprites/pavillons/"
 const POLICE := "res://polices/serif_gras.ttf"
 
-# Rigoureusement le gabarit du comptoir : meme largeur, meme hauteur, meme
-# echelle, meme ancrage. Ce sont deux pages d'un meme dossier, et passer de
-# l'une a l'autre ne doit ni deplacer le cadre ni le faire changer de taille --
-# sinon l'ecran sautille a chaque aller-retour entre les onglets.
-const LARGEUR := 640
-const HAUTEUR := 800
-const ECHELLE_MENU := 0.667
+# Taille native du panneau peint de PR3 (Dialog_Tabbed_Big) : on ne l'étire pas,
+# ses ornements resteraient nets.
+const LARGEUR := 748
+const HAUTEUR := 578
 
-# Le pavillon passe DERRIÈRE la vignette et déborde d'elle : il se lit comme une
-# couleur de fond, pas comme un blason posé à côté. À pleine opacité il mangeait
-# la ville ; à 70 % la silhouette des toits repasse devant.
-const OPACITE_PAVILLON := 0.70
-const DEBORD_PAVILLON := 1.35
-const HAUTEUR_BLASON := 210.0
+# Couleurs relevées sur le parchemin de PR3 : une encre brune chaude sur le crème
+# du panneau, l'or des titres, le vert/rouge des tendances.
+const ENCRE       := Color(0.24, 0.16, 0.09)
+const ENCRE_PALE  := Color(0.46, 0.38, 0.29)
+const OR          := Color(0.60, 0.44, 0.16)
+const OR_CLAIR    := Color(0.86, 0.71, 0.36)
+const VERT        := Color(0.30, 0.52, 0.22)
+const ROUGE       := Color(0.72, 0.28, 0.22)
+const BOIS        := Color(0.16, 0.11, 0.07)
 
-const BOIS       := Color(0.16, 0.11, 0.07)
-const BOIS_CLAIR := Color(0.26, 0.18, 0.11)
-const OR         := Color(0.86, 0.71, 0.36)
-const OR_PALE    := Color(0.98, 0.92, 0.76)
-const PARCHEMIN  := Color(0.90, 0.86, 0.78)
-# Même lin qu'au comptoir : les deux écrans sont deux pages d'un même dossier.
-# Uni, et sans trame : la tuile de parchemin ne se raccordait pas et rayait le
-# fond de lignes tous les soixante pixels. Un aplat crème tient mieux qu'un
-# grain qu'il faut affaiblir jusqu'à l'invisible pour qu'il cesse de gêner.
-const LIN         := Color(0.921, 0.888, 0.812)
-const UI          := "res://sprites/ui_pr/"
-# Le bois doit border le crème, pas flotter autour : à vingt pixels le cadre
-# se décollait du fond, à huit il ne se voyait plus déborder du tout.
-const RETRAIT_FOND := 13.0
-const DESCENTE_FOND := 46.0
-const HAUTEUR_BAS := 64.0
-# De combien les équerres passent sous la plaque. Alignées sur elle, le lin
-# affleurait leur base et se voyait dépasser entre les deux coins.
-const DEBORD_BAS := 7.0
-const MARGE_EQUERRE := 70
-const ENCRE_BRUNE := Color(0.24, 0.16, 0.09)
-const ENCRE_PALE  := Color(0.44, 0.36, 0.28)
-const ENCRE      := Color(0.58, 0.52, 0.44)
-const VERT       := Color(0.45, 0.72, 0.35)
-const ROUGE      := Color(0.84, 0.42, 0.34)
+# Les onglets de Scene_Trade, dans l'ordre du .swf. Seul le premier est la page
+# courante ; « Marchandises » renvoie au comptoir, le reste attend son écran.
+const ONGLETS := ["Infos ville", "Marchandises", "Équipement", "Commerce"]
 
 var _sim: Object = null
 var _port: Dictionary = {}
 var _villes: Villes = null
+var _convoi_a_quai := false
 
-var _bandeau: BandeauTitre
-var _plaque: PanelContainer
-var _bas: NinePatchRect
-var _vignette: TextureRect
+var _titre: Label
 var _pavillon: TextureRect
+var _vignette: TextureRect
 var _lbl_habitants: Label
+var _lbl_prosperite: Label
 var _fleche: Label
 var _lbl_fabriques: Label
 var _lbl_maisons: Label
 var _lbl_occupation: Label
 var _rang_produits: HBoxContainer
-var _bouton_denrees: Button
-var _convoi_a_quai := false
+var _onglet_marchandises: Button
 
 
 func _init() -> void:
@@ -93,10 +74,6 @@ func _ready() -> void:
 	_batir()
 
 
-# La table des vignettes vient de la carte, qui l'a déjà chargée. En créer une
-# seconde ici relirait les cinq PNG pour rien, et surtout laisserait deux tables
-# de seuils vivre côte à côte : le jour où l'une bouge, le panneau montrerait un
-# village que la carte ne dessine pas.
 func poser_villes(table: Villes) -> void:
 	_villes = table
 
@@ -105,21 +82,8 @@ func _police() -> Font:
 	return load(POLICE) if ResourceLoader.exists(POLICE) else null
 
 
-func _cadre(fond: Color, rayon := 6, bordure := 2) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = fond
-	sb.border_color = OR.darkened(0.45)
-	sb.set_border_width_all(bordure)
-	sb.set_corner_radius_all(rayon)
-	sb.content_margin_left = 10
-	sb.content_margin_right = 10
-	sb.content_margin_top = 6
-	sb.content_margin_bottom = 6
-	return sb
-
-
 func _texte(contenu: String, taille: int, teinte: Color,
-			largeur := 0.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
+			align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var l := Label.new()
 	l.text = contenu
 	l.add_theme_font_size_override("font_size", taille)
@@ -129,233 +93,188 @@ func _texte(contenu: String, taille: int, teinte: Color,
 	var f := _police()
 	if f != null:
 		l.add_theme_font_override("font", f)
-	if largeur > 0.0:
-		l.custom_minimum_size.x = largeur
 	return l
-
-
-func _bouton(texte: String) -> Button:
-	var b := Button.new()
-	b.text = texte
-	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", 15)
-	b.add_theme_color_override("font_color", OR_PALE)
-	b.add_theme_color_override("font_hover_color", Color(1, 0.97, 0.86))
-	b.add_theme_color_override("font_pressed_color", OR)
-	b.add_theme_color_override("font_disabled_color", ENCRE.darkened(0.2))
-	var f := _police()
-	if f != null:
-		b.add_theme_font_override("font", f)
-	for etat in ["normal", "hover", "pressed", "disabled"]:
-		var fond := BOIS_CLAIR
-		if etat == "hover":
-			fond = BOIS_CLAIR.lightened(0.12)
-		elif etat == "pressed":
-			fond = BOIS
-		elif etat == "disabled":
-			fond = BOIS_CLAIR.darkened(0.35)
-		b.add_theme_stylebox_override(etat, _cadre(fond, 4))
-	return b
-
-
-# La même rangée qu'au comptoir : les deux écrans sont deux pages d'un même
-# dossier de ville, et une barre qui change de place ou de contenu d'une page à
-# l'autre se lit comme deux fenêtres sans rapport.
-#
-# « Liste denrées » ne s'allume que si le joueur a un convoi à quai ICI. On peut
-# regarder une ville de loin — c'est même le principal usage de cet écran — mais
-# on ne commerce qu'au port, et un bouton actif qui mène à un comptoir vide
-# ferait promettre à l'écran ce que la règle refuse.
-func _onglets() -> Control:
-	var ligne := HBoxContainer.new()
-	ligne.add_theme_constant_override("separation", 8)
-	for libelle in ["Infos ville", "Liste denrées", "Équiper"]:
-		var b := _bouton(libelle)
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.custom_minimum_size.y = 38
-		match libelle:
-			"Infos ville":
-				# La page courante : montrée enfoncée, et sans effet au clic.
-				b.disabled = true
-				b.add_theme_stylebox_override("disabled", _cadre(BOIS, 4))
-				b.add_theme_color_override("font_disabled_color", OR)
-			"Liste denrées":
-				_bouton_denrees = b
-				b.pressed.connect(func() -> void: denrees_demandees.emit(_port))
-			_:
-				b.disabled = true
-				b.tooltip_text = "Pas encore en place"
-		ligne.add_child(b)
-	return ligne
 
 
 # --- construction -------------------------------------------------------------
 
 func _batir() -> void:
-	var fond := ColorRect.new()
-	fond.color = Color(0, 0, 0, 0.45)
-	fond.set_anchors_preset(Control.PRESET_FULL_RECT)
-	fond.mouse_filter = Control.MOUSE_FILTER_STOP
-	fond.gui_input.connect(func(e: InputEvent) -> void:
+	var voile := ColorRect.new()
+	voile.color = Color(0, 0, 0, 0.45)
+	voile.set_anchors_preset(Control.PRESET_FULL_RECT)
+	voile.mouse_filter = Control.MOUSE_FILTER_STOP
+	voile.gui_input.connect(func(e: InputEvent) -> void:
 		if e is InputEventMouseButton and e.pressed:
 			_fermer())
-	add_child(fond)
+	add_child(voile)
 
-	# Le bandeau coiffe la plaque au lieu d'y être rangé : c'est la planche de
-	# bois qui doit border l'écran, pas le lin. Même construction qu'au comptoir.
-	var racine := Control.new()
-	racine.set_anchors_preset(Control.PRESET_CENTER)
-	racine.mouse_filter = Control.MOUSE_FILTER_STOP
-	racine.scale = Vector2(ECHELLE_MENU, ECHELLE_MENU)
-	racine.pivot_offset = Vector2(LARGEUR, HAUTEUR) * 0.5
-	racine.resized.connect(func() -> void:
-		racine.pivot_offset = racine.size * 0.5)
-	add_child(racine)
-	racine.offset_left = -LARGEUR / 2.0
-	racine.offset_top = -HAUTEUR / 2.0
-	racine.offset_right = LARGEUR / 2.0
-	racine.offset_bottom = HAUTEUR / 2.0
-
-	var plaque := PanelContainer.new()
-	var sb := _cadre(LIN, 8, 3)
-	sb.content_margin_left = 0
-	sb.content_margin_right = 0
-	sb.content_margin_top = 0
-	sb.content_margin_bottom = 0
-	plaque.add_theme_stylebox_override("panel", sb)
-	plaque.set_anchors_preset(Control.PRESET_FULL_RECT)
-	plaque.offset_left = RETRAIT_FOND
-	plaque.offset_right = -RETRAIT_FOND
-	plaque.offset_top = DESCENTE_FOND
-	plaque.clip_contents = true
-	plaque.mouse_filter = Control.MOUSE_FILTER_STOP
-	racine.add_child(plaque)
-
+	# Le cadre : le panneau peint de PR3, à sa taille native, centré. Les marges
+	# de contenu rentrent sous le cadre peint ; plus haut en tête pour l'ornement
+	# et le nom de la ville, qui vit dans le bandeau du panneau.
+	var cadre := PanelContainer.new()
+	cadre.set_anchors_preset(Control.PRESET_CENTER)
+	cadre.custom_minimum_size = Vector2(LARGEUR, HAUTEUR)
+	cadre.position = Vector2(-LARGEUR / 2.0, -HAUTEUR / 2.0)
+	var style := SkinPR3.cadre("skinlib_pr3/801")
+	if style is StyleBoxTexture:
+		style.set_content_margin_all(44)
+		style.content_margin_top = 30
+		style.content_margin_bottom = 40
+	cadre.add_theme_stylebox_override("panel", style)
+	cadre.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(cadre)
 
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 10)
-	plaque.add_child(col)
+	col.add_theme_constant_override("separation", 8)
+	cadre.add_child(col)
 
-	var sous_bandeau := Control.new()
-	sous_bandeau.custom_minimum_size.y = BandeauTitre.HAUTEUR - DESCENTE_FOND
-	col.add_child(sous_bandeau)
+	# Tête : nom de la ville, et le X de fermeture, comme les dialogues de PR3.
+	var tete := HBoxContainer.new()
+	col.add_child(tete)
+	_titre = _texte("", 26, OR.darkened(0.1))
+	_titre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tete.add_child(_titre)
+	var fermer_b := Button.new()
+	fermer_b.text = "✕"
+	fermer_b.flat = true
+	fermer_b.add_theme_font_size_override("font_size", 20)
+	fermer_b.add_theme_color_override("font_color", ENCRE)
+	fermer_b.pressed.connect(_fermer)
+	tete.add_child(fermer_b)
 
-	_bandeau = BandeauTitre.new()
-	_bandeau.ferme.connect(_fermer)
-	# On est déjà sur la page d'infos : le « i » du bandeau n'a nulle part où
-	# mener.
-	_bandeau.griser_infos(true)
-	racine.add_child(_bandeau)
-	# La bordure du bas : deux equerres qui ferment le cadre, comme le bandeau le
-	# coiffe. Son milieu est vide, donc seuls les coins mordent sur le contenu —
-	# d'ou la marge basse qui leur laisse la place.
-	_bas = NinePatchRect.new()
-	var cb := UI + "bas_de_menu.png"
-	if ResourceLoader.exists(cb):
-		_bas.texture = load(cb)
-	_bas.patch_margin_left = MARGE_EQUERRE
-	_bas.patch_margin_right = MARGE_EQUERRE
-	_bas.patch_margin_top = 0
-	_bas.patch_margin_bottom = 0
-	_bas.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	racine.add_child(_bas)
-	_plaque = plaque
-	plaque.resized.connect(_replacer_bandeau)
-	_replacer_bandeau()
+	col.add_child(_bande_onglets())
 
-	var dedans := MarginContainer.new()
-	dedans.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	for cote in ["left", "right"]:
-		dedans.add_theme_constant_override("margin_" + cote, 14)
-	dedans.add_theme_constant_override("margin_bottom", 36)
-	col.add_child(dedans)
-	var col2 := VBoxContainer.new()
-	col2.add_theme_constant_override("separation", 10)
-	dedans.add_child(col2)
-	col = col2
+	# Corps : deux colonnes, comme la fiche TownInfo — la vue de la ville à
+	# gauche, ses chiffres et ses biens à droite.
+	var corps := HBoxContainer.new()
+	corps.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	corps.add_theme_constant_override("separation", 20)
+	col.add_child(corps)
 
-	col.add_child(_onglets())
-	col.add_child(_blason())
-	col.add_child(_ligne_habitants())
-	col.add_child(_separateur())
-	col.add_child(_section_production())
+	corps.add_child(_colonne_vue())
+
+	var droite := VBoxContainer.new()
+	droite.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	droite.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	droite.add_theme_constant_override("separation", 12)
+	corps.add_child(droite)
+
+	droite.add_child(_ligne_prosperite())
+	droite.add_child(_ligne_habitants())
+	droite.add_child(_separateur())
+	droite.add_child(_section_production())
 
 	var pousse := Control.new()
 	pousse.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	col.add_child(pousse)
+	droite.add_child(pousse)
 
 	var pied := _texte("Échap ou clic hors du cadre pour fermer", 12, ENCRE_PALE,
-					   0.0, HORIZONTAL_ALIGNMENT_CENTER)
+					   HORIZONTAL_ALIGNMENT_CENTER)
 	pied.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_child(pied)
 
 
-# La vignette du village sur son pavillon. Les deux sont empilés dans le même
-# rectangle, le pavillon d'abord : c'est l'ordre des enfants qui fait la
-# profondeur, et non un z_index qu'il faudrait maintenir.
-func _blason() -> Control:
+# La bande d'onglets de Scene_Trade. La page courante (Infos ville) est enfoncée
+# et inerte ; « Marchandises » mène au comptoir si un convoi est à quai ; les
+# autres attendent leur écran.
+func _bande_onglets() -> Control:
+	var ligne := HBoxContainer.new()
+	ligne.add_theme_constant_override("separation", 4)
+	for i in ONGLETS.size():
+		var libelle: String = ONGLETS[i]
+		var b := Button.new()
+		b.text = libelle
+		b.focus_mode = Control.FOCUS_NONE
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size.y = 34
+		b.add_theme_font_size_override("font_size", 15)
+		var f := _police()
+		if f != null:
+			b.add_theme_font_override("font", f)
+		var courant := i == 0
+		for etat in ["normal", "hover", "pressed", "disabled"]:
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = BOIS if courant else Color(0.30, 0.22, 0.13, 0.65)
+			if etat == "hover":
+				sb.bg_color = Color(0.34, 0.25, 0.15)
+			sb.border_color = OR
+			sb.border_width_top = 2
+			sb.border_width_left = 2
+			sb.border_width_right = 2
+			sb.set_corner_radius_all(3)
+			sb.content_margin_top = 6
+			sb.content_margin_bottom = 6
+			b.add_theme_stylebox_override(etat, sb)
+		b.add_theme_color_override("font_color", OR_CLAIR if courant else Color(0.78, 0.70, 0.56))
+		b.add_theme_color_override("font_hover_color", OR_CLAIR)
+		b.add_theme_color_override("font_disabled_color", OR_CLAIR)
+		if courant:
+			b.disabled = true
+		elif libelle == "Marchandises":
+			_onglet_marchandises = b
+			b.pressed.connect(func() -> void: denrees_demandees.emit(_port))
+		else:
+			b.disabled = true
+			b.tooltip_text = "Pas encore en place"
+		ligne.add_child(b)
+	return ligne
+
+
+# La vue de la ville : sa vignette sur le pavillon de sa nation, comme le portrait
+# de ville de TownInfo.
+func _colonne_vue() -> Control:
 	var boite := Control.new()
-	boite.custom_minimum_size = Vector2(0, HAUTEUR_BLASON)
-	boite.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	# Le pavillon dépasse de la VIGNETTE, jamais de la boîte. C'est toute la
-	# différence entre un fond et un débordement : en laissant le pavillon sortir
-	# de son conteneur, il passait par-dessus le nom de la nation et le nombre
-	# d'habitants, qui devenaient illisibles sur les bandes rouges.
+	boite.custom_minimum_size = Vector2(300, 0)
+	boite.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	boite.clip_contents = true
 
 	_pavillon = TextureRect.new()
 	_pavillon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_pavillon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_pavillon.modulate = Color(1, 1, 1, OPACITE_PAVILLON)
+	_pavillon.modulate = Color(1, 1, 1, 0.55)
 	_pavillon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_pavillon.set_anchors_preset(Control.PRESET_FULL_RECT)
 	boite.add_child(_pavillon)
 
-	# La vignette occupe le centre : c'est elle qu'on rétrécit, et le pavillon
-	# qui reste pleine boîte se voit donc dépasser tout autour.
 	_vignette = TextureRect.new()
 	_vignette.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_vignette.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var marge := HAUTEUR_BLASON * (1.0 - 1.0 / DEBORD_PAVILLON) * 0.5
-	_vignette.offset_top = marge
-	_vignette.offset_bottom = -marge
+	_vignette.offset_top = 40
+	_vignette.offset_bottom = -40
 	boite.add_child(_vignette)
 	return boite
 
 
-func _replacer_bandeau() -> void:
-	if _bandeau == null or _plaque == null:
-		return
-	_bandeau.position = Vector2(_plaque.position.x - RETRAIT_FOND, 0.0)
-	_bandeau.size = Vector2(_plaque.size.x + RETRAIT_FOND * 2.0,
-							BandeauTitre.HAUTEUR)
-	if _bas != null:
-		_bas.position = Vector2(_plaque.position.x - RETRAIT_FOND,
-			_plaque.position.y + _plaque.size.y - HAUTEUR_BAS + DEBORD_BAS)
-		_bas.size = Vector2(_plaque.size.x + RETRAIT_FOND * 2.0, HAUTEUR_BAS)
+func _ligne_prosperite() -> Control:
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 8)
+	hb.add_child(_texte("Prospérité", 18, OR.darkened(0.1)))
+	_lbl_prosperite = _texte("", 20, ENCRE)
+	_lbl_prosperite.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_lbl_prosperite.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	hb.add_child(_lbl_prosperite)
+	_fleche = _texte("", 22, VERT)
+	hb.add_child(_fleche)
+	return hb
 
 
 func _ligne_habitants() -> Control:
 	var hb := HBoxContainer.new()
-	hb.alignment = BoxContainer.ALIGNMENT_CENTER
 	hb.add_theme_constant_override("separation", 8)
-
-	_lbl_habitants = _texte("", 22, ENCRE_BRUNE)
+	hb.add_child(_texte("Population", 18, OR.darkened(0.1)))
+	_lbl_habitants = _texte("", 20, ENCRE)
+	_lbl_habitants.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_lbl_habitants.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	hb.add_child(_lbl_habitants)
-
-	_fleche = _texte("", 22, VERT)
-	hb.add_child(_fleche)
-
-	var h := _texte("habitants", 15, ENCRE_PALE)
-	hb.add_child(h)
+	hb.add_child(_texte("hab.", 15, ENCRE_PALE))
 	return hb
 
 
 func _separateur() -> Control:
 	var t := ColorRect.new()
-	t.color = OR.darkened(0.35)
+	t.color = OR.darkened(0.2)
 	t.custom_minimum_size = Vector2(0, 2)
 	return t
 
@@ -363,26 +282,22 @@ func _separateur() -> Control:
 func _section_production() -> Control:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8)
+	col.add_child(_texte("Production", 18, OR.darkened(0.1)))
 
-	col.add_child(_texte("Production", 18, OR.darkened(0.45)))
-
-	# Première ligne : les trois chiffres de l'activité.
 	var chiffres := HBoxContainer.new()
 	chiffres.add_theme_constant_override("separation", 0)
-	_lbl_fabriques = _texte("", 15, ENCRE_BRUNE)
+	_lbl_fabriques = _texte("", 15, ENCRE)
 	_lbl_fabriques.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_lbl_maisons = _texte("", 15, ENCRE_BRUNE, 0.0, HORIZONTAL_ALIGNMENT_CENTER)
+	_lbl_maisons = _texte("", 15, ENCRE, HORIZONTAL_ALIGNMENT_CENTER)
 	_lbl_maisons.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_lbl_occupation = _texte("", 15, ENCRE_BRUNE, 0.0, HORIZONTAL_ALIGNMENT_RIGHT)
+	_lbl_occupation = _texte("", 15, ENCRE, HORIZONTAL_ALIGNMENT_RIGHT)
 	_lbl_occupation.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	chiffres.add_child(_lbl_fabriques)
 	chiffres.add_child(_lbl_maisons)
 	chiffres.add_child(_lbl_occupation)
 	col.add_child(chiffres)
 
-	# Seconde ligne : les cinq marchandises que la ville produit.
 	_rang_produits = HBoxContainer.new()
-	_rang_produits.alignment = BoxContainer.ALIGNMENT_CENTER
 	_rang_produits.add_theme_constant_override("separation", 10)
 	col.add_child(_rang_produits)
 	return col
@@ -412,10 +327,10 @@ func rafraichir() -> void:
 	if _port.is_empty():
 		return
 
-	_bandeau.poser(String(_port.get("nom", "?")))
-	if _bouton_denrees != null:
-		_bouton_denrees.disabled = not _convoi_a_quai
-		_bouton_denrees.tooltip_text = ("Le comptoir de la ville"
+	_titre.text = String(_port.get("nom", "?"))
+	if _onglet_marchandises != null:
+		_onglet_marchandises.disabled = not _convoi_a_quai
+		_onglet_marchandises.tooltip_text = ("Le comptoir de la ville"
 			if _convoi_a_quai else "Il faut un convoi à quai pour commercer")
 
 	var habitants := int(_port.get("habitants", 0))
@@ -423,10 +338,8 @@ func rafraichir() -> void:
 	var fabriques := 0
 	var maisons := 0
 	var occupation := 0.0
+	var prosperite := int(_port.get("prosperite", 0))
 
-	# La simulation a le dernier mot sur tous ces chiffres : la population du
-	# dictionnaire de port date du dernier rafraîchissement de la carte, celle
-	# de l'économie est du jour même.
 	if _sim != null:
 		var etat: Dictionary = _sim.etat_ville(String(_port.get("cle", "")))
 		if not etat.is_empty():
@@ -435,8 +348,11 @@ func rafraichir() -> void:
 			fabriques = int(etat.get("fabriques", 0))
 			maisons = int(etat.get("maisons", 0))
 			occupation = float(etat.get("occupation", 0.0))
+			prosperite = int(etat.get("prosperite", prosperite))
 
 	_lbl_habitants.text = _nombre(habitants)
+	_lbl_prosperite.text = (_nombre(prosperite) if prosperite > 0
+		else "occupée à %d %%" % int(round(occupation * 100.0)))
 	if tendance > 0:
 		_fleche.text = "▲"
 		_fleche.add_theme_color_override("font_color", VERT)
@@ -445,7 +361,7 @@ func rafraichir() -> void:
 		_fleche.add_theme_color_override("font_color", ROUGE)
 	else:
 		_fleche.text = "—"
-		_fleche.add_theme_color_override("font_color", ENCRE)
+		_fleche.add_theme_color_override("font_color", ENCRE_PALE)
 
 	_lbl_fabriques.text = "%d fabriques" % fabriques
 	_lbl_maisons.text = "%d maisons" % maisons
@@ -456,14 +372,10 @@ func rafraichir() -> void:
 	_poser_produits()
 
 
-# Le stade de croissance vient de `Villes`, et de nulle part ailleurs : la carte
-# dessine déjà le village avec cette table, et deux seuils différents feraient
-# afficher au panneau une ville que le joueur ne voit pas sur la carte.
 func _poser_vignette(habitants: int) -> void:
 	if _villes == null or _villes.vide():
 		return
-	var faux_port := {"habitants": habitants}
-	_vignette.texture = _villes.texture_pour(faux_port)
+	_vignette.texture = _villes.texture_pour({"habitants": habitants})
 
 
 func _poser_pavillon() -> void:

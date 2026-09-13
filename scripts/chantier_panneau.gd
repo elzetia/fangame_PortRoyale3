@@ -69,16 +69,19 @@ func _construire() -> void:
 			fermer())
 	add_child(voile)
 
+	# Le cadre : le panneau peint de PR3 (Dialog_Tabbed_Big, 748x578) si l'art est
+	# là, sinon un parchemin dessiné. On garde la taille native du panneau pour ne
+	# pas étirer ses ornements. Les marges de contenu rentrent SOUS le cadre peint :
+	# plus haut en tête pour laisser l'ornement d'en-tête de PR3.
 	var cadre := PanelContainer.new()
 	cadre.set_anchors_preset(Control.PRESET_CENTER)
-	cadre.custom_minimum_size = Vector2(720, 560)
-	cadre.position = Vector2(-360, -280)
-	var style := StyleBoxFlat.new()
-	style.bg_color = LIN
-	style.border_color = BOIS
-	style.set_border_width_all(6)
-	style.set_corner_radius_all(4)
-	style.set_content_margin_all(16)
+	cadre.custom_minimum_size = Vector2(748, 578)
+	cadre.position = Vector2(-374, -289)
+	var style := SkinPR3.cadre("skinlib_pr3/801")
+	if style is StyleBoxTexture:
+		style.set_content_margin_all(44)
+		style.content_margin_top = 70
+		style.content_margin_bottom = 40
 	cadre.add_theme_stylebox_override("panel", style)
 	cadre.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(cadre)
@@ -102,15 +105,16 @@ func _construire() -> void:
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_child(tabs)
-	# Ordre de PR3 (DialogShipyard) : Construire (Build), Acheter (Buy), Vendre, Réparer.
+	# Ordre exact de Scene_Shipyard (dialog_shipyard_pc.swf, décodé) :
+	# Tab_Shipyard_build, _repair, _buy, _sell (+ _sell_pirate, hors jeu ici).
 	tabs.add_child(_onglet_construire())
+	tabs.add_child(_onglet_reparer())
 	tabs.add_child(_onglet_acheter())
 	tabs.add_child(_onglet_vendre())
-	tabs.add_child(_onglet_reparer())
 	tabs.set_tab_title(0, "Construire")
-	tabs.set_tab_title(1, "Acheter")
-	tabs.set_tab_title(2, "Vendre")
-	tabs.set_tab_title(3, "Réparer")
+	tabs.set_tab_title(1, "Réparer")
+	tabs.set_tab_title(2, "Acheter")
+	tabs.set_tab_title(3, "Vendre")
 
 	_msg = _lbl("", 13, Color(0.5, 0.1, 0.1))
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -143,6 +147,15 @@ func _onglet_construire() -> Control:
 	var v := VBoxContainer.new()
 	v.name = "Construire"
 	v.add_theme_constant_override("separation", 6)
+	# L'illustration du chantier de PR3 (dialog_shipyard_pc/18.png), si l'art est là.
+	var illu := SkinPR3.texture("dialog_shipyard_pc/18")
+	if illu != null:
+		var tr := TextureRect.new()
+		tr.texture = illu
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.custom_minimum_size = Vector2(0, 150)
+		tr.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		v.add_child(tr)
 	v.add_child(_lbl("Construire un navire (or + matières + délai)", 15, BOIS_CLAIR))
 	_type_constr = OptionButton.new()
 	_type_constr.item_selected.connect(func(_i: int) -> void: _maj_infos())
