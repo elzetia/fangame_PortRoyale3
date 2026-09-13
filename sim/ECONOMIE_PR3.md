@@ -520,22 +520,62 @@ La ville évolue selon le premier : la famine commence au-delà de **trois
 aliments manquants**, ce qui tranche la contradiction du §5 en faveur du
 tutoriel. Une ville de moins de 300 habitants n'entre jamais en famine.
 
-**Les fléaux** ajoutent une consommation en pourcentage de A :
-- **peste** : tissu et vêtements ;
-- **sauterelles** : fruits, chanvre et pain ;
-- **feu** : bois et briques.
+**La série de prix « pénurie »** (bit 11, `X%uknapp`) est levée par un compteur
+lissé (`0x75C120`) : chaque jour où des denrées manquent l'incrémente du nombre
+de manquantes, plafonné à 25 ; au-delà de 24 la ville passe au barème de rareté,
+et sans manque le compteur redescend et l'éteint. Le même schéma tient le
+compteur de faim (`0x75BA00`, à partir de son propre seuil).
 
-**La prospérité** a sept niveaux nommés, du plus bas au plus haut :
+**Les fléaux** ajoutent une consommation en pourcentage de A (`0x7C2080`), et
+sont chargés depuis `Katastrophen`/`Verbrauch` (`0x829780`) :
+- **peste** (`Pest`) : tissu et vêtements ;
+- **sauterelles** (`Heuschrecken`) : fruits, chanvre et pain ;
+- **feu** (`Feuer`, avec `FeuerSpread`) : bois et briques.
 
-| Niveau | Effet |
-|---|---|
-| Pauvreté | 2 % des citoyens redeviennent colons par jour ; ni bâtiments ni nouveaux ouvriers |
-| Récession | 1 % par jour ; pas de nouveaux ouvriers |
-| Stagnation | aucun effet encore |
-| État d'urgence | un événement en cours |
-| Redressement | la ville se remet d'un événement |
-| Croissance | monte tant que la ville dépasse 2 000 habitants |
-| Prospérité | entretien −5 %, colons chaque jour ; niveau suivant au-delà de 6 000 habitants |
+Ils sont tirés au sort (`0x7BD5E0` lance un événement de durée `2`, `0x7BD6F0`,
+`0x7BD7B0`), et la peste tue en plus (`Pesttote`) et fait émigrer (`Abwanderung`,
+facteurs `Arbeiter` et `Pesttote`, `0x7B9F40`).
+
+**La qualité de vie** (`0x7BF8A0`, en fin de calcul des seuils) est une note sur
+cent. Chaque denrée rapporte `poids × min(1, stock/X1)` point, plein dès son
+premier seuil de prix atteint — « la fourniture de denrées a un impact maximum
+sur la prospérité dès que le stock atteint au moins une barre ». Les vingt
+denrées forment quatre groupes, chacun plafonné à vingt points :
+
+| Groupe | Poids | Denrées |
+|---|---|---|
+| base | 7 | bois, briques, blé, fruits |
+| produits finis | 6 | outils, viande, vêtements, cordage, rhum, pain |
+| export | 5 | teintures, café, cacao, tabac |
+| autres | 5 (× difficulté) | maïs, sucre, chanvre, tissu, métal, coton |
+
+Quatre-vingts points au mieux ; les vingt derniers viennent des bâtiments publics
+(école, hôpital…) et d'un terme de population et d'emploi.
+
+**La prospérité** a sept niveaux nommés (`ID_GUI_TOWN_WEALTH_00…07`, plus
+`Opulence`), lus de la note sur cent (`0x7C2400`, seuils 20/40/60/75/90) avec des
+portes de population :
+
+| Niveau | Note | Effet |
+|---|---|---|
+| Pauvreté | ≤ 20 | 2 % des citoyens redeviennent colons par jour ; ni bâtiments ni ouvriers |
+| Récession | ≤ 40 | 1 % par jour ; « sous 40 %, des citoyens partent chaque jour » |
+| Stagnation | ≤ 60 | ni montée ni descente |
+| Redressement / Croissance | ≤ 75 | la ville remonte |
+| Prospérité | > 75 | colons chaque jour, au-delà de 2 000 habitants ; entretien −5 % |
+| Opulence | > 90 | au-delà de 6 000 habitants |
+
+La croissance passe par un stock de colons (`+0xD0`) qui se convertit en citoyens
+(`+0xC0`) vers une cible (`+0xD4`), au plus dix par jour (`0x7BF3D0`) ; les
+colons arrivent et repartent par la mer, portés par les convois (`0x7C9860`).
+
+**La construction de l'IA** (`0x7B4F90`) : chaque marchand, à intervalle
+`KiUpdateConvoySize`, parcourt les vingt métiers et bâtit un atelier de la
+marchandise dont la demande de l'archipel dépasse `Bauquotient × production`
+(comparaison `demande × 100 > production × 85`), à condition que la ville soit
+au-dessus de `NeubauMinAlq` (50) de qualité et qu'il reste moins de trente
+chantiers en cours. C'est là que passe l'or que les marchands amassent —
+`0x7B5A90` ajoute le coût du terrain et le prélève.
 
 ### 10.9 Ce qu'il reste à trancher
 
@@ -543,8 +583,6 @@ tutoriel. Une ville de moins de 300 habitants n'entre jamais en famine.
 - **Trajets des convois IA** : leur nombre (2 par ville) et leur taille (habitants
   × 420 ÷ 1 900 tonneaux, 1 à 3 navires tirés au hasard) sont lus ; où ils vont
   ne l'est pas (voir `outils/PR3_TECHNIQUE.md`, « Les convois de l'IA »).
-- **Déclin en famine** : ce que la fonction `0x7685D0` fait du compteur (vitesse
-  du déclin, passage d'un niveau de prospérité à l'autre).
 - **Logement** : la vraie valeur de `FillRate`.
 - **Trésor** : son rôle (§9).
 
@@ -560,28 +598,44 @@ Tout ce qui précède et qui se simule sans bâtiments ni combats est dans `sim/
 | Prix = moyenne de la courbe sur le lot, sans commission ; la ville peut être vidée | `sim/economie.lua` |
 | Faim : aliments manquants à partir de −3, denrées à partir de −12, pas de famine sous 300 habitants | `sim/economie.lua` |
 | 25 ouvriers par atelier, 4 citoyens par emploi, 100 locataires par maison | `sim/economie.lua` |
+| **Qualité de vie sur cent, par quatre groupes de denrées ; sept niveaux de prospérité** | `sim/economie.lua` |
+| **Croissance et déclin gradués par la prospérité : Pauvreté −2 %/j, Récession −1 %/j, Prospérité +colons, freinés par la subsistance** | `sim/economie.lua` |
+| **Série de prix « pénurie » par ville, levée par un compteur de manque lissé (seuil 24)** | `sim/economie.lua` |
 | Seize navires, leur cale, leur vitesse maximale et leur entretien journalier | `sim/navires.lua` |
 | Entretien du navire du joueur, prélevé chaque jour | `sim/compagnie.lua` |
 | 2 convois IA par ville, cale visée de habitants × 420 ÷ 1 900, 1 à 3 navires tirés au hasard, 90 000 pièces | `sim/marchands.lua` |
+| **Or d'un convoi plafonné à son capital de travail ; le débordement bâtit des ateliers pour les chaînes faibles (comme l'IA de PR3)** | `sim/marchands.lua` |
 
-Mesuré sur dix ans par `tools/equilibre.gd`, à partir de 82 500 habitants :
-- **Population** : elle monte à 155 800 en cinq ans, puis plafonne entre 157 000
-  et 159 000.
-- **Famine** : de 0 à 6 villes selon les années.
-- **Pénurie générale** : de 1 à 3 villes.
-- **Ateliers à dix ans** : métal 96 %, outils et cordage 83 %, tissu 72 %, café
-  66 %, viande 59 %, rhum 56 %, cacao et vêtements 33 %, pain 24 %.
+Mesuré sur douze ans par `tools/equilibre.gd`, à partir de 82 500 habitants :
+- **Population** : elle monte régulièrement puis plafonne autour de 161 000.
+- **Famine** : de 0 à 8 villes selon les années.
+- **Pénurie générale** : de 0 à 3 villes.
+- **Or moyen d'un convoi** : borné, autour de 65 000 à 85 000 pièces (au lieu de
+  s'envoler vers plusieurs millions).
+- **Ateliers à douze ans** : métal et tissu 91 %, cordage 80 %, viande et vêtements
+  60 %, café 59 %, outils 57 %, pain 48 %, rhum 37 %, cacao 22 %.
 
-**Ce qui reste à nous, faute d'avoir été lu ou simulé :**
-- **Croissance et déclin** : la vitesse suivant les compteurs de faim. PR3 passe par sept
-  niveaux de prospérité dont seuls les effets extrêmes sont connus.
-- **Débits** : la production de chaque ville se déduit de la demande de
-  l'archipel. PR3 la fait dépendre des ateliers bâtis.
+Le pain, qui restait la chaîne la plus faible (24 %), monte à 48 % ; les vêtements
+passent de 33 % à 60 %. La construction de l'IA comble les chaînes dont les
+intrants sont disponibles, jusqu'à la demande du jour zéro, puis s'arrête : elle
+rattrape le déséquilibre de départ sans devenir un moteur de croissance sans fin.
+
+**Comment la prospérité est appliquée.** La note de PR3 est reproduite denrée par
+denrée (`Marchandises.GROUPES_QUALITE`), et c'est elle qui commande la
+démographie — la vitesse de PR3, non plus le seul compteur de faim. La famine
+(trois aliments manquants) l'emporte toujours ; la subsistance freine la
+croissance, si bien qu'une ville prospère de tissu mais sans pain n'enfle pas
+au-delà de ce que sa nourriture porte.
+
+**Ce qui reste à nous, faute d'avoir été lu ou entièrement simulé :**
+- **Bâtiments publics** : les vingt derniers points de qualité (école, hôpital…)
+  sont remplacés par une dotation civique proportionnelle à la note des denrées.
+- **Débits de départ** : la production initiale de chaque ville se déduit de la
+  demande de l'archipel ; PR3 part d'un nombre d'ateliers (`StartFabriken`). La
+  construction de l'IA prend ensuite le relais, comme dans le jeu.
 - **Trajets des convois** : un caboteur de voisinage et un long-courrier vers la
   ville la plus rentable, mesurés et non lus.
-- **Non simulés** :
-  - la réputation gagnée ou perdue en commerçant ;
-  - les fléaux ;
-  - la série de prix « pénurie ».
-- **Déséquilibres** : le pain reste la chaîne la plus faible, et les convois IA
-  accumulent de l'or malgré l'entretien.
+- **Non simulés** : la réputation gagnée ou perdue en commerçant (`0x7839E0` /
+  `0x783B40` : vendre sous X1 la lève, acheter sous X1 la baisse), et les fléaux
+  eux-mêmes (leurs denrées et leurs effets sont connus, §10.8, mais aucun n'est
+  déclenché).

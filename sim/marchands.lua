@@ -76,6 +76,14 @@ Marchands.NAVIRES_MAX = 3
 -- partie. On prend le cran du milieu, partagé entre ses deux convois.
 local OR_MARCHAND = 90000
 
+-- Un convoi est un CAPITAL DE TRAVAIL, pas un trésor. Dans PR3 l'or d'un marchand
+-- ressort aussitôt : il bâtit des ateliers et des maisons, arme d'autres navires,
+-- paie ses équipages. On ne simule pas ces dépenses une à une, mais on en garde
+-- l'effet : la caisse d'un convoi est plafonnée, et tout ce qui déborde alimente
+-- le fonds de construction (voir `investir`). Sans ce plafond, les convois
+-- amassaient des millions sans jamais rien en faire.
+local OR_PLAFOND = OR_MARCHAND
+
 local ESCALE = 1.0          -- jours passés à quai
 
 -- En dessous de ce nombre de barres, la ville est considérée en manque. Quatre
@@ -243,6 +251,8 @@ end
 
 function Marchands.reinitialiser()
   construire_voisinage()
+  Marchands.fonds = 0
+  Marchands.demande_ref = nil
   Marchands.liste = {}
   for _, port in ipairs(Archipel.ports) do
     local graine = 0
@@ -454,14 +464,110 @@ local function accoster(m)
 end
 
 
+-- L'INVESTISSEMENT DE L'IA. Les marchands de PR3 ne thésaurisent pas : leur or
+-- sert à bâtir des ateliers (`0x7B4F90`). Quand une marchandise est sous-produite
+-- sur la carte — sa demande dépasse `Bauquotient` × sa production — un marchand en
+-- construit un et paie le terrain (`Bauplatzkosten`).
+--
+-- On le reproduit pour deux raisons trouvées dans le jeu : drainer l'or que les
+-- convois accumulaient sans fin, et grossir les chaînes faibles. On ne bâtit que
+-- ce dont LES INTRANTS sont disponibles — une boulangerie sans blé ni sucre ne
+-- produirait rien ; le blé et le sucre, eux, se bâtissent toujours, et c'est par
+-- eux que la chaîne du pain se débloque. La caisse commune des convois paie, ce
+-- qui la vide au rythme où elle se remplit.
+local INTERVALLE_CONSTRUCTION = 30    -- jours entre deux chantiers
+local COUVERTURE_VISEE = 0.98         -- on ne bâtit plus au-dessus de ce seuil
+local INTRANTS_MINIMUM = 0.90         -- couverture requise des intrants pour bâtir
+local CHANTIERS_MAX = 8               -- au plus tant de chantiers par mois
+local jours_ecoules = 0
+
+-- Le fonds de construction, alimenté par le débordement des caisses des convois.
+Marchands.fonds = 0
+
+-- La ville où poser l'atelier : la plus peuplée qui a déjà cette vocation, à
+-- défaut la plus peuplée de la carte — c'est là que PR3 concentre les fabriques.
+local function ville_pour(cle_bien)
+  local hote, taille = nil, -1
+  local grande, gtaille = nil, -1
+  for _, port in ipairs(Archipel.ports) do
+    if port.habitants > gtaille then grande, gtaille = port.cle, port.habitants end
+    for _, c in ipairs(port.produits or {}) do
+      if c == cle_bien and port.habitants > taille then hote, taille = port.cle, port.habitants end
+    end
+  end
+  return hote or grande
+end
+
+-- Le bien le moins couvert dont les intrants suivent — bâtir sans intrants ne
+-- produirait rien. Renvoie la marchandise, ou nil si tout est assez couvert.
+--
+-- On vise une demande DE RÉFÉRENCE, figée à la première passe : la construction
+-- comble les chaînes faibles jusqu'au niveau du jour zéro, puis s'arrête. Sans
+-- cela elle poursuivrait une demande qui enfle avec la population — chaque
+-- atelier bâti nourrissant la croissance qui en réclame un autre, sans fin. Elle
+-- rattrape un déséquilibre de départ ; elle n'est pas un moteur de croissance.
+local function bien_a_batir(prod, dem)
+  local pire, pire_c = nil, COUVERTURE_VISEE
+  for _, m in ipairs(Marchandises.liste) do
+    local besoin = dem[m.cle]
+    if besoin > 0 then
+      local seuil = COUVERTURE_VISEE / (m.bauquotient or 1.0)
+      local c = prod[m.cle] / besoin
+      if c < seuil and c < pire_c then
+        local intrants_ok = true
+        for _, ing in ipairs(m.recette or {}) do
+          if (dem[ing[1]] or 0) > 0 and (prod[ing[1]] or 0) / dem[ing[1]] < INTRANTS_MINIMUM then
+            intrants_ok = false
+          end
+        end
+        if intrants_ok then pire, pire_c = m, c end
+      end
+    end
+  end
+  return pire
+end
+
+-- On bâtit tant que le fonds le permet, au plus quelques chantiers par mois : le
+-- fonds vient du débordement des caisses, donc les chantiers suivent le rythme où
+-- les convois dégagent un surplus, et cessent quand les chaînes sont complètes.
+local function investir()
+  -- La demande de référence, figée au premier mois.
+  if not Marchands.demande_ref then
+    local _, dem = Economie.couverture()
+    Marchands.demande_ref = dem
+  end
+  local ref = Marchands.demande_ref
+  for _ = 1, CHANTIERS_MAX do
+    local prod = Economie.couverture()
+    local m = bien_a_batir(prod, ref)
+    if not m or Marchands.fonds < m.batiment.cout then return end
+    local cle_ville = ville_pour(m.cle)
+    if not cle_ville or not Economie.batir(cle_ville, m.cle) then return end
+    Marchands.fonds = Marchands.fonds - m.batiment.cout
+  end
+end
+
+
 -- Avance les convois de `jours` jours de jeu (fraction acceptée).
 function Marchands.avancer(jours)
   if #Marchands.liste == 0 then Marchands.reinitialiser() end
   if not jours or jours <= 0 then return end
 
+  jours_ecoules = jours_ecoules + jours
+  while jours_ecoules >= INTERVALLE_CONSTRUCTION do
+    jours_ecoules = jours_ecoules - INTERVALLE_CONSTRUCTION
+    investir()
+  end
+
   for _, m in ipairs(Marchands.liste) do
     -- L'entretien des navires, au jour le jour, à quai comme en mer.
     m.or_ = m.or_ - (m.entretien or 0) * jours
+    -- Le débordement de la caisse part au fonds de construction : un convoi ne
+    -- garde qu'un capital de travail.
+    if m.or_ > OR_PLAFOND then
+      Marchands.fonds = Marchands.fonds + (m.or_ - OR_PLAFOND)
+      m.or_ = OR_PLAFOND
+    end
     if m.ville then
       m.escale = m.escale - jours
       if m.escale <= 0 then

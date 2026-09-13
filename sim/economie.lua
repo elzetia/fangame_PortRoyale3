@@ -239,28 +239,32 @@ end
 
 -- Les coefficients de prix de PR3 (table `Preisfaktoren`) : trois crans, chacun
 -- avec une série normale et une série « pénurie » plus raide dans le haut. Le
--- premier cran est celui du barème publié (200, 180, 120, 80). PR3 bascule sur
--- la série « pénurie » quand un indicateur d'état de la ville est levé ; son
--- déclencheur n'a pas été lu, elle reste éteinte.
+-- premier cran est celui du barème publié (200, 180, 120, 80).
+--
+-- PR3 bascule une ville sur sa série « pénurie » quand le drapeau `X%uknapp`
+-- (bit 11 de l'état de la ville) est levé. Ce drapeau se lève par un compteur
+-- lissé (`0x75C120`) : chaque jour où plusieurs denrées manquent l'incrémente, et
+-- quand il atteint 25 le marché tout entier passe en régime de rareté ; il se
+-- rabaisse quand la ville est de nouveau servie. C'est notre `ville.knapp`, tenu
+-- par `jour()`.
 Economie.PREISFAKTOREN = {
   { normal = { 2.0, 1.8, 1.2, 1.2, 0.8 }, penurie = { 3.0, 2.7, 1.2, 1.2, 0.8 } },
   { normal = { 1.8, 1.6, 1.2, 1.2, 0.7 }, penurie = { 2.7, 2.4, 1.2, 1.2, 0.7 } },
   { normal = { 1.6, 1.4, 1.1, 1.1, 0.6 }, penurie = { 2.4, 2.1, 1.1, 1.1, 0.6 } },
 }
 Economie.REGLAGE_PRIX = 1
-Economie.PENURIE = false
 
-local function coefficients()
+local function coefficients(knapp)
   local jeu = Economie.PREISFAKTOREN[Economie.REGLAGE_PRIX] or Economie.PREISFAKTOREN[1]
-  return Economie.PENURIE and jeu.penurie or jeu.normal
+  return knapp and jeu.penurie or jeu.normal
 end
 
 
 -- Le facteur à un niveau de stock, et le segment où il tombe — qui EST le nombre
 -- de barres d'abondance (fonction `0x765310` du jeu). Les deux sortent du même
 -- calcul : la jauge et le cours ne peuvent pas se contredire à l'écran.
-local function facteur(stock, s)
-  local c = coefficients()
+local function facteur(stock, s, c)
+  c = c or coefficients(false)
   if stock <= 0 then return c[1], 0 end
   for i = 1, 4 do
     if stock < s[i + 1] then
@@ -318,7 +322,7 @@ function Economie.barres(cle_ville, cle_m, delta)
   if not ville or not m then return 0 end
   local stock = (ville.stock[cle_m] or 0) + (delta or 0)
   if stock < 0 then stock = 0 end
-  local _, barres = facteur(stock, seuils(ville, m))
+  local _, barres = facteur(stock, seuils(ville, m), coefficients(ville.knapp))
   return barres
 end
 
@@ -335,6 +339,10 @@ function Economie.reinitialiser()
       stock = {},
       faim = -3,
       penurie = -12,
+      knapp = false,
+      knapp_serie = 0,
+      qualite = 100,
+      niveau = 5,
     }
     -- Ce que ses ateliers tirent de ses entrepôts chaque jour, à pleine
     -- capacité : la part « manufactures » de sa demande. La production est
@@ -369,6 +377,40 @@ end
 function Economie.ville(cle)
   if not next(Economie.villes) then Economie.reinitialiser() end
   return Economie.villes[cle]
+end
+
+
+-- La couverture de chaque marchandise sur toute la carte : sa production
+-- rapportée à sa demande (habitants, export et intrants des ateliers). C'est ce
+-- que l'IA de PR3 regarde pour décider de bâtir (`0x7B4F90`) : sous Bauquotient,
+-- la marchandise manque.
+function Economie.couverture()
+  local prod, dem = {}, {}
+  for _, m in ipairs(Marchandises.liste) do prod[m.cle], dem[m.cle] = 0, 0 end
+  for _, v in pairs(Economie.villes) do
+    for _, m in ipairs(Marchandises.liste) do
+      prod[m.cle] = prod[m.cle] + (v.production[m.cle] or 0)
+      dem[m.cle] = dem[m.cle] + consommation(v, m) + ((v.ateliers or {})[m.cle] or 0)
+    end
+  end
+  return prod, dem
+end
+
+
+-- Bâtir un atelier : PR3 y fait passer l'or que ses marchands amassent. On ajoute
+-- la capacité d'un atelier (25 ouvriers) à la production de la ville et on
+-- inscrit les intrants qu'il tirera désormais de ses entrepôts. Renvoie le coût
+-- du terrain (`Bauplatzkosten`), ou nil si le bien est inconnu.
+function Economie.batir(cle_ville, cle_bien)
+  local v = Economie.ville(cle_ville)
+  local m = Marchandises.get(cle_bien)
+  if not v or not m then return nil end
+  v.production[cle_bien] = (v.production[cle_bien] or 0) + m.atelier
+  v.ateliers = v.ateliers or {}
+  for _, ing in ipairs(m.recette or {}) do
+    v.ateliers[ing[1]] = (v.ateliers[ing[1]] or 0) + m.atelier * ing[2]
+  end
+  return m.batiment.cout
 end
 
 
@@ -427,13 +469,14 @@ function Economie.cotation(cle_ville, cle_m, quantite, sens)
   quantite = quantite or 0
   local stock = ville.stock[cle_m] or 0
   local s = seuils(ville, m)
+  local c = coefficients(ville.knapp)
   local f
   if quantite <= 0 or (sens ~= "achat" and sens ~= "vente") then
-    f = facteur(stock, s)
+    f = facteur(stock, s, c)
   elseif sens == "achat" then
-    f = integrale(stock - quantite, stock, s, coefficients()) / quantite
+    f = integrale(stock - quantite, stock, s, c) / quantite
   else
-    f = integrale(stock, stock + quantite, s, coefficients()) / quantite
+    f = integrale(stock, stock + quantite, s, c) / quantite
   end
 
   local base = m.prix * f
@@ -457,7 +500,7 @@ function Economie.ligne(cle_ville, cle_m)
   if not ville or not m then return nil end
   local stock = ville.stock[cle_m] or 0
   local s = seuils(ville, m)
-  local _, barres = facteur(stock, s)
+  local _, barres = facteur(stock, s, coefficients(ville.knapp))
   local prod = ville.production[cle_m] or 0
   return {
     cle = cle_m,
@@ -556,13 +599,90 @@ local DEPART_FAIM = -3
 local DEPART_PENURIE = -12
 local SANS_FAMINE = 300
 
--- Ce que PR3 fait de ces compteurs passe par sa prospérité, dont la vitesse n'a
--- pas été lue. Les taux ci-dessous sont les nôtres : on repeuple une colonie
--- lentement, on la vide en une saison.
-local CROISSANCE_MAX = 0.0008
-local DECLIN_PAR_ALIMENT = 0.0015
-local DECLIN_PAR_DENREE = 0.0005
+-- LA QUALITÉ DE VIE ET LA PROSPÉRITÉ, comme PR3 les calcule (`0x7BF8A0`, puis
+-- `0x7C2400`). Chaque jour la ville se note sur cent : chaque denrée rapporte des
+-- points selon son stock rapporté à son premier seuil de prix X1, pleins dès X1
+-- atteint — « la fourniture de denrées a un impact maximum sur la prospérité dès
+-- que le stock atteint au moins une barre », dit le tutoriel. Les vingt denrées
+-- se répartissent en quatre groupes (voir `Marchandises.GROUPES_QUALITE`), chacun
+-- plafonné, pour un total de quatre-vingts points ; les vingt derniers viennent
+-- des bâtiments publics, qu'on n'a pas, et qu'on remplace par une dotation civique
+-- proportionnelle à la note des denrées.
+--
+-- Cette note (0 à 100) commande sept niveaux, du plus bas au plus haut, comme les
+-- textes `ID_GUI_TOWN_WEALTH_00…07` : Pauvreté, Récession, Stagnation,
+-- Redressement, Croissance, Prospérité, Opulence. Le tutoriel en donne la vitesse
+-- et les portes : « sous 40 %, des citoyens redeviennent chaque jour des colons »,
+-- Prospérité au-delà de 2 000 habitants, Opulence au-delà de 6 000.
+--
+-- On remplace ainsi une démographie qui ne lisait que les compteurs de faim : la
+-- vitesse de croissance et de déclin est désormais celle de PR3, graduée par la
+-- satisfaction et non par le seul manque d'un aliment.
+local QUALITE_CIVIQUE = 0.25      -- dotation des bâtiments publics, en fraction de la note des denrées
+local SEUIL_RECESSION = 40        -- sous 40 %, la ville décline (tutoriel)
+local SEUIL_STAGNATION = 60
+local SEUIL_PROSPERITE = 75
+local SEUIL_OPULENCE = 90
+local POP_PROSPERITE = 2000       -- Prospérité (niveau 6) exige cette population
+local POP_OPULENCE = 6000         -- Opulence (niveau 7) exige celle-là
+
+-- Les vitesses journalières par niveau. Pauvreté et Récession sont celles du
+-- tutoriel (2 % et 1 %) ; les gains sont bien plus doux — une colonie se peuple
+-- lentement et se vide vite — et ils sont MODULÉS par la subsistance : une ville
+-- prospère de tissu mais sans pain ne grandit pas, elle attend son blé. C'est ce
+-- qui empêche une ville de dépasser ce que sa nourriture peut porter.
+local DECLIN_PAUVRETE = -0.020
+local DECLIN_RECESSION = -0.010
+local CROISSANCE_REDRESSEMENT = 0.0003
+local CROISSANCE_PROSPERITE = 0.0006
 local DECLIN_MAX = 0.0050
+
+-- La famine passe outre la prospérité : trois aliments manquants font fuir la
+-- population quoi que dise la note.
+local DECLIN_PAR_ALIMENT = 0.0015
+
+-- Le drapeau « knapp » (série de prix de rareté) suit un compteur lissé, comme
+-- `0x75C120` : il monte du nombre de denrées manquantes chaque jour, plafonne à
+-- 25, et lève la rareté au-delà de 24 ; sans manque il redescend et l'éteint.
+local KNAPP_PLAFOND = 25
+local KNAPP_SEUIL = 24
+
+
+-- La note de la ville sur cent, et son niveau de prospérité de 0 à 6.
+--
+-- Chaque denrée vaut, dans son groupe, `pente × min(1, stock/X1)` point ; chaque
+-- groupe est plafonné. La somme des quatre groupes va de 0 à 80 ; on l'étire sur
+-- 100 en y ajoutant la dotation civique. Le niveau se lit ensuite sur des seuils
+-- de PR3, avec les portes de population pour Prospérité et Opulence.
+local function qualite(ville)
+  local groupes = {}
+  for _, m in ipairs(Marchandises.liste) do
+    local g = Marchandises.GROUPES_QUALITE[m.groupe]
+    if g then
+      local x1 = seuils(ville, m)[2]
+      local ratio = x1 > 0 and (ville.stock[m.cle] or 0) / x1 or 1.0
+      if ratio > 1 then ratio = 1 end
+      groupes[m.groupe] = (groupes[m.groupe] or 0) + g.pente * ratio
+    end
+  end
+  local denrees = 0
+  for cle, somme in pairs(groupes) do
+    local g = Marchandises.GROUPES_QUALITE[cle]
+    denrees = denrees + math.min(somme, g.plafond_groupe or 20)
+  end
+  local note = denrees * (1 + QUALITE_CIVIQUE) * 100.0 / 80.0
+  if note > 100 then note = 100 end
+
+  local h = ville.habitants
+  local niveau
+  if note <= 20 then niveau = 0
+  elseif note <= SEUIL_RECESSION then niveau = 1
+  elseif note <= SEUIL_STAGNATION then niveau = 2
+  elseif note <= SEUIL_PROSPERITE then niveau = 4
+  elseif note <= SEUIL_OPULENCE then niveau = (h >= POP_PROSPERITE) and 5 or 4
+  else niveau = (h >= POP_OPULENCE) and 6 or ((h >= POP_PROSPERITE) and 5 or 4) end
+  return note, niveau
+end
 
 
 -- Une journée de vie économique.
@@ -608,6 +728,16 @@ local function jour(ville)
   ville.faim, ville.penurie = faim, penurie
   ville.subsistance = vivres > 0 and vivres_servis / vivres or 1.0
 
+  -- Le compteur lissé de rareté : il monte du nombre de denrées manquantes,
+  -- plafonne, et lève « knapp » au-delà du seuil. Une pénurie passagère ne suffit
+  -- donc pas à durcir tout le marché ; une disette installée, oui.
+  local manquantes = penurie - DEPART_PENURIE
+  local serie = (ville.knapp_serie or 0) + manquantes - 1
+  if serie < 0 then serie = 0 end
+  if serie > KNAPP_PLAFOND then serie = KNAPP_PLAFOND end
+  ville.knapp_serie = serie
+  ville.knapp = serie > KNAPP_SEUIL
+
   -- 3. Les ateliers, sur le surplus, dans l'ordre des dépendances. Ils gardent
   --    trois jours de consommation des habitants : un atelier qui racle
   --    l'entrepôt laisserait la ville sans rien le lendemain matin.
@@ -643,18 +773,31 @@ local function jour(ville)
     ville.stock[m.cle] = s2
   end
 
-  -- 5. Démographie, selon les compteurs.
+  -- 5. La note de la ville et son niveau de prospérité.
+  local note, niveau = qualite(ville)
+  ville.qualite, ville.niveau = note, niveau
+
+  -- 6. Démographie, selon le niveau — la vitesse de PR3, graduée par la
+  --    satisfaction. La famine (trois aliments manquants) l'emporte : une ville
+  --    prospère mais affamée fond quand même.
   local taux
   if faim > 0 then
     taux = -DECLIN_PAR_ALIMENT * faim
-  elseif penurie > 0 then
-    taux = -DECLIN_PAR_DENREE * penurie
-  elseif faim == 0 then
+  elseif note <= 20 then
+    taux = DECLIN_PAUVRETE
+  elseif note <= SEUIL_RECESSION then
+    taux = DECLIN_RECESSION
+  elseif note <= SEUIL_STAGNATION then
     taux = 0
   else
-    taux = CROISSANCE_MAX * math.min(-faim, 3) / 3
+    -- Prospérité (colons chaque jour) ou simple redressement : la croissance est
+    -- freinée par la subsistance, et l'Opulence cesse de pousser au-delà d'un
+    -- plafond, comme PR3 borne la montée à la population.
+    local base = (niveau >= 5) and CROISSANCE_PROSPERITE or CROISSANCE_REDRESSEMENT
+    if niveau == 6 and ville.habitants >= POP_OPULENCE * 1.8 then base = 0 end
+    taux = base * (ville.subsistance or 1.0)
   end
-  taux = borner(taux, -DECLIN_MAX, CROISSANCE_MAX)
+  taux = borner(taux, -DECLIN_MAX, CROISSANCE_PROSPERITE)
   ville.habitants = borner(ville.habitants * (1 + taux), 120, 12000)
 end
 

@@ -361,7 +361,20 @@ A × habitants × pourcentage ÷ 10 000 sur une liste de denrées :
 |---|---|---|---|
 | Peste | 1 | `Verbrauch/Pest` | tissu, vêtements |
 | Sauterelles | 5 | `Verbrauch/Heuschrecken` | fruits, chanvre, pain |
-| Feu | 6 | `Verbrauch/Feuer` | bois, briques |
+| Feu | 6 | `Verbrauch/Feuer` (+ `FeuerSpread`) | bois, briques |
+
+Les fléaux sont chargés par `0x829780` (section `Katastrophen`) et tirés au sort
+par `0x7BD5E0` / `0x7BD6F0` / `0x7BD7B0`, qui lancent un événement de durée fixe.
+La peste tue en plus (`Pesttote`) et fait émigrer (`Abwanderung`, avec les
+facteurs `Arbeiter` et `Pesttote`, dans `0x7B9F40`).
+
+**La série de prix « pénurie »** (`X%uknapp`, bit 11 de l'état de la ville) est
+levée par un second compteur lissé (`0x75C120`) : chaque jour où des denrées
+manquent l'augmente du nombre de manquantes, plafonné à 25 ; au-delà de 24 le
+marché entier de la ville passe au barème de rareté (`0x768640` pose le bit et
+émet l'événement `0x100`). Le compteur redescend et éteint le drapeau dès que la
+ville est de nouveau servie. Le compteur de faim (`0x75BA00`, reçu par `0x7685D0`)
+suit le même schéma pour le bit de famine (bit 2).
 
 ### Les convois de l'IA
 
@@ -401,24 +414,70 @@ pinasses.
 - une cale visée de habitants × 420 ÷ 1 900, remplie d'un à trois navires
   marchands tirés au hasard (tirage reproductible par ville) ;
 - 90 000 pièces d'or partagées entre les deux convois ;
-- l'entretien journalier des navires (`DailyCosts`).
+- l'entretien journalier des navires (`DailyCosts`) ;
+- **l'or plafonné au capital de travail** : le débordement alimente un fonds de
+  construction qui bâtit des ateliers pour les chaînes faibles dont les intrants
+  suivent — le mécanisme de `0x7B4F90`, borné à la demande du jour zéro pour
+  rattraper le déséquilibre de départ sans devenir un moteur de croissance.
 
 Les trajets restent ceux qu'on a mesurés : le premier convoi en caboteur, le
 second au long cours.
 
-### La prospérité
+### La qualité de vie et la prospérité
 
-Sept niveaux nommés par les textes (`ID_GUI_TOWN_WEALTH_01…07`) :
+**La note sur cent** est calculée en fin de `0x7BF8A0`, juste après les seuils de
+prix. Chaque denrée rapporte `poids × min(1, stock/X1)` point — plein dès son
+premier seuil X1 atteint, ce que dit le tutoriel : « la fourniture de denrées a un
+impact maximum sur la prospérité dès que le stock atteint au moins une barre ».
+Quatre groupes, testés par masques de bits (`0x854D50`…`0x854DB0`), chacun
+plafonné à vingt points :
 
-| Niveau | Effet décrit |
-|---|---|
-| Pauvreté | 2 % des citoyens redeviennent colons par jour, ni bâtiments ni nouveaux ouvriers |
-| Récession | 1 % par jour, pas de nouveaux ouvriers |
-| Stagnation | aucun effet encore |
-| État d'urgence | un événement en cours |
-| Redressement | la ville se remet d'un événement |
-| Croissance | peut monter tant que la ville dépasse 2 000 habitants |
-| Prospérité | entretien −5 %, colons chaque jour ; niveau suivant au-delà de 6 000 habitants |
+| Groupe | Poids | Masque | Denrées |
+|---|---|---|---|
+| base | 7 | `0x000F` | bois, briques, blé, fruits |
+| produits finis | 6 | `0xF8400` | outils, viande, vêtements, cordage, rhum, pain |
+| export | 5 | `0x7800` | teintures, café, cacao, tabac |
+| autres | 5 × difficulté | `0xFA7C` | maïs, sucre, chanvre, tissu, métal, coton |
+
+Quatre-vingts points au plus ; les vingt derniers viennent des bâtiments publics
+et d'un terme de population (bonus sous 800 habitants) et d'emploi. Le tout est
+posé par `0x767EF0` sur le flottant `+0x150`, et arrondi sur `+0x154`.
+
+**Les sept niveaux** (`ID_GUI_TOWN_WEALTH_00…07`, le septième `Opulence`) se
+lisent de cette note par `0x7C2400` (seuils `0x14`/`0x28`/`0x3C`/`0x5A` =
+20/40/60/90) avec deux portes de population (`0x7D0` = 2 000, `0x1770` = 6 000) :
+
+| Niveau | Note | Effet décrit |
+|---|---|---|
+| Pauvreté | ≤ 20 | 2 % des citoyens redeviennent colons par jour, ni bâtiments ni ouvriers |
+| Récession | ≤ 40 | 1 % par jour ; « quand la satisfaction tombe sous 40 %, des citoyens partent » |
+| Stagnation | ≤ 60 | aucun effet |
+| Redressement / Croissance | ≤ 75 | la ville remonte, tant qu'elle dépasse 2 000 habitants |
+| Prospérité | > 75, > 2 000 hab. | entretien −5 %, colons chaque jour |
+| Opulence | > 90, > 6 000 hab. | le plus haut niveau |
+
+**La croissance** passe par un stock de colons `+0xD0` qui se convertit en
+citoyens `+0xC0` vers une cible `+0xD4`, au plus dix par jour (`0x7BF3D0`,
+`0x765160` pose le compte de citoyens). Les colons arrivent et repartent par la
+mer : les convois les débarquent (`0x7C9860`) et les rembarquent quand la ville
+décline.
+
+### La construction de l'IA
+
+`0x7B4F90`, appelée à chaque révision des marchands, décide quels ateliers bâtir.
+Elle parcourt les vingt métiers de la ville et, pour chacun, compare la demande de
+l'archipel à sa production :
+
+- elle n'agit que si la qualité de la ville dépasse `NeubauMinAlq` (50, à `+0x877`)
+  et s'il reste moins de trente chantiers en cours (`0x1E`) ;
+- elle bâtit un atelier du métier quand `demande × 100 > production × 85`
+  (`imul 0x64` contre `imul 0x55`), c'est-à-dire quand la production couvre moins
+  de ~85 % de la demande — modulée par le `Bauquotient_Mod` de chaque bien ;
+- elle vérifie aussi la réserve mondiale contre `NeubauWeltVorratTage` (15).
+
+`0x7B5A90` ajoute le coût du terrain (`Bauplatzkosten`) et le prélève : **c'est là
+que passe l'or que les marchands amassent.** Un marchand qui prospère ne
+thésaurise pas, il bâtit.
 
 ### Les autres chargeurs
 

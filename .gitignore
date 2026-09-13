@@ -21,3 +21,7 @@ reference_pr3/
 addons/lua-gdextension/build/*
 !addons/lua-gdextension/build/jit/
 !addons/lua-gdextension/build/*.windows.*.dll
+
+# Caches Python des outils
+__pycache__/
+*.pyc

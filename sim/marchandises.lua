@@ -119,6 +119,81 @@ Marchandises.liste = {
     recette = { { "ble", 0.5 }, { "sucre", 0.5 } } },
 }
 
+-- LES ATELIERS DE PR3, relus dans `constdata.dat` (voir `outils/pr3_constdata.py`) :
+--
+--   sortie       ce qu'un ouvrier produit par jour, en unités (2 000 le tonneau) ;
+--                un atelier en a 25 ;
+--   cout         `Bauplatzkosten`, le premier des trois crans ;
+--   bois/briques `Baukosten Betriebe`, les matériaux du chantier, en tonneaux ;
+--   duree        un octet égal à ce tonnage divisé par dix, lu comme des jours ;
+--   quotient     `Bauquotient_Mod` : l'IA bâtit quand la demande de la carte
+--                atteint ce multiple de sa production (voir `sim/construction.lua`).
+local ATELIERS = {
+  --             sortie   cout  bois briques duree quotient
+  bois      = {    480,  8000,  20,  40,   6, 0.95 },
+  briques   = {    480,  8000,  20,  40,   6, 0.95 },
+  ble       = {    480,  8000,  20,  40,   6, 1.00 },
+  fruits    = {    320,  8000,  20,  40,   6, 1.00 },
+  mais      = {    320,  8000,  20,  40,   6, 1.00 },
+  sucre     = {    320,  8000,  20,  40,   6, 1.00 },
+  chanvre   = {    320,  8000,  20,  40,   6, 1.00 },
+  tissu     = {    160, 12000,  40,  80,  12, 1.00 },
+  metal     = {    240, 10000,  40,  80,  12, 1.00 },
+  coton     = {    320,  8000,  30,  60,   9, 1.00 },
+  outils    = {    160, 16000,  60, 120,  18, 1.00 },
+  teinture  = {    160,  8000,  20,  40,   6, 1.00 },
+  cafe      = {    160, 10000,  40,  80,  12, 1.00 },
+  cacao     = {    160, 10000,  40,  80,  12, 1.00 },
+  tabac     = {    160,  8000,  20,  40,   6, 1.00 },
+  viande    = {     80, 12000,  40,  80,  12, 1.00 },
+  vetements = {     80, 18000,  60, 120,  18, 1.00 },
+  cordage   = {    160, 12000,  40,  80,  12, 1.00 },
+  rhum      = {     80, 10000,  40,  80,  12, 1.00 },
+  pain      = {    160, 10000,  40,  80,  12, 1.00 },
+}
+Marchandises.OUVRIERS_PAR_ATELIER = 25
+Marchandises.UNITES_PAR_TONNEAU = 2000
+
+-- LA QUALITÉ DE VIE, telle que PR3 la calcule (fin de `0x7BF8A0`) : chaque denrée
+-- rapporte des points selon son stock rapporté au premier seuil de prix X1, et
+-- les points sont pleins dès X1 atteint — « la fourniture de denrées a un impact
+-- maximum sur la prospérité de la ville dès que le stock atteint au moins une
+-- barre », dit le tutoriel. Quatre groupes, chacun plafonné à vingt points :
+--
+--   base    bois, briques, blé, fruits              7 × stock/X1, 7 au plus
+--   fini    outils, viande, vêtements, cordage,
+--           rhum, pain                              6 × stock/X1, 6 au plus
+--   export  teintures, café, cacao, tabac           5 × stock/X1, 5 au plus
+--   autre   maïs, sucre, chanvre, tissu, métal,
+--           coton                                   5 × stock/X1, 6 au plus,
+--                                                   × 1 ; 0,9 ; 0,8 selon la
+--                                                   difficulté
+--
+-- Quatre-vingts points au mieux ; les bâtiments publics donnent le reste. Chaque
+-- GROUPE est plafonné à vingt (`plafond_groupe`), si bien qu'un excédent d'une
+-- denrée ne compense pas le manque d'une autre du même groupe.
+Marchandises.GROUPES_QUALITE = {
+  base   = { pente = 7, plafond_groupe = 20 },
+  fini   = { pente = 6, plafond_groupe = 20 },
+  export = { pente = 5, plafond_groupe = 20 },
+  autre  = { pente = 5, plafond_groupe = 20 },
+}
+local GROUPE = {
+  bois = "base", briques = "base", ble = "base", fruits = "base",
+  outils = "fini", viande = "fini", vetements = "fini", cordage = "fini", rhum = "fini", pain = "fini",
+  teinture = "export", cafe = "export", cacao = "export", tabac = "export",
+}
+
+-- LES FLÉAUX et les denrées qu'ils font consommer en plus (`0x7C2080`) : la peste
+-- use le tissu et les vêtements, les sauterelles les fruits, le chanvre et le
+-- pain, le feu le bois et les briques.
+Marchandises.FLEAUX = {
+  peste       = { "tissu", "vetements" },
+  sauterelles = { "fruits", "chanvre", "pain" },
+  feu         = { "bois", "briques" },
+}
+
+
 -- Ordre de FABRICATION : les matières premières d'abord, puis ce qui les
 -- transforme. Sans cet ordre, une distillerie tournerait avec le sucre de la
 -- veille au lieu de celui du matin, et la chaîne prendrait un jour de retard
@@ -161,6 +236,13 @@ for i, m in ipairs(Marchandises.liste) do
   m.conso = m.verbrauch / Marchandises.ECHELLE
   m.export = (m.export or 0) / Marchandises.ECHELLE
   m.grundbedarf = m.grundbedarf or 5
+  local a = ATELIERS[m.cle]
+  m.sortie = a[1]
+  -- Ce qu'un atelier livre par jour, en tonneaux.
+  m.atelier = Marchandises.OUVRIERS_PAR_ATELIER * a[1] / Marchandises.UNITES_PAR_TONNEAU
+  m.batiment = { cout = a[2], bois = a[3], briques = a[4], duree = a[5] }
+  m.bauquotient = a[6]
+  m.groupe = GROUPE[m.cle] or "autre"
   Marchandises.parCle[m.cle] = m
   Marchandises.ordre[#Marchandises.ordre + 1] = m.cle
 end
