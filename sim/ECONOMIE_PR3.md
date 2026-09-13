@@ -577,14 +577,27 @@ au-dessus de `NeubauMinAlq` (50) de qualité et qu'il reste moins de trente
 chantiers en cours. C'est là que passe l'or que les marchands amassent —
 `0x7B5A90` ajoute le coût du terrain et le prélève.
 
-### 10.9 Ce qu'il reste à trancher
+### 10.9 Ce qui a été tranché
 
-- **Café et cacao** : 150 calculés pour 140 affichés.
-- **Trajets des convois IA** : leur nombre (2 par ville) et leur taille (habitants
-  × 420 ÷ 1 900 tonneaux, 1 à 3 navires tirés au hasard) sont lus ; où ils vont
-  ne l'est pas (voir `outils/PR3_TECHNIQUE.md`, « Les convois de l'IA »).
-- **Logement** : la vraie valeur de `FillRate`.
-- **Trésor** : son rôle (§9).
+- **Café et cacao, 150 calculés pour 140 affichés.** Le prix standard est **lu**
+  dans la table `Standardpreise`, pas calculé : café et cacao y valent 140, quand
+  la formule coût-de-production (100 de main-d'œuvre + 0,25 outil × 200 = 150) en
+  donnerait 150. Ce sont les deux seules denrées où la table de PR3 s'écarte de sa
+  propre formule, d'environ 7 % vers le bas — un choix de son concepteur. La sim
+  utilise la valeur de la table (140), donc elle affiche le bon prix ; il n'y a
+  rien à corriger, seulement à expliquer l'écart.
+- **`FillRate`.** Le chargeur (`0x84E150`) pose 65 % par défaut à `+0x372` ; le
+  tutoriel parle de 80 %. On n'a pas retrouvé le lecteur à l'exécution : cette
+  valeur ne pèse que sur le décompte des maisons affiché (`Economie.demographie`),
+  pas sur l'économie. La sim garde les 80 % du tutoriel.
+- **Le trésor.** Les clés `Treasure` (`0x854900` : `scaleX/Y`, `StartX/Y`,
+  `EndX/Y`, `minPosY`, `maxPosY`) décrivent la disposition de la **chasse au
+  trésor enfoui**, un mini-jeu — hors du modèle économique.
+- **Trajets et débits de départ.** Le nombre et la taille des convois IA sont lus
+  (2 par ville, habitants × 420 ÷ 1 900) ; leurs trajets restent les nôtres (un
+  caboteur, un long-courrier). Les débits de départ se déduisent de la demande,
+  puis la construction de l'IA prend le relais comme dans le jeu (`StartFabriken`
+  = 20 ateliers au départ).
 
 ### 10.10 Ce que la sim applique
 
@@ -605,11 +618,14 @@ Tout ce qui précède et qui se simule sans bâtiments ni combats est dans `sim/
 | Entretien du navire du joueur, prélevé chaque jour | `sim/compagnie.lua` |
 | 2 convois IA par ville, cale visée de habitants × 420 ÷ 1 900, 1 à 3 navires tirés au hasard, 90 000 pièces | `sim/marchands.lua` |
 | **Or d'un convoi plafonné à son capital de travail ; le débordement bâtit des ateliers pour les chaînes faibles (comme l'IA de PR3)** | `sim/marchands.lua` |
+| **Réputation du joueur par nation, montée en comblant un manque, baissée en le creusant** | `sim/compagnie.lua` |
+| **Fléaux (peste, sauterelles, feu) : consommation doublée sur leurs denrées, peste mortelle ; tirés surtout dans les villes mal loties** | `sim/economie.lua` |
 
 Mesuré sur douze ans par `tools/equilibre.gd`, à partir de 82 500 habitants :
-- **Population** : elle monte régulièrement puis plafonne autour de 161 000.
-- **Famine** : de 0 à 8 villes selon les années.
-- **Pénurie générale** : de 0 à 3 villes.
+- **Population** : elle monte régulièrement puis plafonne autour de 160 000 (un peu
+  moins qu'avant les fléaux, qui coûtent quelques habitants).
+- **Famine** : de 0 à 6 villes selon les années.
+- **Pénurie générale** : 0 à 1 ville.
 - **Or moyen d'un convoi** : borné, autour de 65 000 à 85 000 pièces (au lieu de
   s'envoler vers plusieurs millions).
 - **Ateliers à douze ans** : métal et tissu 91 %, cordage 80 %, viande et vêtements
@@ -627,15 +643,21 @@ démographie — la vitesse de PR3, non plus le seul compteur de faim. La famine
 croissance, si bien qu'une ville prospère de tissu mais sans pain n'enfle pas
 au-delà de ce que sa nourriture porte.
 
-**Ce qui reste à nous, faute d'avoir été lu ou entièrement simulé :**
+**La réputation** (`sim/compagnie.lua`) est celle de `0x7839E0` / `0x783B40` :
+vendre à une ville dont le stock est sous X1 comble un manque et la fait monter,
+au prorata de la part comblée ; acheter jusqu'à la faire passer sous X1 la fait
+baisser d'autant. Elle est tenue par nation, de 0 à 100, à partir de 50.
+
+**Les fléaux** (`sim/economie.lua`) sont tirés au sort, plus souvent dans les
+villes à basse qualité — l'écho du déclencheur de PR3 (`0x7C1930`), qui frappe les
+villes en difficulté. Chacun double la consommation de ses denrées le temps qu'il
+dure, et la peste tue et fait fuir (`Pesttote`, `Abwanderung`).
+
+**Ce qui reste une approximation, faute d'avoir été entièrement lu :**
 - **Bâtiments publics** : les vingt derniers points de qualité (école, hôpital…)
   sont remplacés par une dotation civique proportionnelle à la note des denrées.
-- **Débits de départ** : la production initiale de chaque ville se déduit de la
-  demande de l'archipel ; PR3 part d'un nombre d'ateliers (`StartFabriken`). La
-  construction de l'IA prend ensuite le relais, comme dans le jeu.
 - **Trajets des convois** : un caboteur de voisinage et un long-courrier vers la
-  ville la plus rentable, mesurés et non lus.
-- **Non simulés** : la réputation gagnée ou perdue en commerçant (`0x7839E0` /
-  `0x783B40` : vendre sous X1 la lève, acheter sous X1 la baisse), et les fléaux
-  eux-mêmes (leurs denrées et leurs effets sont connus, §10.8, mais aucun n'est
-  déclenché).
+  ville la plus rentable, mesurés et non lus dans la machine à états de PR3.
+- **Déclenchement exact des fléaux** : PR3 les fait passer par son système
+  d'événements (objets de quête), impénétrable à la lecture statique ; on en
+  reproduit la fréquence et les effets, pas le tirage octet pour octet.

@@ -366,7 +366,14 @@ A × habitants × pourcentage ÷ 10 000 sur une liste de denrées :
 Les fléaux sont chargés par `0x829780` (section `Katastrophen`) et tirés au sort
 par `0x7BD5E0` / `0x7BD6F0` / `0x7BD7B0`, qui lancent un événement de durée fixe.
 La peste tue en plus (`Pesttote`) et fait émigrer (`Abwanderung`, avec les
-facteurs `Arbeiter` et `Pesttote`, dans `0x7B9F40`).
+facteurs `Arbeiter` et `Pesttote`, dans `0x7B9F40`). Le tirage passe par le
+système d'événements de la ville et dépend de la qualité de vie et de la
+surpopulation (`0x7C1930`) : il frappe les villes en difficulté.
+
+*Dans la sim* (`sim/economie.lua`), chaque ville tire un fléau chaque jour avec
+une probabilité qui monte quand sa qualité baisse ; il dure trente jours, double
+la consommation de ses denrées, et la peste ajoute une mortalité. Le tirage est
+déterministe (générateur de Park et Miller semé de la ville et du jour).
 
 **La série de prix « pénurie »** (`X%uknapp`, bit 11 de l'état de la ville) est
 levée par un second compteur lissé (`0x75C120`) : chaque jour où des denrées
@@ -408,6 +415,9 @@ pinasses.
 - **vendre** à une ville dont le stock est sous son premier seuil X1 fait monter
   la réputation, au prorata de la part du manque comblée ;
 - **acheter** jusqu'à la faire passer sous X1 la fait baisser d'autant.
+
+*Dans la sim* (`sim/compagnie.lua`), la réputation du joueur est tenue par nation,
+de 0 à 100, et bouge à chaque transaction selon cette règle.
 
 **Dans la sim** (`sim/marchands.lua`) :
 - 2 convois par ville ;

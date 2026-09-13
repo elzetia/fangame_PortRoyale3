@@ -191,6 +191,7 @@ end
 
 Economie.villes = {}
 local reste_jour = 0.0
+local jour_no = 0
 
 
 local function borner(v, mini, maxi)
@@ -330,6 +331,7 @@ end
 function Economie.reinitialiser()
   Economie.villes = {}
   reste_jour = 0.0
+  jour_no = 0
   for _, port in ipairs(Archipel.ports) do
     local ville = {
       cle = port.cle,
@@ -344,7 +346,14 @@ function Economie.reinitialiser()
       qualite = 100,
       niveau = 5,
       tendance = 0,
+      fleau = nil,        -- { type = "peste"|"sauterelles"|"feu", jours = n }
     }
+    -- Une graine propre à la ville, pour ses tirages de fléaux.
+    local gf = 0
+    for k = 1, string.len(port.cle) do
+      gf = (gf * 131 + string.byte(port.cle, k)) % 2147483629
+    end
+    ville.graine_fleau = gf + 1
     -- Ce que ses ateliers tirent de ses entrepôts chaque jour, à pleine
     -- capacité : la part « manufactures » de sa demande. La production est
     -- fixe : on la compte une fois.
@@ -648,6 +657,28 @@ local DECLIN_PAR_ALIMENT = 0.0015
 local KNAPP_PLAFOND = 25
 local KNAPP_SEUIL = 24
 
+-- LES FLÉAUX de PR3 (`0x7C2080` les applique, `0x829780` les charge). Rares, ils
+-- frappent surtout les villes mal loties : le jeu les tire sur une probabilité
+-- liée à la qualité de vie et à la surpopulation (`0x7C1930`). Chacun ajoute
+-- 100 % de consommation (`Verbrauch/Pest`… = 100) à ses denrées le temps qu'il
+-- dure — la peste au tissu et aux vêtements, les sauterelles aux fruits, au
+-- chanvre et au pain, le feu au bois et aux briques (voir `Marchandises.FLEAUX`).
+-- La peste tue en plus (`Pesttote`) et fait émigrer (`Abwanderung`).
+--
+-- Le tirage est DÉTERMINISTE, par ville et par jour, pour qu'une partie relancée
+-- retrouve les mêmes fléaux aux mêmes dates.
+local FLEAU_DUREE = 30            -- jours qu'un fléau dure
+local FLEAU_PROBA = 0.0006        -- probabilité de base, par ville et par jour
+local PESTE_MORTALITE = 0.004     -- déclin quotidien supplémentaire sous la peste
+local FLEAU_TYPES = { "peste", "sauterelles", "feu" }
+
+-- Un générateur de Park et Miller, semé de la ville et du jour : reproductible.
+local function tirage(graine)
+  local g = graine % 2147483646 + 1
+  g = (g * 16807) % 2147483647
+  return g / 2147483647
+end
+
 
 -- La note de la ville sur cent, et son niveau de prospérité de 0 à 6.
 --
@@ -709,12 +740,21 @@ local function jour(ville)
     end
   end
 
-  -- 2. Les habitants, et les compteurs de faim.
+  -- 2. Les habitants, et les compteurs de faim. Un fléau en cours double la
+  --    consommation de ses denrées (Verbrauch = 100 %) — ce qui peut à lui seul
+  --    jeter la ville dans le manque.
+  local fleau_sur = {}
+  if ville.fleau then
+    for _, cle in ipairs(Marchandises.FLEAUX[ville.fleau.type] or {}) do
+      fleau_sur[cle] = true
+    end
+  end
   local faim, penurie = DEPART_FAIM, DEPART_PENURIE
   local vivres_servis, vivres = 0, 0
   for _, m in ipairs(Marchandises.liste) do
     local dispo = ville.stock[m.cle] or 0
     local demande = consommation(ville, m)
+    if fleau_sur[m.cle] then demande = demande * 2 end
     local servi = demande
     if servi > dispo then servi = dispo end
     local manque = demande > 0 and servi < demande * 0.999
@@ -798,11 +838,32 @@ local function jour(ville)
     if niveau == 6 and ville.habitants >= POP_OPULENCE * 1.8 then base = 0 end
     taux = base * (ville.subsistance or 1.0)
   end
+  -- La peste tue et fait fuir tant qu'elle dure, par-dessus le reste.
+  if ville.fleau and ville.fleau.type == "peste" then
+    taux = taux - PESTE_MORTALITE
+  end
   taux = borner(taux, -DECLIN_MAX, CROISSANCE_PROSPERITE)
   -- La tendance affichée suit le taux réel, non plus un raccourci sur la faim :
   -- la flèche du panneau et la démographie ne peuvent pas se contredire.
   ville.tendance = (taux > 0 and 1) or (taux < 0 and -1) or 0
   ville.habitants = borner(ville.habitants * (1 + taux), 120, 12000)
+
+  -- 7. Les fléaux : on décompte celui qui court, sinon on tire. Une ville mal
+  --    lotie (note basse) est bien plus exposée — c'est ainsi que PR3 frappe les
+  --    villes en difficulté (`0x7C1930`). Aucune famine sous 300 habitants, aucun
+  --    fléau non plus : un hameau n'intéresse pas les malheurs.
+  if ville.fleau then
+    ville.fleau.jours = ville.fleau.jours - 1
+    if ville.fleau.jours <= 0 then ville.fleau = nil end
+  elseif ville.habitants >= SANS_FAMINE then
+    local risque = FLEAU_PROBA * (1.5 - note / 100.0)
+    local graine = ville.graine_fleau + jour_no * 2654435761
+    if tirage(graine) < risque then
+      local i = math.floor(tirage(graine + 777) * #FLEAU_TYPES) + 1
+      if i > #FLEAU_TYPES then i = #FLEAU_TYPES end
+      ville.fleau = { type = FLEAU_TYPES[i], jours = FLEAU_DUREE }
+    end
+  end
 end
 
 
@@ -817,6 +878,7 @@ function Economie.avancer(heures)
   if n > 30 then n = 30 end          -- garde-fou si le jeu est resté suspendu
   reste_jour = reste_jour - n
   for _ = 1, n do
+    jour_no = jour_no + 1
     for _, ville in pairs(Economie.villes) do
       jour(ville)
     end

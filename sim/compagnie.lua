@@ -8,15 +8,57 @@
 -- demande, ce que la caisse contient et ce que la cale peut porter. Une
 -- transaction ne doit jamais pouvoir réussir à moitié.
 
+local Archipel     = require("sim.archipel")
 local Economie     = require("sim.economie")
 local Marchandises = require("sim.marchandises")
 local Navires      = require("sim.navires")
 
 local Compagnie = {}
 
+-- LA RÉPUTATION, comme PR3 la fait bouger au commerce (`0x7839E0`, `0x783B40`).
+-- Vendre à une ville dont le stock est SOUS son premier seuil de prix X1 comble
+-- un manque et FAIT MONTER la réputation, au prorata de la part comblée ; acheter
+-- jusqu'à la faire passer sous X1 aggrave le manque et la FAIT BAISSER d'autant.
+-- Elle se tient par nation, de 0 à 100, et part de 50 — ni amie ni ennemie.
+--
+-- PR3 la range en interne sur une échelle plus large (−1000 à 1000, `0x75CC30`)
+-- qu'il ramène à 0-100 pour l'affichage ; on garde directement l'échelle visible.
+Compagnie.REP_DEPART = 50
+Compagnie.REP_PLEIN = 3.0     -- points pour un lot qui comble un X1 entier de manque
+
+local function ajuster_reputation(cle_ville, cle_m, stock_avant, sens, quantite)
+  local nation = Archipel.portsParCle[cle_ville]
+  nation = nation and nation.nation
+  if not nation then return end
+  local l = Economie.ligne(cle_ville, cle_m)
+  if not l then return end
+  local x1 = l.seuils[2]
+  if x1 <= 0 then return end
+
+  local delta = 0
+  if sens == "vente" then
+    -- La part du manque (sous X1) que ce lot vient combler.
+    local manque = math.max(0, x1 - stock_avant)
+    if manque > 0 then delta = Compagnie.REP_PLEIN * math.min(quantite, manque) / x1 end
+  else -- achat
+    -- La part du lot qui fait descendre le stock sous X1.
+    local sous_x1 = math.max(0, x1 - (stock_avant - quantite)) - math.max(0, x1 - stock_avant)
+    if sous_x1 > 0 then delta = -Compagnie.REP_PLEIN * math.min(quantite, sous_x1) / x1 end
+  end
+  if delta ~= 0 then
+    local r = (Compagnie.reputation[nation] or Compagnie.REP_DEPART) + delta
+    if r < 0 then r = 0 elseif r > 100 then r = 100 end
+    Compagnie.reputation[nation] = r
+  end
+end
+
 function Compagnie.reinitialiser()
   local sloop = Navires.get("sloop")
   Compagnie.or_ = 20000
+  Compagnie.reputation = {}
+  for cle in pairs(Archipel.nations or {}) do
+    Compagnie.reputation[cle] = Compagnie.REP_DEPART
+  end
   Compagnie.navire = {
     nom = "Aurore",
     classe = sloop.nom,
@@ -108,10 +150,14 @@ function Compagnie.acheter(cle_ville, cle_m, quantite)
   -- cargaison qu'on venait d'en sortir : le cours y était au plafond, la
   -- facture triplait, et la caisse passait en négatif sur un achat que la
   -- vérification d'avant l'échange avait pourtant jugé abordable.
+  local ligne_avant = Economie.ligne(cle_ville, cle_m)
   local servi, cout = Economie.acheter(cle_ville, cle_m, quantite)
   servi = math.floor(servi)
   if servi <= 0 then return 0, 0, "La ville n'a plus rien à céder." end
 
+  if ligne_avant then
+    ajuster_reputation(cle_ville, cle_m, ligne_avant.stock, "achat", servi)
+  end
   Compagnie.or_ = Compagnie.or_ - cout
   local cale = Compagnie.navire.cale
   cale[cle_m] = (cale[cle_m] or 0) + servi
@@ -126,7 +172,11 @@ function Compagnie.vendre(cle_ville, cle_m, quantite)
   if quantite > en_cale then quantite = math.floor(en_cale) end
   if quantite <= 0 then return 0, 0, "Rien de tel en cale." end
 
+  local ligne_avant = Economie.ligne(cle_ville, cle_m)
   local servi, recette = Economie.vendre(cle_ville, cle_m, quantite)
+  if ligne_avant then
+    ajuster_reputation(cle_ville, cle_m, ligne_avant.stock, "vente", servi)
+  end
   Compagnie.or_ = Compagnie.or_ + recette
   local cale = Compagnie.navire.cale
   cale[cle_m] = en_cale - servi

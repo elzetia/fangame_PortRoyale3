@@ -248,6 +248,12 @@ function Bridge.etat_compagnie()
   d.capacite  = Compagnie.navire.capacite
   d.charge    = Compagnie.charge()
   d.libre     = Compagnie.place_libre()
+  -- La réputation du joueur auprès de chaque nation, de 0 à 100.
+  local rep = Dictionary()
+  for cle, v in pairs(Compagnie.reputation or {}) do
+    rep[cle] = math.floor(v + 0.5)
+  end
+  d.reputation = rep
   return d
 end
 
@@ -350,6 +356,7 @@ function Bridge.etat_ville(cle_ville)
   d.faim = v.faim or -3
   d.niveau = v.niveau or 5
   d.tendance = v.tendance or 0
+  d.fleau = v.fleau and v.fleau.type or ""
 
   local dem = Economie.demographie(cle_ville)
   d.ouvriers   = dem.ouvriers
