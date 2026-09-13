@@ -1,17 +1,19 @@
 # Le chantier naval de Port Royale 3 — l'écran REJOUÉ, pas réinterprété.
 #
 # `scenes.Scene_Shipyard` (dialog_shipyard_pc.swf) décodé : un cadre à onglets
-# et cinq pages empilées à (102,-123) — Tab_Shipyard_build, _repair, _buy, _sell,
-# _sell_pirate. On ne redessine pas cet écran de mémoire : on lit l'agencement
-# exporté (reference_pr3/ui/agencement/dialog_shipyard_pc.json) et on pose les
-# nœuds aux coordonnées de PR3 via `EcranPR3`.
+# et cinq pages empilées — Tab_Shipyard_build, _repair, _buy, _sell (+ _sell_pirate).
+# On ne redessine pas cet écran de mémoire : on lit l'agencement exporté
+# (reference_pr3/ui/agencement/dialog_shipyard_pc.json) et `EcranPR3` pose les
+# nœuds aux coordonnées de PR3.
 #
-# La grille de statistiques de navire relevée dans le .swf, au pixel :
+# La grille de statistiques relevée dans le .swf, au pixel :
 #   ligne 1, y=499 : tf_barrels(-45) tf_cannon(45) tf_heart(135) tf_crew(225)
 #   ligne 2, y=552 : tf_wheel(-45)  tf_knot(45)   tf_draft(135)  tf_cost(225)
-#   prix  : tf_price(61,600)   choix : chooser(-25,461)   action : bu_action(111,652)
-#   navire: cr_ship(38,112) — le rendu 3D, ici la vignette du modèle
+#   prix : tf_price(61,600)   choix : chooser(-25,461)   action : bu_action(111,652)
 # Chaque champ a sa plaque `Text_Bg_Nomal` et son icône `icn_tt_N` juste dessous.
+#
+# Les libellés sont ceux du jeu, pas les miens : `LocaPR3` les tire de
+# `global.res` (ID_GUI_TAB_BUILD_TABBUTTONTEXT = « Contrat de construction »…).
 #
 # La simulation reste seule maîtresse des nombres : cet écran ne calcule rien,
 # il branche `Sim.chantier_infos` sur les champs que PR3 a nommés.
@@ -21,20 +23,20 @@ extends CanvasLayer
 signal ferme
 
 const SWF := "dialog_shipyard_pc"
-const ONGLETS := {
-	"Construire": "exports.Tab_Shipyard_build",
-	"Réparer": "exports.Tab_Shipyard_repair",
-	"Acheter": "exports.Tab_Shipyard_buy",
-	"Vendre": "exports.Tab_Shipyard_sell",
-}
-# Décalage de la page dans le cadre, relevé sur Scene_Shipyard.
-const DECALAGE_PAGE := Vector2(102, -123)
+
+# Les onglets dans l'ordre de Scene_Shipyard, avec leur clé de libellé PR3.
+const ONGLETS := [
+	["ID_GUI_TAB_BUILD_TABBUTTONTEXT", "Contrat de construction", "exports.Tab_Shipyard_build"],
+	["ID_GUI_TAB_REPAIR_TABBUTTONTEXT", "Réparer", "exports.Tab_Shipyard_repair"],
+	["ID_GUI_TAB_BUY_TABBUTTONTEXT", "Acheter", "exports.Tab_Shipyard_buy"],
+	["ID_GUI_TAB_SELL_TABBUTTONTEXT", "Vendre", "exports.Tab_Shipyard_sell"],
+]
 
 var _sim: Object
 var _port: Dictionary = {}
 var _racine: Control
 var _page: Control
-var _onglet := "Construire"
+var _scene := "exports.Tab_Shipyard_build"
 var _titre: Label
 var _msg: Label
 var _type: OptionButton
@@ -60,6 +62,11 @@ func ouvrir(sim_obj: Object, port: Dictionary) -> void:
 func fermer() -> void:
 	visible = false
 	ferme.emit()
+
+
+# La carte rafraîchit l'écran ouvert à chaque jour écoulé.
+func rafraichir() -> void:
+	_rafraichir_page()
 
 
 func _batir() -> void:
@@ -94,18 +101,18 @@ func _batir() -> void:
 	fermer_b.pressed.connect(fermer)
 	_racine.add_child(fermer_b)
 
-	# La bande d'onglets, dans l'ordre de Scene_Shipyard.
-	var x := 20.0
-	for nom in ONGLETS.keys():
+	var x := 8.0
+	for o in ONGLETS:
 		var b := Button.new()
-		b.text = str(nom)
+		b.text = LocaPR3.texte(str(o[0]), str(o[1]))
 		b.position = Vector2(x, 62)
-		b.custom_minimum_size = Vector2(96, 28)
-		b.add_theme_font_size_override("font_size", 14)
+		b.custom_minimum_size = Vector2(102, 28)
+		b.clip_text = true
+		b.add_theme_font_size_override("font_size", 12)
 		b.focus_mode = Control.FOCUS_NONE
-		b.pressed.connect(_choisir.bind(str(nom)))
+		b.pressed.connect(_choisir.bind(str(o[2])))
 		_racine.add_child(b)
-		x += 100.0
+		x += 104.0
 
 	_type = OptionButton.new()
 	_type.position = Vector2(24, 100)
@@ -119,8 +126,8 @@ func _batir() -> void:
 	_racine.add_child(_msg)
 
 
-func _choisir(nom: String) -> void:
-	_onglet = nom
+func _choisir(scene: String) -> void:
+	_scene = scene
 	_poser_page()
 
 
@@ -129,12 +136,8 @@ func _poser_page() -> void:
 	if _page != null:
 		_page.queue_free()
 		_page = null
-	var scene := str(ONGLETS.get(_onglet, ""))
-	if scene == "":
-		return
-	_page = EcranPR3.batir(SWF, scene)
-	# La page vit à (102,-123) dans Scene_Shipyard ; on la ramène dans le cadre.
-	_page.position = Vector2(40, 130) - DECALAGE_PAGE * 0.0
+	_page = EcranPR3.batir(SWF, _scene)
+	_page.position = Vector2(40, 130)
 	_racine.add_child(_page)
 	_rafraichir_page()
 
@@ -187,17 +190,19 @@ func _rafraichir_page() -> void:
 	_poser("tf_crew", "—")
 	_poser("tf_draft", "—")
 
-	match _onglet:
-		"Acheter", "Vendre":
-			_poser("tf_price", _nombre(int(d.get(
-				"prix_achat" if _onglet == "Acheter" else "prix_revente", 0))))
-		"Construire":
+	match _scene:
+		"exports.Tab_Shipyard_buy":
+			_poser("tf_price", _nombre(int(d.get("prix_achat", 0))))
+		"exports.Tab_Shipyard_sell":
+			_poser("tf_price", _nombre(int(d.get("prix_revente", 0))))
+		"exports.Tab_Shipyard_build":
 			_poser("tf_price", _nombre(int(d.get("cout_construction", 0))))
 			_poser("tf_time_val", "%d j" % int(d.get("jours", 0)))
 			var mats: Array = d.get("materiaux", [])
 			for i in 4:
-				_poser("tf_good_%d" % i, str(int(mats[i].get("quantite", 0))) if i < mats.size() else "")
-		"Réparer":
+				_poser("tf_good_%d" % i,
+					str(int(mats[i].get("quantite", 0))) if i < mats.size() else "")
+		"exports.Tab_Shipyard_repair":
 			_poser("tf_cost_val", "—")
 			_poser("tf_time_val", "—")
 

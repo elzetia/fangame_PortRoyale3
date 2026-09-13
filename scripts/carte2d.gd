@@ -95,9 +95,9 @@ var _message_fin := 0.0
 
 # Le comptoir, ouvert quand le navire est a quai.
 var _comptoir: MarchePanneau
-var _infos_ville: VillePanneau
+var _infos_ville: VillePR3
 var _routes: RoutesPanneau
-var _chantier: ChantierPanneau
+var _chantier: ChantierPR3
 var _radial: RadialVille
 var _capitainerie: CapitaineriePanneau
 var _convoy_town: ConvoyTownPanneau
@@ -172,14 +172,14 @@ func _ready() -> void:
 	add_child(Ambiance.new())
 	_comptoir = MarchePanneau.new()
 	add_child(_comptoir)
-	_infos_ville = VillePanneau.new()
+	_infos_ville = VillePR3.new()
 	add_child(_infos_ville)
 	_infos_ville.poser_villes(_villes)
 	# L'écran des routes commerciales automatiques du joueur.
 	_routes = RoutesPanneau.new()
 	add_child(_routes)
 	# L'écran du chantier naval : y constituer sa flotte.
-	_chantier = ChantierPanneau.new()
+	_chantier = ChantierPR3.new()
 	add_child(_chantier)
 	# Le menu radial au clic sur une ville : infos, dock, chantier (si elle en a un).
 	_radial = RadialVille.new()

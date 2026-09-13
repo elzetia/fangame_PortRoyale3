@@ -349,3 +349,43 @@ Porté par `scripts/ville_panneau.gd` (onglet Infos ville).
 **Tab_Shipyard_build · _repair · _buy · _sell** (+ _sell_pirate). Cadre =
 Dialog_Tabbed_Big (801). Illustration propre : `dialog_shipyard_pc/18.png`
 (374x228). Porté par `scripts/chantier_panneau.gd`.
+
+---
+
+## Les textes : le format L10N et son hachage
+
+Les libelles de PR3 ne sont ni dans les .swf ni dans constdata : ils vivent dans
+`data_fr.fuk -> ui/locale/frfr/global.res` (752 Ko), au format maison **L10N**
+v1.2. Decode par `outils/pr3_loca.py`.
+
+```
+entete : 'L10N'(4)  version(u32)  nombre(u32)
+table  : `nombre` enregistrements de 12 octets : hash(u32) offset(u32) longueur(u32)
+textes : UTF-16LE, ranges bout a bout apres la table
+```
+
+Piege : les `offset` sont comptes depuis la FIN de l'entete, pas depuis le debut
+du fichier — il faut donc leur ajouter 12. Sans ce decalage on lit six
+caracteres parasites avant chaque texte.
+
+### Le hachage des cles
+
+La table ne contient AUCUNE cle : chaque texte est designe par un hash u32. Les
+2610 cles litterales (`ID_GUI_*`, `ID_FORMATTER_*`, `ID_STRATEGY_*`) sont dans
+l'exe. Le hash a ete retrouve **par ancrage** plutot qu'en desassemblant : on
+sait deja que les sept paliers de prosperite sont `ID_GUI_TOWN_WEALTH_00..07`
+et valent Pauvrete…Opulence. En cherchant ces textes dans la table, leurs hashes
+se sont reveles **consecutifs** (632eca4b, 4c, 4d, …, 52) — signature d'un hash
+polynomial, ou changer le dernier caractere de +1 decale le resultat de +1. Il
+restait a resoudre le multiplicateur contre une cible connue :
+
+```
+h = 0 ; pour chaque octet c de la cle : h = (h * 113 + c) mod 2^32
+```
+
+Verifie : `hash("ID_GUI_TOWN_WEALTH_00") = 0x632eca4b`. Applique aux 2610 cles,
+il en apparie **2103 (80 %)** ; le reste sont des cles bâties au runtime par
+format (`ID_..._%u`), qu'on ne peut apparier sans connaitre l'indice.
+
+Le resultat est ecrit dans `reference_pr3/ui/agencement/textes_fr.txt` (ignore
+par git : texte du jeu, sous droits) et lu par `scripts/loca_pr3.gd`.
