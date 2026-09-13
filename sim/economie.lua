@@ -685,6 +685,12 @@ local FLEAU_PROBA = 0.0006        -- probabilité de base, par ville et par jour
 local PESTE_MORTALITE = 0.004     -- déclin quotidien supplémentaire sous la peste
 local FLEAU_TYPES = { "peste", "sauterelles", "feu" }
 
+-- L'efficacité d'un atelier (`0x7C2B30`) monte ou descend d'un point par jour, sur
+-- une échelle de 0 à 100 — soit 0,01 par jour. On garde un plancher pour qu'une
+-- chaîne coupée puisse repartir une fois ses intrants revenus.
+local EFFICACITE_PAS = 0.01
+local EFFICACITE_MIN = 0.10
+
 -- Un générateur de Park et Miller, semé de la ville et du jour : reproductible.
 local function tirage(graine)
   local g = graine % 2147483646 + 1
@@ -795,22 +801,35 @@ local function jour(ville)
   -- 3. Les ateliers, sur le surplus, dans l'ordre des dépendances. Ils gardent
   --    trois jours de consommation des habitants : un atelier qui racle
   --    l'entrepôt laisserait la ville sans rien le lendemain matin.
+  --
+  --    L'EFFICACITÉ de PR3 (`0x7C2B30`) : un atelier ne tourne pas à plein d'un
+  --    coup. Sa production visée vaut capacité × efficacité ; si les intrants ne
+  --    suivent pas, l'efficacité tombe d'un point par jour (`[+0x92]−1`), sinon
+  --    elle remonte. C'est l'inertie qui fait qu'une chaîne coupée met des jours à
+  --    repartir même quand ses intrants reviennent.
+  ville.efficacite = ville.efficacite or {}
   for _, m in ipairs(Marchandises.ordreFabrication) do
     if m.recette then
       local capacite = ville.production[m.cle] or 0
-      local sortie = capacite
-      if sortie > 0 then
+      local sortie = 0
+      if capacite > 0 then
+        local eff = ville.efficacite[m.cle] or 1.0
+        sortie = capacite * eff
+        local affame = false
         for _, ing in ipairs(m.recette) do
           local garde = consommation(ville, Marchandises.get(ing[1])) * 3.0
           local dispo = (ville.stock[ing[1]] or 0) - garde
           local possible = dispo / ing[2]
-          if possible < sortie then sortie = possible end
+          if possible < sortie then sortie = possible; affame = true end
         end
         if sortie < 0 then sortie = 0 end
         for _, ing in ipairs(m.recette) do
           ville.stock[ing[1]] = (ville.stock[ing[1]] or 0) - sortie * ing[2]
         end
         ville.stock[m.cle] = (ville.stock[m.cle] or 0) + sortie
+        -- Le ramp d'efficacité : −1 point/jour si les intrants manquent, +1 sinon.
+        eff = affame and (eff - EFFICACITE_PAS) or (eff + EFFICACITE_PAS)
+        ville.efficacite[m.cle] = borner(eff, EFFICACITE_MIN, 1.0)
       end
       ville.rendement[m.cle] = sortie
     end
@@ -894,7 +913,10 @@ local function jour(ville)
     ville.fleau.jours = ville.fleau.jours - 1
     if ville.fleau.jours <= 0 then ville.fleau = nil end
   elseif ville.habitants >= SANS_FAMINE then
-    local risque = FLEAU_PROBA * (1.5 - note / 100.0)
+    -- Le risque suit la SURPOPULATION, comme PR3 (`0x7C1930` : citoyens contre un
+    -- seuil de logement, tirage sur 30 000) : une ville qui remplit ses maisons est
+    -- plus exposée aux épidémies et aux incendies.
+    local risque = FLEAU_PROBA * ville.habitants / math.max(ville.capacite, 1)
     local graine = ville.graine_fleau + jour_no * 2654435761
     if tirage(graine) < risque then
       local i = math.floor(tirage(graine + 777) * #FLEAU_TYPES) + 1
