@@ -90,6 +90,32 @@ func _init() -> void:
 	if apres != avant - 2:
 		printerr("  ECHEC : la flotte n'a pas cédé 2 navires (", avant, " -> ", apres, ")."); echecs += 1
 
+	# --- gestion du convoi : ajouter puis retirer un navire ------------------
+	if apres >= 1:
+		var ra2 = b.get("ajouter_navire_convoi").invokev([1, [1]])
+		var nav_apres_ajout := int((b.get("routes").invoke()[0] as Dictionary).get("navires", 0))
+		print("ajouter navire convoi : ", ra2, " -> convoi a ", nav_apres_ajout, " navires")
+		if not bool(ra2.get("ok", false)) or nav_apres_ajout != 3:
+			printerr("  ECHEC : l'ajout au convoi n'a pas donné 3 navires."); echecs += 1
+		if b.get("flotte").invoke().size() != apres - 1:
+			printerr("  ECHEC : la flotte n'a pas cédé le navire ajouté."); echecs += 1
+		var rr = b.get("retirer_navire_convoi").invokev([1, 1])
+		var r1 = b.get("routes").invoke()[0] as Dictionary
+		print("retirer navire convoi : ", rr, " -> convoi a ", int(r1.get("navires", 0)),
+			" navires, noms=", r1.get("navires_noms"))
+		if not bool(rr.get("ok", false)) or int(r1.get("navires", 0)) != 2:
+			printerr("  ECHEC : le retrait n'a pas ramené le convoi à 2 navires."); echecs += 1
+
+	# --- flag chantier des villes --------------------------------------------
+	var avec := 0
+	var sans := 0
+	for p in ports:
+		if bool(p.get("chantier", false)): avec += 1
+		else: sans += 1
+	print("villes avec chantier  : ", avec, " ; sans : ", sans)
+	if avec == 0 or sans == 0:
+		printerr("  ECHEC : le flag chantier ne distingue pas les villes."); echecs += 1
+
 	# --- dissoudre : les navires reviennent à la flotte ----------------------
 	var rec = b.get("dissoudre_route").invokev([1])
 	var apres2 = b.get("flotte").invoke().size()

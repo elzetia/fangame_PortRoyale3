@@ -141,6 +141,16 @@ func dissoudre_route(indice: int) -> int:
 	return int(r) if r != null else 0
 
 
+func ajouter_navire_convoi(indice_convoi: int, navires: Array) -> Dictionary:
+	var r = _appel("ajouter_navire_convoi", [indice_convoi, navires])
+	return r if r is Dictionary else {}
+
+
+func retirer_navire_convoi(indice_convoi: int, indice_navire: int) -> Dictionary:
+	var r = _appel("retirer_navire_convoi", [indice_convoi, indice_navire])
+	return r if r is Dictionary else {}
+
+
 # --- chantier naval : acheter, construire, flotte possédée -------------------
 
 func flotte() -> Array:

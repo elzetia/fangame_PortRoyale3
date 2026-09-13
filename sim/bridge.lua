@@ -87,6 +87,9 @@ function Bridge.ports()
     -- Le rendu s'en sert pour hierarchiser les etiquettes, qui a soixante ports
     -- se recouvriraient toutes.
     d.taille       = port.taille or 1
+    -- A-t-elle un chantier naval ? Le menu radial n'affiche le pétale chantier
+    -- que si oui.
+    d.chantier     = port.chantier == true
     -- Les CINQ marchandises que la ville produit, dans l'ordre de PR3. Le
     -- panneau d'infos les aligne telles quelles : c'est la carte d'identité
     -- économique du port, et elle ne change jamais en cours de partie.
@@ -507,6 +510,10 @@ function Bridge.routes()
     d.capacite    = m.capacite
     d.charge      = math.floor(charge + 0.5)
     d.navires     = #(m.navires or {})
+    -- Les navires du convoi, un par un, pour pouvoir en retirer.
+    local noms = Array()
+    for _, s in ipairs(m.navires_joueur or {}) do noms:append(s.nom) end
+    d.navires_noms = noms
     d.a_quai      = m.ville ~= nil
     d.ville       = m.ville or ""
     d.destination = m.destination or ""
@@ -546,6 +553,28 @@ end
 -- Dissout la route d'indice donné, rend l'or récupéré.
 function Bridge.dissoudre_route(indice)
   return math.floor(Compagnie.dissoudre_route(indice) + 0.5)
+end
+
+-- Ajoute des navires de la flotte (indices) au convoi d'indice donné. Renvoie
+-- { ok, message }.
+function Bridge.ajouter_navire_convoi(indice_convoi, navires)
+  local indices = {}
+  for _, v in ipairs(en_table(navires)) do indices[#indices + 1] = math.floor(v + 0.5) end
+  local ok, err = Compagnie.ajouter_navire_convoi(indice_convoi, indices)
+  local d = Dictionary()
+  d.ok = ok
+  d.message = err or ""
+  return d
+end
+
+-- Retire le navire à la place donnée dans le convoi, le rend à la flotte. Renvoie
+-- { ok, message }.
+function Bridge.retirer_navire_convoi(indice_convoi, indice_navire)
+  local ok, err = Compagnie.retirer_navire_convoi(indice_convoi, indice_navire)
+  local d = Dictionary()
+  d.ok = ok
+  d.message = err or ""
+  return d
 end
 
 -- La flotte possédée du joueur : les navires à quai, prêts à être affectés à une

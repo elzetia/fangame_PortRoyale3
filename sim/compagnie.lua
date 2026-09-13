@@ -233,6 +233,71 @@ function Compagnie.dissoudre_route(indice)
 end
 
 
+-- Recompose les champs dérivés d'un convoi après un ajout ou un retrait de navire :
+-- la liste des types, la capacité, la vitesse, l'entretien, le nom. La cargaison
+-- (`m.cale`) est un pot commun, jamais attachée à un navire précis : retirer un
+-- navire réduit la capacité sans rien perdre, le commerce écoule le trop-plein.
+local function recomposer_convoi(m)
+  local types = {}
+  for _, s in ipairs(m.navires_joueur) do types[#types + 1] = Navires.get(s.cle) end
+  m.navires = types
+  m.capacite = Navires.cale(types)
+  m.vitesse = Navires.vitesse_jour(types)
+  m.entretien = Navires.entretien(types)
+  local port = Archipel.portsParCle[m.attache]
+  local lieu = port and port.nom or m.attache
+  if #types == 1 then
+    m.nom = string.format("%s de %s", types[1].nom, lieu)
+  else
+    m.nom = string.format("Convoi de %s (%d navires)", lieu, #types)
+  end
+end
+
+
+-- Ajoute des navires de la flotte (leurs indices) à un convoi EXISTANT. Ils
+-- quittent la flotte. Renvoie ok, message.
+function Compagnie.ajouter_navire_convoi(indice_convoi, indices_flotte)
+  local m = Compagnie.convois[indice_convoi]
+  if not m then return false, "Convoi inconnu." end
+  local choisis = {}
+  for _, i in ipairs(indices_flotte or {}) do
+    if Compagnie.flotte[i] then choisis[#choisis + 1] = i end
+  end
+  if #choisis == 0 then return false, "Aucun navire choisi." end
+  if #m.navires_joueur + #choisis > Chantier.LIMITE_MEMBRES then
+    return false, string.format("Un convoi ne peut porter plus de %d navires.", Chantier.LIMITE_MEMBRES)
+  end
+  table.sort(choisis, function(a, b) return a > b end)  -- retirer sans décaler
+  for _, i in ipairs(choisis) do
+    m.navires_joueur[#m.navires_joueur + 1] = Compagnie.flotte[i]
+  end
+  for _, i in ipairs(choisis) do table.remove(Compagnie.flotte, i) end
+  recomposer_convoi(m)
+  return true, nil
+end
+
+
+-- Retire un navire (par sa place dans le convoi) et le rend à la flotte. S'il ne
+-- reste plus de navire, le convoi se dissout et son or rentre en caisse. Renvoie
+-- ok, message.
+function Compagnie.retirer_navire_convoi(indice_convoi, indice_navire)
+  local m = Compagnie.convois[indice_convoi]
+  if not m then return false, "Convoi inconnu." end
+  local s = m.navires_joueur[indice_navire]
+  if not s then return false, "Navire inconnu." end
+  table.remove(m.navires_joueur, indice_navire)
+  Compagnie.flotte[#Compagnie.flotte + 1] = s
+  if #m.navires_joueur == 0 then
+    local recup = math.floor(math.max(0, m.or_) + 0.5)
+    Compagnie.or_ = Compagnie.or_ + recup
+    table.remove(Compagnie.convois, indice_convoi)
+    return true, "Dernier navire retiré : convoi dissous."
+  end
+  recomposer_convoi(m)
+  return true, nil
+end
+
+
 -- Fait avancer les convois automatiques du joueur d'un pas de `jours`. Appelé par
 -- le pont, en même temps que les convois de l'IA.
 function Compagnie.avancer_convois(jours)
