@@ -609,13 +609,27 @@ rangée en cache ; chaque chemin lisible statiquement (fiche, bataille, classeme
 composant, export debug) lit ce cache, jamais l'arithmétique. C'est le seul chiffre
 du jeu qui résiste à la lecture statique par les chemins accessibles.
 
-Deux voies pour l'obtenir exactement, aucune n'étant de l'intuition :
-1. **Décompiler la mise à jour du composant ECS** qui écrit la puissance (long : il
-   faut d'abord reconstituer la disposition mémoire de `BattleShipComponent`).
-2. **Lire la puissance que le jeu AFFICHE** sur la fiche d'un convoi pour quelques
-   compositions connues (un navire de canons/marins donnés, puis deux, puis trois).
-   Ce n'est pas deviner : c'est lire la sortie authentique de PR3. Trois ou quatre
-   relevés donnent la formule exacte.
+**Carte précise de la traque (session de RE dédiée au combat).** Le chemin de la
+puissance est entièrement cartographié — il ne manque que l'écriture :
+- La puissance des deux camps vit dans un **sous-objet du convoi à `convoi+0xfd0`**
+  (voisin du compteur de navires de combat `+0xf9c`), lu par l'accesseur `0x4376f0`
+  (`return this+0xfd0`).
+- La fenêtre pré-bataille `0x6c5970` en **copie** les stats dans des locales
+  (puissance attaquant = `word [ebp-0xa2]`, défenseur `[ebp-0xd4]`, équipage
+  `[ebp-0xda]`) puis les affiche (`tf_convoystrength_attacker/defender`) ; la
+  fenêtre `0x568650` fait pareil ; le setup du dialogue (boutons Manuel/Auto/Annuler)
+  est `0x56cd90`. Toutes **lisent**, aucune ne calcule.
+- Le **remplisseur** du sous-objet `+0xfd0` (qui écrit la puissance) est parmi les
+  écrivains appelant `0x4376f0` (candidats : `0x52a8f0`, `0x52e73e`, `0x49a2ff`…),
+  ou dans la mise à jour du `BattleShipComponent`. Un balayage des multiplications
+  ×5 (« ≤ 5 marins/canon ») dans tout le `.text` n'a donné que des courbes
+  d'économie (`0x8629b0`) et une courbe par paliers `0x51b8a0` (rang/richesse,
+  non-combat) — la formule n'est pas une simple ×5 en clair.
+
+**Voie retenue** (pas de relevé en jeu) : reconstituer la **disposition mémoire du
+sous-objet `+0xfd0`** (offsets des champs puissance/équipage/canons des deux camps),
+puis identifier son **remplisseur** parmi les écrivains de `0x4376f0` — là est
+l'arithmétique. C'est une session de désassemblage ciblée, à faire d'un bloc.
 
 ## État du rétro-engineering — le bilan complet
 
