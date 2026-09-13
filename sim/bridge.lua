@@ -251,6 +251,8 @@ function Bridge.etat_compagnie()
   d.capacite  = Compagnie.navire.capacite
   d.charge    = Compagnie.charge()
   d.libre     = Compagnie.place_libre()
+  -- Ce que le navire porte, en clair, pour la fiche de la carte.
+  d.cargaison = Marchands.cargaison(Compagnie.navire)
   -- La réputation moyenne du joueur auprès de chaque nation, de 0 à 100 : la
   -- moyenne de ses villes, dont le commerce fait bouger le détail.
   local rep = Dictionary()

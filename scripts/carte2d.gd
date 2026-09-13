@@ -49,6 +49,7 @@ var _villes: Villes
 # HUD
 var _panneau_date: PanneauDate
 var _lbl_statut: Label
+var _lbl_cargaison: Label
 var _lbl_message: Label
 var _barre_vitesse: BarreVitesse
 
@@ -91,6 +92,7 @@ var _message_fin := 0.0
 # Le comptoir, ouvert quand le navire est a quai.
 var _comptoir: MarchePanneau
 var _infos_ville: VillePanneau
+var _routes: RoutesPanneau
 
 # Les cinq marchands des nations, relus à chaque image : ils bougent tout
 # seuls, y compris pendant que le joueur regarde ailleurs.
@@ -158,6 +160,9 @@ func _ready() -> void:
 	_infos_ville = VillePanneau.new()
 	add_child(_infos_ville)
 	_infos_ville.poser_villes(_villes)
+	# L'écran des routes commerciales automatiques du joueur.
+	_routes = RoutesPanneau.new()
+	add_child(_routes)
 	# Le bouton « Infos ville » du comptoir passe par ici : c'est la carte qui
 	# arbitre lequel des deux panneaux est à l'écran.
 	_comptoir.infos_demandees.connect(func(port: Dictionary) -> void:
@@ -1242,6 +1247,10 @@ func _process(delta: float) -> void:
 		var m := _comptoir.message()
 		if m != "":
 			_noter(m)
+	# Les convois du joueur bougent et commercent avec le temps : l'écran des
+	# routes doit se relire s'il est ouvert.
+	if _routes != null and _routes.visible:
+		_routes.rafraichir()
 	queue_redraw()
 
 
@@ -1627,6 +1636,20 @@ func _creer_hud() -> void:
 	_panneau_date.position = MARGE_DATE
 	couche.add_child(_panneau_date)
 
+	# Le bouton des routes commerciales : en haut à droite, il ouvre l'écran de
+	# gestion des convois automatiques du joueur.
+	var routes_b := Button.new()
+	routes_b.text = "Routes"
+	routes_b.add_theme_font_size_override("font_size", 16)
+	routes_b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	routes_b.offset_left = -120
+	routes_b.offset_top = 14
+	routes_b.offset_right = -14
+	routes_b.pressed.connect(func() -> void:
+		if _routes != null:
+			_routes.ouvrir(sim))
+	couche.add_child(routes_b)
+
 	_lbl_message = Label.new()
 	_lbl_message.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	_lbl_message.offset_top = 14
@@ -1668,6 +1691,13 @@ func _creer_hud() -> void:
 	_lbl_statut.add_theme_font_size_override("font_size", 14)
 	_lbl_statut.add_theme_color_override("font_color", Color(0.84, 0.70, 0.32))
 	infos.add_child(_lbl_statut)
+
+	# Ce que le navire porte, et l'or en caisse : on veut savoir sa cargaison sans
+	# ouvrir le comptoir.
+	_lbl_cargaison = Label.new()
+	_lbl_cargaison.add_theme_font_size_override("font_size", 13)
+	_lbl_cargaison.add_theme_color_override("font_color", Color(0.90, 0.86, 0.74))
+	infos.add_child(_lbl_cargaison)
 
 	# La barre du temps ne vit plus dans le bandeau du bas : elle a sa propre
 	# planche, posée par-dessus, dans le coin. Les feuilles de palmier qui la
@@ -1719,6 +1749,14 @@ func _maj_hud() -> void:
 		var nom: String = navire.destination.get("nom", "")
 		_lbl_statut.text = ("En mer - cap au large, arrivée dans %s" % duree) if nom == "" \
 			else ("En mer - cap sur %s, arrivée dans %s" % [nom, duree])
+
+	# La cargaison du navire et l'or en caisse.
+	if _lbl_cargaison != null:
+		var c := sim.etat_compagnie()
+		var cargo := String(c.get("cargaison", "sur lest"))
+		_lbl_cargaison.text = "%d pièces  ·  cale %d/%d  ·  %s" % [
+			int(c.get("or_", 0)), int(c.get("charge", 0)),
+			int(c.get("capacite", 0)), cargo]
 
 	# La plaque de la barre affiche l'allure. Elle lit l'indice DU CALENDRIER
 	# plutôt que de retenir le dernier clic : la vitesse change aussi au clavier
