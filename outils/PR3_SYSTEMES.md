@@ -517,21 +517,49 @@ Deux voies pour l'obtenir exactement, aucune n'étant de l'intuition :
    Ce n'est pas deviner : c'est lire la sortie authentique de PR3. Trois ou quatre
    relevés donnent la formule exacte.
 
-## État du rétro-engineering
+## État du rétro-engineering — le bilan complet
+
+Cinq niveaux : **porté** (dans `sim/`), **décodé** (math/structure exacte lue),
+**semantique** (sens connu, logique fine non décompilée), **bloqué-dynamique**
+(ne se lit qu'en exécution), **contenu / hors-jeu** (scénario, rendu, réseau).
 
 | Sous-système | État |
 |---|---|
-| Économie, villes, prix, prospérité, réputation | **complet et appliqué à la sim** |
-| Navires (caractéristiques), carte, eau, formats | **complet** |
-| Convois de l'IA (modèle d'objet, taille, classes) | **structure + entrée de décision lues** : routes à ordres par bien (`0x7CED60`) |
-| Bâtiments (coûts, matériaux, effets) | **complet** (effets lus des descriptions) |
-| Combat AUTOMATIQUE (puissance par camp, issue déterministe) | **modèle et entrées lus** ; formule décompilable statiquement |
-| Combat MANUEL (canon temps réel, abordage) | **paramètres relevés**, formules à tracer en exécution |
-| Diplomatie, rangs, licences, donations, lettres de marque | **mécanique lue** (18 rangs à la richesse, réputation double + dérive sinusoïdale) |
-| Pirates, tempêtes, sauterelles, patrouilles, météo | **paramètres relevés** |
-| Signaux de ville (conseiller) | **taxonomie complète lue** |
-| Missions et quêtes | **identifiées** (couche scriptée sur les signaux) |
-| Rendu, caméra, interface, audio, réseau | **hors du modèle de simulation** |
+| Consommation, prix, seuils, faim, knapp | **porté** |
+| Production, coût, recettes, entrepôt (stock/prix moyen) | **porté** |
+| Qualité de vie, 7 niveaux de prospérité | **porté** |
+| Croissance de population (vers capacité de logement), logement | **porté** |
+| Efficacité des ateliers (inertie ±1/jour) | **porté** |
+| Emploi (ouvriers → citoyens ÷ 4) | **décodé** (non porté : la sim n'a pas la couche ouvriers) |
+| Fléaux (peste/sauterelles/feu, par surpopulation) | **porté** |
+| Construction de l'IA (Bauquotient) | **porté** |
+| Réputation par ville (commerce) | **porté** |
+| Navires (16 types, cale, vitesse, entretien), carte, eau, formats | **porté / décodé** |
+| Convois : taille (420÷1900), composition, routes à ordres `set_goods`, 9 stratégies | **décodé** ; modèle porté |
+| Bâtiments : coûts, matériaux, effets (école, hôpital, ambassade…) | **décodé** |
+| Journée d'une ville : les 20 étapes de `0x7C2D20`, dans l'ordre | **décodé** |
+| Diplomatie : 18 rangs à la richesse, licences, donations, lettres de marque | **sémantique** |
+| Réputation de nation, dérive sinusoïdale (`Offset`/`Amplitude`/`Phase`) | **sémantique** |
+| Pirates, tempêtes, sauterelles, mines, patrouilles, météo | **décodé** (paramètres) |
+| Signaux de ville (conseiller) — taxonomie | **décodé** |
+| Générateurs de stratégie (Profit, Resources… → ordres) | **sémantique** (logique par stratégie non décompilée) |
+| Combat AUTOMATIQUE : puissance par camp (canons, marins ≤ 5/canon, maniabilité) | **bloqué-dynamique** (valeur mise en cache dans l'ECS) |
+| Combat MANUEL : trajectoire, dégâts, abordage temps réel | **bloqué-dynamique** |
+| Affectation équipage/escorte au combat | **bloqué-dynamique** (lié à la puissance) |
+| Missions et campagne | **contenu** (à réécrire, pas à décompiler) |
+| Rendu, caméra, interface, audio, réseau | **hors-jeu** |
+
+**Verdict.** Toute la logique de JEU lisible statiquement est décortiquée : l'économie
+entière (portée dans la sim), les convois et le commerce, la ville et sa population,
+la diplomatie, les fléaux, les bâtiments. Ne restent hors de portée du binaire figé
+que **trois choses, par nature** :
+
+1. **Les formules de combat** (puissance, dégâts, abordage) — calculées et mises en
+   cache dans la couche de composants ECS, elles ne s'exposent pas en clair ; leur
+   seule voie fiable est la **lecture à l'exécution** (le jeu affiche la puissance
+   d'un convoi ; quelques relevés donnent la formule).
+2. **Le scénario de campagne** — du contenu scripté, à réécrire.
+3. **Le rendu, l'UI, l'audio et le réseau** — hors du modèle.
 
 La liste exhaustive des 134 sections et 421 clés est reproductible par
 `py -3 outils/config_map.py` (l'outil lit l'exécutable local, jamais commité).
