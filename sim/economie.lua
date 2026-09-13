@@ -343,6 +343,7 @@ function Economie.reinitialiser()
       knapp_serie = 0,
       qualite = 100,
       niveau = 5,
+      tendance = 0,
     }
     -- Ce que ses ateliers tirent de ses entrepôts chaque jour, à pleine
     -- capacité : la part « manufactures » de sa demande. La production est
@@ -798,6 +799,9 @@ local function jour(ville)
     taux = base * (ville.subsistance or 1.0)
   end
   taux = borner(taux, -DECLIN_MAX, CROISSANCE_PROSPERITE)
+  -- La tendance affichée suit le taux réel, non plus un raccourci sur la faim :
+  -- la flèche du panneau et la démographie ne peuvent pas se contredire.
+  ville.tendance = (taux > 0 and 1) or (taux < 0 and -1) or 0
   ville.habitants = borner(ville.habitants * (1 + taux), 120, 12000)
 end
 

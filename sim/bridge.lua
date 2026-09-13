@@ -344,13 +344,12 @@ function Bridge.etat_ville(cle_ville)
   d.habitants   = math.floor(v.habitants + 0.5)
   d.subsistance = v.subsistance or 1.0
 
-  -- La tendance, pas la vitesse : le panneau ne montre qu'une flèche. Elle se lit
-  -- sur les compteurs de faim de `jour()`, ceux qui font grandir ou décliner la
-  -- ville : on ne recopie pas la règle, on redemande le signe au même endroit.
-  local faim = v.faim or -3
-  local penurie = v.penurie or -12
-  d.faim = faim
-  d.tendance = ((faim > 0 or penurie > 0) and -1) or (faim == 0 and 0) or 1
+  -- La tendance, pas la vitesse : le panneau ne montre qu'une flèche. Elle vient
+  -- du signe de la croissance calculée par `jour()`, gradué par la prospérité, et
+  -- non plus d'un raccourci sur la faim — flèche et démographie s'accordent.
+  d.faim = v.faim or -3
+  d.niveau = v.niveau or 5
+  d.tendance = v.tendance or 0
 
   local dem = Economie.demographie(cle_ville)
   d.ouvriers   = dem.ouvriers
