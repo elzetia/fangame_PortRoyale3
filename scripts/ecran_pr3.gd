@@ -6,10 +6,17 @@
 # classe de composant et sa position au pixel. Ce script lit ce JSON et pose les
 # nœuds Godot aux mêmes coordonnées, avec l'art extrait du jeu.
 #
-# Ce qu'on a dû corriger pour y arriver : PR3 instancie ses composants par
-# PlaceObject3 « HasClassName » — une chaîne de classe glissée avant le charId.
-# Tant qu'on ne la sautait pas, le nom d'instance et la matrice étaient lus au
-# mauvais offset, et l'agencement paraissait absent. Il ne l'était pas.
+# Trois pièges, tous payés comptant :
+#
+#  1. PR3 instancie ses composants par PlaceObject3 « HasClassName » — une chaîne
+#     de classe glissée avant le charId. Tant qu'on ne la saute pas, le nom
+#     d'instance et la matrice sont lus au mauvais offset.
+#  2. Un onglet a son PROPRE décalage dans la scène (le chantier pose ses pages
+#     à (102,-123), l'info-ville à (15,113)). Sans lui, la grille de statistiques
+#     tombe hors du cadre. Voir `decalage_onglet()`.
+#  3. Un Control libre n'a pas de taille : `custom_minimum_size` ne vaut que dans
+#     un conteneur. Il faut poser `size` — sinon les plaques s'étirent sur toute
+#     la largeur et les icônes sortent à leur taille native.
 #
 # L'art (cadres, icônes) vient de `reference_pr3/`, ignoré par git — sous droits,
 # lu au runtime comme les modèles de navires. Absent, l'écran se bâtit quand même
@@ -17,25 +24,24 @@
 #
 # Conventions de PR3 relevées dans le skin :
 #   components.textfield.Visual_Textfeld_NN  -> un texte de NN pixels
-#   exports.Text_Bg_Nomal                    -> la plaque sombre sous un chiffre
+#   exports.Text_Bg_Nomal                    -> la plaque sombre sous un chiffre,
+#                                               13x20 de base, étirée par l'échelle
 #   components.button.Visual_IconButton_X    -> une icône (table icones.txt)
 #   components.textbutton.*                  -> un bouton à libellé
-#
-# Usage : `var e := EcranPR3.batir("dialog_shipyard_pc", "exports.Tab_Shipyard_repair")`
-# puis `e.champ("tf_hp").text = "…"` pour brancher la simulation sur un champ.
 class_name EcranPR3
 extends RefCounted
 
 const AGENCEMENT := "res://reference_pr3/ui/agencement/"
 const SKIN := "skinlib_pr3/"
 
-# Les quatre bandes du cadre à onglets (Dialog_Tabbed), larges de 430 px.
-const CADRE_TABBED := {
-	"tete": "757",    # 430x62
-	"corps": "753",   # 430x48
-	"tuile": "777",   # 430x50
-	"pied": "750",    # 430x50 — posé à y=522
-}
+# Le cadre à onglets de PR3 (exports.Dialog_Tabbed), large de 430 px :
+# un bandeau de bois, un parchemin répété, un culot bordé de corde dorée.
+const CADRE := {"bandeau": "757", "corps": "753", "culot": "750"}
+const CADRE_LARGEUR := 430
+const CADRE_HAUTEUR := 572
+
+# La plaque `Text_Bg_Nomal` mesure 13x20 avant étirement.
+const PLAQUE := Vector2(13, 20)
 
 static var _json: Dictionary = {}
 static var _icones: Dictionary = {}
@@ -49,15 +55,13 @@ static func agencement(swf: String) -> Dictionary:
 	var doc := {}
 	var chemin := ProjectSettings.globalize_path(AGENCEMENT + swf + ".json")
 	if FileAccess.file_exists(chemin):
-		var brut := FileAccess.get_file_as_string(chemin)
-		var lu = JSON.parse_string(brut)
+		var lu = JSON.parse_string(FileAccess.get_file_as_string(chemin))
 		if lu is Dictionary:
 			doc = lu
 	_json[swf] = doc
 	return doc
 
 
-# La table classe de composant -> fichier bitmap, extraite du skin partagé.
 static func icones() -> Dictionary:
 	if not _icones.is_empty():
 		return _icones
@@ -70,9 +74,19 @@ static func icones() -> Dictionary:
 	return _icones
 
 
+# Où la scène pose cet onglet. C'est le décalage que PR3 applique à la page
+# entière : sans lui les champs sont posés comme si l'onglet vivait en (0,0).
+static func decalage_onglet(swf: String, scene_racine: String, onglet: String) -> Vector2:
+	var ecrans: Dictionary = agencement(swf).get("ecrans", {})
+	for el in (ecrans.get(scene_racine, []) as Array):
+		var d: Dictionary = el
+		if str(d.get("classe", "")) == onglet:
+			return Vector2(float(d.get("x", 0.0)), float(d.get("y", 0.0)))
+	return Vector2.ZERO
+
+
 # --- fabrique de nœuds ---------------------------------------------------------
 
-# La taille de police est encodée dans le nom du composant : Visual_Textfeld_22.
 static func _taille_police(classe: String) -> int:
 	var m := RegEx.new()
 	m.compile("Visual_Textfeld_(\\d+)")
@@ -88,30 +102,35 @@ static func _icone(classe: String) -> Texture2D:
 	return SkinPR3.texture(SKIN + fichier.replace(".png", ""))
 
 
-# Bâtit UN élément selon sa classe de composant PR3.
+# Bâtit UN élément selon sa classe de composant PR3, À SA TAILLE.
 static func _noeud(el: Dictionary) -> Control:
 	var classe := str(el.get("classe", ""))
-	var nom := str(el.get("nom", ""))
+	var sx := float(el.get("sx", 1.0))
+	var sy := float(el.get("sy", 1.0))
 
 	if classe.contains("Visual_Textfeld"):
 		var l := Label.new()
 		l.add_theme_font_size_override("font_size", _taille_police(classe))
-		l.add_theme_color_override("font_color", Color(0.93, 0.89, 0.80))
+		l.add_theme_color_override("font_color", Color(0.19, 0.13, 0.07))
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.clip_text = true
+		# Largeur provisoire : `batir` la recalera sur la plaque qui l'accompagne.
+		l.size = Vector2(60, PLAQUE.y)
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		return l
 
 	if classe.contains("Text_Bg"):
-		# La plaque sombre sous un chiffre : 13x20 de base, étirée par l'échelle.
 		var p := Panel.new()
 		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.08, 0.06, 0.04, 0.72)
-		sb.border_color = Color(0.42, 0.33, 0.18)
+		sb.bg_color = Color(0.62, 0.56, 0.42, 0.55)
+		sb.border_color = Color(0.38, 0.30, 0.17, 0.9)
 		sb.set_border_width_all(1)
-		sb.set_corner_radius_all(2)
+		sb.set_corner_radius_all(3)
 		if classe.contains("Red"):
-			sb.border_color = Color(0.62, 0.22, 0.18)
+			sb.border_color = Color(0.60, 0.20, 0.16)
 		p.add_theme_stylebox_override("panel", sb)
-		p.custom_minimum_size = Vector2(13.0 * float(el.get("sx", 1.0)), 20.0)
+		p.size = Vector2(PLAQUE.x * sx, PLAQUE.y * sy)
 		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		return p
 
@@ -120,19 +139,19 @@ static func _noeud(el: Dictionary) -> Control:
 		t.texture = _icone(classe)
 		t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		if t.texture != null:
-			t.custom_minimum_size = t.texture.get_size()
+		t.size = t.texture.get_size() if t.texture != null else Vector2(24, 24)
 		return t
 
 	if classe.contains("Textbutton") or classe.contains("Visual_Button"):
 		var b := Button.new()
 		b.focus_mode = Control.FOCUS_NONE
-		b.add_theme_font_size_override("font_size", 15)
+		b.add_theme_font_size_override("font_size", 13)
+		b.size = Vector2(110, 26)
 		return b
 
-	# Tout le reste : un conteneur nu, qui garde sa place et son nom.
 	var c := Control.new()
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.size = Vector2(1, 1)
 	return c
 
 
@@ -145,10 +164,12 @@ static func batir(swf: String, scene: String) -> Control:
 	racine.name = scene.get_slice(".", scene.get_slice_count(".") - 1)
 	racine.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var doc := agencement(swf)
-	var ecrans: Dictionary = doc.get("ecrans", {})
+	var ecrans: Dictionary = agencement(swf).get("ecrans", {})
 	if not ecrans.has(scene):
 		return racine
+
+	var plaques: Array = []   # [position, largeur] — pour recaler les textes
+	var textes: Array = []
 
 	for el in (ecrans[scene] as Array):
 		var d: Dictionary = el
@@ -160,39 +181,72 @@ static func batir(swf: String, scene: String) -> Control:
 			n.name = nom
 		n.position = Vector2(float(d.get("x", 0.0)), float(d.get("y", 0.0)))
 		racine.add_child(n)
+		if n is Panel:
+			plaques.append(n)
+		elif n is Label:
+			textes.append(n)
+
+	# PR3 pose le texte sur sa plaque, au même point : on donne donc au texte la
+	# largeur de la plaque qui l'accompagne, sinon un chiffre déborde ou se perd.
+	for t in textes:
+		var lbl := t as Label
+		var meilleure: Panel = null
+		var ecart := 6.0
+		for p in plaques:
+			var pan := p as Panel
+			var d2 := (pan.position - lbl.position).length()
+			if d2 < ecart:
+				ecart = d2
+				meilleure = pan
+		if meilleure != null:
+			lbl.position = meilleure.position
+			lbl.size = meilleure.size
 	return racine
 
 
-# Le cadre à onglets de PR3, composé de ses quatre bandes peintes (430 px).
-static func cadre_tabbed(hauteur := 572) -> Control:
+# Le cadre à onglets de PR3 : bandeau de bois, parchemin répété, culot doré.
+# (Le piège : 777 et 750 sont des CULOTS arrondis, pas des tuiles — les répéter
+# donne un empilement de plaques au lieu d'un fond plein.)
+static func cadre_tabbed(hauteur := CADRE_HAUTEUR) -> Control:
 	var c := Control.new()
 	c.name = "cadre"
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var y := 0
-	for cle in ["tete", "corps"]:
-		var tex := SkinPR3.texture(SKIN + str(CADRE_TABBED[cle]))
-		if tex == null:
-			continue
-		var tr := TextureRect.new()
-		tr.texture = tex
-		tr.position = Vector2(0, y)
-		c.add_child(tr)
-		y += int(tex.get_height())
-	# Le corps se répète jusqu'au pied.
-	var tuile := SkinPR3.texture(SKIN + str(CADRE_TABBED["tuile"]))
-	if tuile != null:
-		while y < hauteur - 50:
-			var tr2 := TextureRect.new()
-			tr2.texture = tuile
-			tr2.position = Vector2(0, y)
-			c.add_child(tr2)
-			y += int(tuile.get_height())
-	var pied := SkinPR3.texture(SKIN + str(CADRE_TABBED["pied"]))
-	if pied != null:
-		var tp := TextureRect.new()
-		tp.texture = pied
-		tp.position = Vector2(0, hauteur - pied.get_height())
-		c.add_child(tp)
+
+	var culot := SkinPR3.texture(SKIN + str(CADRE["culot"]))
+	var h_culot := culot.get_height() if culot != null else 0
+	var bandeau := SkinPR3.texture(SKIN + str(CADRE["bandeau"]))
+	var h_bandeau := bandeau.get_height() if bandeau != null else 0
+
+	# Le parchemin, répété entre le bandeau et le culot.
+	var corps := SkinPR3.texture(SKIN + str(CADRE["corps"]))
+	if corps != null:
+		var y := h_bandeau
+		while y < hauteur - h_culot:
+			var tr := TextureRect.new()
+			tr.texture = corps
+			tr.position = Vector2(0, y)
+			tr.size = Vector2(corps.get_width(), min(corps.get_height(), hauteur - h_culot - y))
+			tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+			tr.clip_contents = true
+			tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			c.add_child(tr)
+			y += corps.get_height()
+
+	if culot != null:
+		var tc := TextureRect.new()
+		tc.texture = culot
+		tc.position = Vector2(0, hauteur - h_culot)
+		tc.size = culot.get_size()
+		tc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		c.add_child(tc)
+
+	if bandeau != null:
+		var tb := TextureRect.new()
+		tb.texture = bandeau
+		tb.position = Vector2.ZERO
+		tb.size = bandeau.get_size()
+		tb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		c.add_child(tb)
 	return c
 
 

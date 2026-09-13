@@ -389,3 +389,69 @@ format (`ID_..._%u`), qu'on ne peut apparier sans connaitre l'indice.
 
 Le resultat est ecrit dans `reference_pr3/ui/agencement/textes_fr.txt` (ignore
 par git : texte du jeu, sous droits) et lu par `scripts/loca_pr3.gd`.
+
+---
+
+## Rejouer un ecran : les trois pieges
+
+Confrontation des captures du jeu avec les notres. Trois erreurs, toutes dans la
+facon de POSER l'agencement, pas dans son extraction.
+
+### 1. Le cadre a onglets n'est pas une tuile repetee
+
+`exports.Dialog_Tabbed` (430 px de large, 572 de haut) se compose de :
+
+| Bitmap | Taille | Role |
+|---|---|---|
+| 757 | 430x62 | bandeau de bois a coins arrondis + galon dore |
+| 753 | 430x48 | parchemin uni — LA tuile a repeter |
+| 777 | 430x50 | culot arrondi borde de corde doree |
+| 750 | 430x50 | culot du bas, pose a y=522 |
+
+777 et 750 sont des CULOTS, pas des tuiles : les repeter empile des plaques
+arrondies au lieu de remplir le fond. Seul 753 se repete.
+
+### 2. Un onglet porte son propre decalage
+
+La scene pose ses pages a un point qui n'est pas (0,0) :
+
+```
+Scene_Shipyard : tab_0..tab_4  @(102,-123)
+Scene_Trade    : Tab_TownInfo  @(15,113)   Tab_TownGoods @(-4,126)
+                 Tab_Equipment @(15,125)   Tab_Trade     @(0,125)
+```
+
+Sans ce decalage, la grille de statistiques du chantier (y=499 et y=552) tombe
+hors du cadre. Voir `EcranPR3.decalage_onglet()`.
+
+### 3. Un Control libre n'a pas de taille
+
+`custom_minimum_size` ne vaut que dans un conteneur. Pour un noeud pose a la
+main il faut `size` — sinon les plaques `Text_Bg_Nomal` s'etirent sur toute la
+largeur et les icones sortent a leur taille native. La plaque mesure 13x20 avant
+l'echelle du placement ; le texte qui l'accompagne prend SA largeur.
+
+### Ordre et visibilite des onglets
+
+L'ordre d'affichage suit l'indice du .swf, pas l'ordre des classes :
+`tab_0 sell, tab_2 buy, tab_3 repair, tab_4 build` — soit **Vendre, Acheter,
+Reparer**, et « Contrat de construction » seulement la ou le joueur administre
+la ville (`ID_GUI_SHIPYARD_BUILD_EMPTY`). Le titre est le nom du batiment selon
+son niveau : `ID_GUI_BUILDING_SHIPYARD` / `_SHIPYARD2` / `_SHIPYARD3`.
+
+Le dialogue de ville range ses onglets sur DEUX rangees : trois a libelle
+(Infos ville, Liste denrees, Equiper) puis trois onglets-ICONES de sens
+d'echange, dont le libelle localise est une image
+(`<img src='icon_trade_town_convoy'>`, soit dialog_trade/5-7.png, 106x17).
+
+### Les libelles de la fiche de ville
+
+| Champ | Cle | Exemple |
+|---|---|---|
+| tf_nationinfo | `ID_REPUTATION_NATION_0..3` | « %1, neutre » |
+| tf_towndesc | `ID_GUI_TOWN_TYPE_00..03` | Village, Ville coloniale, Ville de Gouverneur, Vice-roi |
+| tf_status_prosperity | `ID_GUI_TOWN_WEALTH_00..07` | Pauvrete…Opulence |
+| tf_citizeninfo | `ID_GUI_REPUTATION_TOWN_PERCENTAGE_00..05` | « Peu de citoyens s'interessent a vous. » |
+
+La reputation va de 0 a 100 et part a 50, qui doit se lire « neutre » : les
+paliers sont des seuils (25 / 60 / 85), pas une division lineaire.
