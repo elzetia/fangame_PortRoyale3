@@ -221,6 +221,46 @@ famine, l'ambassade et l'église amènent des colons d'Europe. La croissance « 
 sans immigration » qu'évoque le jeu est exactement la croissance à la prospérité
 que la sim applique.
 
+## La journée d'une ville, pas à pas — le cœur de la copie
+
+Pour copier fidèlement PR3, l'ordre des opérations compte autant que les formules :
+une même journée, jouée dans un autre ordre, ne donne pas les mêmes stocks. Le
+répartiteur `0x7C2D20` exécute, pour chaque ville et chaque jour, **cette
+séquence exacte** de vingt étapes (esi = la ville, edi = le monde) :
+
+| # | Fonction | Rôle | État |
+|---|---|---|---|
+| 1 | `0x7BF8A0` | Seuils de prix X1–X4 **et** note de qualité de vie | **lu** |
+| 2 | `0x7C1930` | Tirage d'incendie / déclin selon la surpopulation (fabriques × 2 000 vs habitants) et la qualité | lu (structure) |
+| 3 | `0x7C2080` | Consommation des habitants + surconsommation des fléaux | **lu** |
+| 4 | `0x7C0040` | Coût de production par atelier : `Grundkosten` + salaires ÷ production → prix standard | **lu** |
+| 5 | `0x7BF160` | Rendement des ateliers (efficacité selon intrants et ouvriers) + signaux `missing_raw` / `missing_worker` | lu (structure) |
+| 6 | `0x7C2400` | Événements et conseiller : famine, fléaux, bits de prospérité | **lu** |
+| 7 | `0x7C2B30` | Livraison de la production aux entrepôts (parcourt les ateliers) | lu (structure) |
+| 8 | `0x7C26C0` | Niveau de prospérité (note → niveau, seuils 20/40/60/90, portes 2 000/6 000) | **lu** |
+| 9 | `0x7C2900` | Recalcul des réserves + arrivée/départ des colons par les convois | lu (structure) |
+| 10 | `0x7C0920` | Emploi : ajuste les ouvriers selon la production | observé |
+| 11 | `0x7C1E40` | Construction par l'IA : bâtit un atelier si demande > `Bauquotient` × production | **lu** |
+| 12 | `0x7C1A80` | Accumulation offre/demande par bien | observé |
+| 13 | `0x7C1600` | Défense / garnison selon la taille de la ville | observé |
+| 14 | `0x7BF2E0` | Mendiants et immigration selon la prospérité | observé |
+| 15 | `0x7BF3D0` | Conversion colons ↔ citoyens (≤ 10/jour vers la cible) | **lu** |
+| 16 | `0x7BF500` | Compteurs par nation | observé |
+| 17-19 | `0x855BD0`, `0x855C00`, `0x767F20` | Finalisation de la structure économique | observé |
+| 20 | `0x7C1B10` | Logement : bâtit des maisons à `FillRate` de remplissage | lu (structure) |
+
+**La sim reproduit déjà les étapes 1, 3, 4, 5, 6, 7, 8, 9, 11 et 15** dans un
+`jour()` condensé (`sim/economie.lua`), et dans le même ordre relatif :
+production → consommation des habitants → ateliers sur le surplus → seuils, note,
+prospérité, croissance. Les étapes 10, 12-14, 16-20 sont des raffinements de
+gestion (emploi fin, garnison, mendiants, logement bâti) que la sim résume dans
+sa démographie et sa dotation civique.
+
+**Ce qu'une copie complète exige encore**, étape par étape : la math exacte de
+chaque fonction ci-dessus marquée « structure » ou « observé », et surtout la
+décision des convois (la hiérarchie `StoreKeeper` / `TradeContainer` / `Route`).
+Ce document en est le plan : chaque adresse est un point d'entrée à décortiquer.
+
 ## Les signaux d'une ville (le conseiller)
 
 PR3 tient, par ville, une liste de raisons qui expliquent son état — ce que le
