@@ -244,7 +244,7 @@ séquence exacte** de vingt étapes (esi = la ville, edi = le monde) :
 | 12 | `0x7C1A80` | Accumulation offre/demande par bien | observé |
 | 13 | `0x7C1600` | Défense / garnison selon la taille de la ville | observé |
 | 14 | `0x7BF2E0` | Conseiller (message d'immigration si `(+0x120 − +0x11C)/3 ≠ 0` et prospérité basse) + ajustement d'un bien sur les 4 premiers | **décortiqué** |
-| 15 | `0x7BF3D0` | Conversion colons ↔ citoyens : ≤ 10/jour vers la cible de logement, tamponnée par le vivier de colons (voir « La démographie exacte ») | **décortiqué** |
+| 15 | `0x7BF3D0` | **Emploi** : ouvriers employés → cible (citoyens ÷ 4 selon la taille) d'au plus 10/jour, depuis le vivier d'ouvriers (voir « Population, main-d'œuvre et logement ») | **décortiqué** |
 | 16 | `0x7BF500` | Compteurs par nation | observé |
 | 17-19 | `0x855BD0`, `0x855C00`, `0x767F20` | Finalisation de la structure économique | observé |
 | 20 | `0x7C1B10` | Logement : bâtit des maisons à `FillRate` de remplissage | lu (structure) |
@@ -332,18 +332,29 @@ taille de la ville, bornée à [300, 1500] :
 (En état d'événement, `[ville+0x36] ≥ 4`, la cible vient d'un autre calcul,
 `0x856C00`, ou vaut 100.)
 
-**2. LA POPULATION** (`0x7C0F90` / `0x7C0BD0`). Les citoyens (`E+0xC0`) croissent
-vers la **capacité de logement** (`E+0xC8`) — pas d'un pourcentage fixe. Le montant
-journalier dépend de la qualité de vie et d'un facteur de nation/difficulté
-(`0x828980`/`0x828920`) ; le décodage exact du taux est en cours (`0x7C0BD0`,
-math FPU). La capacité de logement, elle, suit les maisons : la ville vise
+**2. LA POPULATION** (`0x7C0BD0` / `0x7C0F90`). Les citoyens (`E+0xC0`) croissent
+vers la **capacité de logement** (`E+0xC8`), d'un montant journalier **décodé** :
+
+    croissance = (place libre) × facteur_nation ÷ diviseur
+
+- **place libre** = capacité − citoyens (ce qui reste à peupler) ;
+- **diviseur** = 200 si l'état `[E+0x158]` est nul (rapide), 400 sinon (lent) —
+  donc ~0,5 %/jour de la place libre au mieux, ~0,25 % au ralenti ;
+- **facteur_nation** = coefficient d'immigration par nation et difficulté
+  (`0x828900`, tiré de `[Difficulty]` et de la nation du propriétaire).
+
+La croissance ralentit donc d'elle-même à l'approche de la capacité, et rien ne
+dépasse le logement. La **capacité** suit les maisons : la ville vise
 `citoyens ÷ 100 + 1` maisons (plafond 10 par passe), bâtit (`0x7BDD00`) tant qu'il
 en manque, en retire quand `maisons × 1000 > citoyens + 1500`. Cent locataires par
-maison, confirmé.
+maison — la capacité est donc `maisons × 100`, et elle croît avec la ville jusqu'aux
+plafonds de prospérité (2 000 pour Prospérité, 6 000 pour Opulence).
 
-*Implication pour la sim* : sa démographie en pourcentage est une approximation ;
-le modèle exact de PR3 est **citoyens → capacité de logement** (croissance bornée
-par le logement bâti), avec une couche d'emploi séparée qui vise citoyens ÷ 4.
+*Implication pour la sim* : le modèle exact de PR3 est **citoyens += (capacité −
+citoyens) × facteur ÷ 200** (approche exponentielle de la capacité de logement),
+plus une couche d'emploi visant citoyens ÷ 4 — à porter tel quel pour la courbe de
+population fidèle. La démographie en pourcentage actuelle de la sim en est une
+approximation.
 
 ## Les signaux d'une ville (le conseiller)
 
