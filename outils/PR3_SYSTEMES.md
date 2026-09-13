@@ -301,44 +301,49 @@ Copier PR3 au bit près ici demanderait de décompiler ce calcul de cible
 ordres de route. L'entrée et la forme sont connues ; c'est un sous-chantier à part
 entière, au gain comportemental modeste puisque la sim équilibre déjà la carte.
 
-## La démographie exacte — décortiquée (`0x7BF3D0`)
+## Population, main-d'œuvre et logement — la carte des champs
 
-C'est le cœur de la population, et la copie exacte diffère du modèle en pourcentage
-de la sim. La ville tient trois nombres sur son objet économie (`[ville+0x6C]`) :
+Décodés sur l'objet économie de la ville (`[ville+0x6C]`, noté E) :
 
-- **`+0xD0` = les colons** (le vivier, `0x765160` l'écrit) ;
-- **`+0xD4` = les citoyens** (la population active, `0x765190`) ;
-- **`+0xD8` = la cible** (population désirée, `0x7651C0`), calculée par `0x7BD9C0`
-  à partir du logement et de `citoyens ÷ 4` (les quatre citoyens par ouvrier).
+- **`E+0xC0` = citoyens** (la population ; c'est ce que la famine à 300 et les
+  seuils de prospérité 2 500 / 6 000 regardent) ;
+- **`E+0xC8` = capacité de logement** (le maximum de citoyens) ;
+- **`E+0xD4` = ouvriers employés**, **`E+0xD0` = ouvriers disponibles** (le vivier),
+  **`E+0xD8` = cible d'ouvriers**.
 
-**Chaque jour, les citoyens se rapprochent de la cible d'AU PLUS DIX** (`0xA`), et
-le vivier de colons bouge à l'inverse :
+Il y a donc **deux couches**, à ne pas confondre (je les avais d'abord mêlées) :
 
-    si citoyens (d4) > cible (d8) :          -- trop de monde
-        n = min(d4 − d8, 10)
-        colons  += n                          -- ils repartent au vivier
-        citoyens −= n
-    sinon si citoyens (d4) < cible (d8) :     -- de la place
-        n = min(d8 − d4, colons, 10)          -- bornée aussi par les colons dispo
-        colons  −= n                          -- ils s'installent
-        citoyens += n
+**1. L'EMPLOI** (`0x7BF3D0`). Les ouvriers employés (`d4`) se rapprochent chaque
+jour de la cible (`d8`) d'**au plus dix**, le vivier disponible (`d0`) bougeant à
+l'inverse (conservation `d0+d4`) :
 
-**La conséquence est forte pour une copie fidèle** : PR3 ne fait pas croître une
-ville d'un pourcentage, mais d'un **nombre plat, dix habitants par jour au plus**,
-vers une cible bornée par le logement. Un bourg de 900 âmes croît donc à ~1 %/jour,
-une ville de 9 000 à ~0,1 %/jour — la croissance relative ralentit toute seule avec
-la taille, sans qu'aucun taux ne soit écrit. Et rien ne bouge sans **colons dans le
-vivier** : c'est là qu'entrent l'immigration (église, ambassade, hospice, école)
-et la sortie par la mer.
+    si d4 > d8 :  n = min(d4 − d8, 10) ;      d0 += n ; d4 −= n   -- on débauche
+    si d4 < d8 :  n = min(d8 − d4, d0, 10) ;  d0 −= n ; d4 += n   -- on embauche
 
-**Le logement**, ensuite : la ville vise `citoyens ÷ 100 + 1` maisons (plafonné à
-10 par passe), et bâtit (`0x7BDD00`) tant qu'il en manque, ou en retire quand
-`maisons × 1000 > citoyens + 1500`. Cent locataires par maison, confirmé.
+La **cible d'ouvriers** `d8` (`0x7BD9C0`) est une fraction des citoyens, selon la
+taille de la ville, bornée à [300, 1500] :
 
-*Implication pour la sim* : sa démographie en pourcentage (Pauvreté −2 %/j, etc.)
-est une approximation raisonnable ; le modèle exact de PR3 est une **file de dix
-par jour vers une cible de logement, tamponnée par un vivier de colons**. Candidat
-de raffinement, à porter si l'on veut la courbe de population au plus près.
+| Taille (`+0x15A`) | Cible d'ouvriers |
+|---|---|
+| bourg (1) | citoyens ÷ 8 |
+| ville (2) | citoyens × 3 ÷ 16 |
+| grande ville (3) | citoyens ÷ 4 (les 4 citoyens/ouvrier) |
+
+(En état d'événement, `[ville+0x36] ≥ 4`, la cible vient d'un autre calcul,
+`0x856C00`, ou vaut 100.)
+
+**2. LA POPULATION** (`0x7C0F90` / `0x7C0BD0`). Les citoyens (`E+0xC0`) croissent
+vers la **capacité de logement** (`E+0xC8`) — pas d'un pourcentage fixe. Le montant
+journalier dépend de la qualité de vie et d'un facteur de nation/difficulté
+(`0x828980`/`0x828920`) ; le décodage exact du taux est en cours (`0x7C0BD0`,
+math FPU). La capacité de logement, elle, suit les maisons : la ville vise
+`citoyens ÷ 100 + 1` maisons (plafond 10 par passe), bâtit (`0x7BDD00`) tant qu'il
+en manque, en retire quand `maisons × 1000 > citoyens + 1500`. Cent locataires par
+maison, confirmé.
+
+*Implication pour la sim* : sa démographie en pourcentage est une approximation ;
+le modèle exact de PR3 est **citoyens → capacité de logement** (croissance bornée
+par le logement bâti), avec une couche d'emploi séparée qui vise citoyens ÷ 4.
 
 ## Les signaux d'une ville (le conseiller)
 
