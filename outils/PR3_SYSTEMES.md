@@ -147,6 +147,62 @@ Les combattants sont des `[Soldier]` (`0x863D5E`) : `UnitSize` 10, `UnitMax` 225
 `GoldProb`), `[DropGoods]` (le butin qui flotte). `[Limits]` borne les flottes :
 `maxConvoys` 100, `maxConvoyMembers` 50, `maxShips` 50.
 
+## Diplomatie, rangs et lettres de marque
+
+**Le rang du joueur** monte avec sa RICHESSE (`0x63BAE0` nomme les titres). Dix-huit
+rangs (`ID_RANK_MALE_00…17`, et leur variante féminine), du plus bas au plus haut :
+« au fur et à mesure que votre richesse augmente, la jauge de progression se
+remplit ; lorsqu'elle est pleine, vous passez au rang suivant ». Le rang ouvre des
+droits :
+- **plus de convois** autorisés, et plus de villes où bâtir ;
+- l'accès aux **gouverneurs** (rang + réputation ≥ 25 %) et aux **vice-rois** (rang
+  + réputation élevée auprès de la nation) ;
+- les **concessions et licences** de l'architecte : entrepôt et maisons d'abord,
+  puis manufactures — « plus votre rang est élevé et plus vous êtes présent dans
+  de nombreuses villes, plus l'architecte fait payer cher la concession ».
+
+Les seuils sont dans `[Licence]` (`Rank`, `RepNation`, `RepTown`, `Buildings`) et
+`[MinRank]` (`Hospital`, `ShipYard` exigent un rang minimal). Les navires ont aussi
+un rang requis (`minRankMil`, `maxRankMil`, `minRankPir` — voir `PR3_TECHNIQUE.md`).
+
+**La réputation** est double (voir `ECONOMIE_PR3.md` §10.10) : par ville
+(le commerce) et par nation (`NationReputation`, `[Licence]` `RepNation`). Une
+composante de fond dérive dans le temps : `[Reputation]` `Offset` + `Amplitude` ×
+sinus de `Phase` (des tableaux, `0x828D50`) — l'humeur des nations oscille
+lentement, indépendamment du joueur.
+
+**Les donations** (`[Donation]`) achètent de la réputation : `Pay` 10 pièces par
+pas, `Ansehen` 0,01 de réputation par pas, `MaxSteps` 20 pas par don.
+
+**Les lettres de marque.** En guerre, le vice-roi (si la réputation est assez
+haute) accorde une lettre de marque contre une nation : on peut alors attaquer ses
+navires et ses villes **sans perdre de réputation auprès des neutres**. Sans
+lettre, toute attaque est de la piraterie et fait chuter la réputation auprès de
+**toutes** les nations. `[Difficulty]` module cela (`RepFactor`, `Create`,
+`Receive`), et `[GuildPrivilege]` / `StandardPaymentValue` tiennent les privilèges
+de guilde.
+
+**La partie** démarre en **novembre 1550** (`[GameStart]` `Year` 1550, `Month` 11).
+
+## Pirates, tempêtes et météo
+
+`[Pirates]` : `Activity` 250, `TownAttackDist` 200 (distance sous laquelle un
+pirate attaque une ville), `TownAttackLock`. Les pirates ont leurs repaires
+(classe `Hideout`, voir `PR3_TECHNIQUE.md`). Les fléaux et catastrophes naturelles
+— `[Storm]` (tempêtes : `Months`, `Radius`, `Speed`), `[Grasshopper]` (sauterelles :
+`Months`, `Radius`), `[Mine]` (mines flottantes), `[Patrol]` — sont des événements
+mobiles sur la carte. La météo (`[Weather]` `Region%uRain`) fait pleuvoir par
+région.
+
+## Combat naval — formules à confirmer
+
+Les paramètres sont relevés (§ « Le combat naval ») ; les formules exactes —
+comment un boulet touche selon l'angle et la dispersion, comment `DmgHull` /
+`DmgSail` / `DmgCrew` s'appliquent aux points de vie d'un navire, comment
+l'abordage se résout pas à pas — vivent dans des fonctions qui ne se lisent bien
+qu'en exécution (traçage dynamique). Elles ne sont pas dans le périmètre de la
+sim, qui ne simule pas le combat.
+
 ## État du rétro-engineering
 
 | Sous-système | État |
@@ -154,9 +210,9 @@ Les combattants sont des `[Soldier]` (`0x863D5E`) : `UnitSize` 10, `UnitMax` 225
 | Économie, villes, prix, prospérité, réputation | **complet et appliqué à la sim** |
 | Navires (caractéristiques), carte, eau, formats | **complet** |
 | Convois de l'IA (modèle d'objet, taille, classes) | **structure lue**, décision dans une hiérarchie de classes |
-| Combat naval (canon, abordage, forteresse) | **paramètres relevés**, formules à confirmer |
-| Diplomatie, rangs, licences, donations | **paramètres relevés** |
-| Pirates, tempêtes, sauterelles, patrouilles | **identifiés** |
+| Combat naval (canon, abordage, forteresse) | **paramètres relevés**, formules à tracer en exécution |
+| Diplomatie, rangs, licences, donations, lettres de marque | **mécanique lue** (18 rangs à la richesse, réputation double + dérive sinusoïdale) |
+| Pirates, tempêtes, sauterelles, patrouilles, météo | **paramètres relevés** |
 | Missions et quêtes | **identifiées** (système d'événements) |
 | Rendu, caméra, interface, audio, réseau | **hors du modèle de simulation** |
 
