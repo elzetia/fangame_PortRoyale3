@@ -367,12 +367,20 @@ Deux tableaux de vingt, suivis d'un troisième :
 | Rhum | 110 | 80 | 5 |
 | Pain | 220 | 160 | 5 |
 
-**A est la table de consommation** : `conso` dans `sim/marchandises.lua` vaut
-exactement A / 200, sauf pour quatre denrées. Café, cacao et tabac y sont à
-1,3 × A / 200, et teinture à 1,2 × A / 200. Ce sont justement les quatre denrées
-exportées vers l'Europe (§3). La table relevée par le joueur incluait donc
-probablement l'export, que PR3 compte à part (`Verbr. Export` dans l'outil de
-débogage).
+**A est la table de consommation.** L'ancienne `conso` de `sim/marchandises.lua`
+valait exactement A / 200, sauf pour quatre denrées : café, cacao et tabac y
+étaient à 1,3 × A / 200, et teinture à 1,2 × A / 200. Ce sont justement les
+quatre denrées exportées vers l'Europe (§3). La table relevée par le joueur
+incluait donc probablement l'export, que PR3 compte à part (`Verbr. Export` dans
+l'outil de débogage).
+
+**Ce que la sim en fait maintenant** : elle recopie A telle quelle
+(`verbrauch`), sépare l'export (`export`, le surplus de 30 % et 20 %), et divise
+par **50**. L'échelle n'est pas dans le fichier. Elle est fixée par les navires
+de PR3 : un sloop porte 200 tonneaux, et pour qu'une cale pèse sur un marché ce
+qu'elle y pèse dans le jeu, il faut une consommation quatre fois plus forte
+qu'avec l'ancien sloop de 50 tonneaux. Les rapports entre denrées ne dépendent
+pas de ce choix.
 
 **B est le rendement d'une manufacture** (probable, et fortement recoupé par les
 recettes, §10.4). L'unité de temps n'est pas établie : seuls les rapports
@@ -406,13 +414,38 @@ une manufacture de tissu, une chanvrière une corderie, et un tissage plus une
 teinturerie une manufacture de vêtements. Les chaînes ont été équilibrées une
 pour une. C'est ce qui confirme que B est bien le rendement.
 
-**Écarts avec `sim/marchandises.lua`**, à corriger quand on voudra coller à PR3 :
+**Appliqué dans la sim.** `sim/marchandises.lua` a désormais ces recettes. Elles
+corrigent cinq écarts : le pain au maïs au lieu du sucre, la viande à 2 maïs au
+lieu de 4, les vêtements à 1 + 1 au lieu de 2 + 2, le rhum à 1 sucre + 0,5 bois
+au lieu de 2 sucre + 1 bois, et le métal, le café et le cacao sans recette.
 
-- Pain : la sim dit blé + **maïs**, PR3 dit blé + **sucre** (le §1 le disait déjà).
-- Viande : 2 maïs dans la sim, **4** dans PR3.
-- Vêtements : 1 + 1 dans la sim, **2 + 2** dans PR3.
-- Rhum : 1 sucre + 0,5 bois dans la sim, **2 sucre + 1 bois** dans PR3.
-- Métal, café et cacao n'ont pas de recette dans la sim ; PR3 leur en donne une.
+Trois changements ont suivi, sans lesquels ces recettes affamaient la carte :
+
+- **La demande des ateliers** entre dans le stock visé d'une ville (`need_b` dans
+  l'outil de débogage de PR3). Sans elle, une forge ne signalait jamais qu'elle
+  manquait de métal, aucun convoi ne lui en livrait, et les ateliers d'outils
+  tournaient à 2 % de leur capacité.
+- **La famine compte trois aliments sur cinq** (§5, la version du tutoriel) :
+  une ville mange à sa faim tant que son troisième aliment le mieux servi l'est.
+  Avec la règle précédente, qui ne regardait que le pire, le pain fait au sucre
+  aurait affamé toute ville loin des cannes. Le pain rejoint la nourriture.
+- **Les convois sont armés de navires de PR3** (voir `outils/PR3_TECHNIQUE.md`,
+  « Les convois marchands de l'IA »). Avec des cales de 45 tonneaux, la carte
+  mourait de logistique.
+
+Mesuré par `tools/equilibre.gd` sur cinq ans, à partir de 82 500 habitants :
+
+| | Population | Villes en disette | Outils | Café |
+|---|---|---|---|---|
+| Avant | 74 600 | 56 | 2 % | présent, sans recette |
+| Après | 118 600 | 15 | 48 % | 35 % |
+
+Sur dix ans, la population plafonne vers 122 000. Le rhum et les vêtements
+restent les chaînes les plus faibles : leurs ateliers sont loin de leurs
+intrants.
+
+Le prix suit aussi le modèle de PR3 (§10.2) : cinq coefficients sur quatre seuils
+de stock, les barres d'abondance lues sur le segment où tombe le stock.
 
 ### 10.5 Bâtiments — valeurs certaines, sens des champs probable
 

@@ -167,6 +167,52 @@ Großkaufmann, Ratsherr, Ratsmeister, Ratspräsident, Patrizier.
 
 **Le capitaine** : combat, navigation, commerce, réparation, abordage, vue.
 
+### Les convois marchands de l'IA
+
+Ce qui est établi :
+
+- Chaque ville a un **nombre de convois IA** (colonne `AIConvoys` de la liste des
+  villes).
+- Chaque convoi IA affiche ses **navires**, sa **capacité**, **cinq taux de
+  remplissage** `F0…F4` et une **ville cible** (`Zielstadt`).
+- L'exe a une section `Konvois` avec `KiUpdateConvoySize` : la **taille** des
+  convois IA est recalculée en cours de partie. Ils ont aussi des temps fixes
+  pour entrer au port, acheter et vendre (`Einlaufzeit`, `Einkaufszeit`,
+  `Verkaufszeit`).
+- Les textes du jeu : « sur la carte maritime, **seule la vitesse maximale est
+  considérée** et un convoi ne va jamais plus vite que son **navire le plus
+  lent** ».
+- Les fiches de navires donnent un rang minimal par type pour les marines. Cinq
+  types leur sont **interdits** : pinasse, sloop, flûte, flûte marchande et
+  barque pirate. Ce sont les navires de commerce, plus celui des pirates.
+
+Ce qui ne l'est pas : **combien** de convois une ville arme, et de quelle taille.
+Aucune table lisible ne le dit. Les cinq taux `F0…F4` correspondent probablement
+aux cinq marchandises que produit la ville d'attache.
+
+Ce que la sim en fait (`sim/marchands.lua`, `sim/navires.lua`) :
+
+- Des flottes de **navires marchands PR3**, composées du plus grand au plus
+  petit. La cale armée est **proportionnelle à la population**, avec un
+  coefficient **mesuré** par `tools/equilibre.gd` (0,55 tonneau par habitant).
+- Deux métiers : un **caboteur** sur circuit local pour chaque ville, et pour les
+  villes de taille 2 et 3 un **long-courrier** vers une ville cible choisie à
+  chaque départ, sur toute la carte.
+- La vitesse d'un convoi est la vitesse maximale de son navire le plus lent,
+  rapportée à celle du sloop du joueur.
+
+## 6. Le prototype d'eau
+
+`shaders/mer_pr3.gdshader` rejoue la recette de PR3 en surcouche de la carte
+peinte : vaguelettes éclairées par défilement de bruit, caustiques sur les
+hauts-fonds, écume du rivage et ressac, paillettes. On bascule en jeu avec
+**F3**, ou dès le lancement avec `-- --eau-pr3`.
+
+Deux enseignements de l'essai valent pour toute eau vue d'aussi haut. Le reflet
+de Fresnel ne varie presque pas à 58° de plongée : ce qui rend les vaguelettes
+lisibles, c'est l'éclairage des pentes. Et une écume tirée des courbes de
+profondeur dessine des courbes de niveau.
+
 ### Ce que les noms de clés laissent deviner
 
 Les réglages économiques de l'exe (sections `Konvois`, `Produktion`, `Hausbau`…)

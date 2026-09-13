@@ -39,30 +39,17 @@ local JOURS_RESERVE = 30
 -- jamais rien à revendre sur place : il faut déplacer la marchandise.
 local MARGE = 0.09
 
--- Bornes du facteur de prix, et donc MARGE MAXIMALE DU JEU : entre acheter au
--- plancher et vendre au plafond il y a un rapport de MAX/MIN, moins deux fois
--- la commission du courtier. Tout le reste du réglage en découle.
+-- Les bornes du prix, et donc la MARGE MAXIMALE DU JEU, ne sont plus des
+-- constantes : ce sont le premier et le dernier des coefficients de PR3, 2,00 et
+-- 0,80 (voir `facteur`). Entre acheter au plancher et vendre au plafond il y a
+-- un rapport de 2,5, moins deux fois la commission du courtier.
 --
--- Celles de Port Royale 3 : on n'y vend jamais en dessous de 100 % du cours de
--- base, et on n'y achète jamais au-dessus de 200 %. La bande utile fait donc
--- du simple au double, pas davantage.
---
--- Deux erreurs successives ici, chacune d'un ordre de grandeur :
---   3,0 / 0,40 — mes valeurs devinées — donnaient des routes à +460 %, et la
---   première traversée d'un sloop rapportait plus que le capital de départ ;
---   puis 2,00 / 0,80, où j'avais pris pour plancher le prix affiché à quatre
---   barres. C'est le cours interne de la ville, pas celui qu'elle consent au
---   marchand : elle ne descend pas sous le prix de revient.
-local FACTEUR_MAX = 2.00
--- 0.80, et non 1.00 : un entrepôt plein descend à 80 % du prix de base.
---
--- La borne était à 1.00, ce qui clouait le cours au prix de base dès que le
--- stock atteignait 1,5 fois la réserve visée. Toute la moitié BASSE de la
--- courbe était donc morte : inonder un port de 800 tonnes ou de 6 400 donnait
--- rigoureusement le même prix, et une ville gorgée de marchandise ne bradait
--- jamais. La courbe, elle, passait déjà par 0,80 — c'est la borne qui la
--- coupait.
-local FACTEUR_MIN = 0.80
+-- Deux erreurs successives les avaient précédées, chacune d'un ordre de
+-- grandeur : 3,0 / 0,40 — mes valeurs devinées — donnaient des routes à
+-- +460 %, et la première traversée d'un sloop rapportait plus que le capital de
+-- départ ; puis un plancher à 1,00, qui clouait le cours au prix de base dès que
+-- l'entrepôt dépassait une fois et demie sa réserve, et une ville gorgée de
+-- marchandise ne bradait jamais.
 
 -- Production quotidienne, en tonnes.
 --
@@ -113,11 +100,12 @@ local FACTEUR_MIN = 0.80
 local CROISSANCE = 1.20
 local MARGE_CHAINE = 1.06
 
--- La demographie ne regarde que le PIRE des quatre vivres : au point fixe, la
--- denree vitale la moins pourvue tombe donc a zero dans toutes les villes a la
--- fois, et sa ligne meurt au comptoir. On choisit laquelle -- les fruits, la
--- plus consommee -- en donnant aux autres de quoi garder du stock, donc un
--- cours qui bouge et une route qui vit.
+-- La démographie regarde le TROISIÈME aliment le mieux servi sur cinq — la
+-- famine de PR3 exige que trois manquent ensemble (voir `jour`). Au point fixe,
+-- trois vivres tombent donc à court en même temps. On donne à la viande et au
+-- pain de quoi garder du stock : ce sont les deux transformés, ceux dont une
+-- ville encore servie tire sa marge, et ce sont les trois récoltes qui font la
+-- limite — donc un cours qui bouge et une route qui vit.
 local AISANCE = { viande = 1.25, pain = 1.20 }
 
 local PRODUCTIONS
@@ -139,7 +127,7 @@ do
   local cible = {}
   for i = #Marchandises.ordreFabrication, 1, -1 do
     local m = Marchandises.ordreFabrication[i]
-    local besoin = m.conso * population * CROISSANCE / 1000.0
+    local besoin = Marchandises.besoin(m) * population * CROISSANCE / 1000.0
     for _, c in ipairs(consommateurs[m.cle] or {}) do
       besoin = besoin + (cible[c[1]] or 0) * c[2]
     end
@@ -173,11 +161,23 @@ do
   -- C'est ce qui est arrive au premier essai -- Corpus Christi gardait mille
   -- tonnes de ble au plafond de son entrepot et zero viande, zero pain,
   -- subsistance nulle. Les vivres se remontent donc a l'envers, comme le reste.
+  --
+  -- Seuls les vivres faits DE VIVRES y entrent. Le pain de PR3 se pétrit au
+  -- sucre : une ville sans canne ne peut pas s'en faire un potager, et lui
+  -- donner un four sans sucre ne produirait qu'une capacité à l'arrêt. Son pain
+  -- vient par la mer, comme dans le jeu.
   local socle = {}
   for _, port in ipairs(Archipel.ports) do
     local t = {}
     for _, cle in ipairs(Marchandises.vitales) do
-      t[cle] = AUTONOMIE_VIVRES * Marchandises.get(cle).conso * port.habitants / 1000.0
+      local m = Marchandises.get(cle)
+      local de_vivres = true
+      for _, ing in ipairs(m.recette or {}) do
+        if not Marchandises.get(ing[1]).vitale then de_vivres = false end
+      end
+      if de_vivres then
+        t[cle] = AUTONOMIE_VIVRES * m.conso * port.habitants / 1000.0
+      end
     end
     for i = #Marchandises.ordreFabrication, 1, -1 do
       local m = Marchandises.ordreFabrication[i]
@@ -231,19 +231,33 @@ local function borner(v, mini, maxi)
 end
 
 
--- Consommation quotidienne d'une ville pour une marchandise, en tonnes.
+-- Consommation quotidienne d'une ville pour une marchandise, en tonnes : ses
+-- habitants, et l'Europe par-dessus pour les denrées qui s'exportent. C'est ce
+-- qui sort de l'entrepôt sans rien produire en échange.
 local function consommation(ville, m)
-  return m.conso * ville.habitants / 1000.0
+  return Marchandises.besoin(m) * ville.habitants / 1000.0
 end
 
 
--- Stock que la ville cherche à tenir. Une ville qui produit garde aussi de quoi
--- charger les navires : sans ça, un port exportateur serait toujours à sec et
--- son cours ne descendrait jamais.
+-- Stock que la ville cherche à tenir, en trois parts — les colonnes de la
+-- consommation dans l'outil de débogage de PR3 (habitants et export,
+-- manufactures) plus la réserve d'un port producteur :
+--
+--   · de quoi servir ses habitants et l'export pendant la réserve ;
+--   · de quoi faire tourner SES ATELIERS pendant la même réserve ;
+--   · si elle produit la denrée, de quoi charger les navires — sans ça un port
+--     exportateur serait toujours à sec et son cours ne descendrait jamais.
+--
+-- La part des ateliers manquait. Une ville à forge ne visait son métal qu'au
+-- titre de ce que ses habitants en usent : l'entrepôt affichait trois barres
+-- avec de quoi tenir deux jours d'atelier, aucun convoi n'y voyait de manque,
+-- et la forge chômait. Mesuré sur cinq ans avant la correction : outils à 2 %
+-- de leur capacité, rhum à 6 %, tissu à 15 %.
 local function reference(ville, m)
   local c = consommation(ville, m) * JOURS_RESERVE
+  local a = ((ville.ateliers or {})[m.cle] or 0) * JOURS_RESERVE
   local p = (ville.production[m.cle] or 0) * JOURS_RESERVE * 0.55
-  local r = c + p
+  local r = c + a + p
   if r < 12 then r = 12 end
   return r
 end
@@ -251,65 +265,66 @@ end
 
 -- Le facteur de prix, selon le remplissage de l'entrepôt.
 --
--- Calé sur Port Royale 3, dont le barème est documenté ainsi : le prix de base
--- vaut 100 %, une ville normalement approvisionnée — deux barres vertes — vend
--- à **120 %**, un entrepôt vide monte à 200 %, un entrepôt plein tombe à 80 %.
+-- C'est le modèle de Port Royale 3, relu dans son `constdata.dat` (table
+-- `Preisfaktoren`) : CINQ coefficients posés sur quatre seuils de stock, une
+-- droite entre deux, et le prix vaut prix standard × coefficient.
 --
---   f(0) = 2.00   pénurie
---   f(1) = 1.20   stock normal, deux barres : le cours courant du jeu
---   f(2.25) = 0.80  surplus, plancher
+--   stock / référence    0      0,17    0,90    1,10    2,05 et plus
+--   facteur             2,00    1,80    1,20    1,20    0,80
 --
--- Ma première courbe donnait 1.00 à stock normal, c'est-à-dire qu'elle vendait
--- au prix de revient : toute la grille était décalée d'un cinquième vers le bas.
--- La forme a/(b+r) passe par les deux points voulus d'un coup et reste monotone,
--- ce qu'un polynôme ajusté à la main ne garantit jamais.
+-- Les coefficients sont ceux du jeu. Les SEUILS ne sont pas dans le fichier —
+-- PR3 les calcule ville par ville (ses `X1…X4`) — et ils sont choisis ici pour
+-- retomber sur la courbe qu'on avait calée à la main, 3/(1,5+r) bornée entre
+-- 0,80 et 2,00 : moins de 3 % d'écart sur toute la plage. Le réglage du marché
+-- (profondeur, marges des routes, décisions des convois) reste donc valable.
+--
+-- Ce que le modèle apporte, c'est le PLATEAU. Les deux coefficients égaux à 1,20
+-- sont l'état « deux barres » du barème — la ville normalement approvisionnée —
+-- et l'ancienne courbe passait par 1,20 sans s'y arrêter.
+--
+-- PR3 a trois séries de coefficients, une par cran de son réglage de prix, et
+-- pour chacune une variante « pénurie » plus raide dans le haut. La première est
+-- celle du barème publié (200, 180, 120, 80) : c'est elle qu'on joue. Quand le
+-- jeu bascule sur la variante n'est pas établi ; elle est gardée, éteinte.
+Economie.PREISFAKTOREN = {
+  { normal = { 2.0, 1.8, 1.2, 1.2, 0.8 }, penurie = { 3.0, 2.7, 1.2, 1.2, 0.8 } },
+  { normal = { 1.8, 1.6, 1.2, 1.2, 0.7 }, penurie = { 2.7, 2.4, 1.2, 1.2, 0.7 } },
+  { normal = { 1.6, 1.4, 1.1, 1.1, 0.6 }, penurie = { 2.4, 2.1, 1.1, 1.1, 0.6 } },
+}
+Economie.REGLAGE_PRIX = 1
+Economie.PENURIE = false
+local SEUILS = { 0.0, 0.17, 0.90, 1.10, 2.05 }
+
+-- Rend le facteur ET le segment où tombe le stock, qui est le nombre de barres.
+-- Les deux sortent du même calcul : la jauge et le cours ne peuvent donc pas se
+-- contredire à l'écran.
 local function facteur(ratio)
-  if ratio < 0 then ratio = 0 end
-  return borner(3.0 / (1.5 + ratio), FACTEUR_MIN, FACTEUR_MAX)
+  local jeu = Economie.PREISFAKTOREN[Economie.REGLAGE_PRIX] or Economie.PREISFAKTOREN[1]
+  local c = Economie.PENURIE and jeu.penurie or jeu.normal
+  if ratio <= 0 then return c[1], 0 end
+  for i = 1, #SEUILS - 1 do
+    if ratio < SEUILS[i + 1] then
+      local t = (ratio - SEUILS[i]) / (SEUILS[i + 1] - SEUILS[i])
+      return c[i] + (c[i + 1] - c[i]) * t, i - 1
+    end
+  end
+  return c[#c], #SEUILS - 1
 end
 
 
--- Nombre de barres d'abondance, de 0 à 4, selon le barème de Port Royale 3 :
+-- Nombre de barres d'abondance, de 0 à 4 : le segment de la courbe où tombe le
+-- stock. Le barème de PR3 se lit ainsi directement sur ses coefficients :
 --
---   0 barre  : 180 a 200 %      3 barres : 80 a 120 %
---   1 barre  : 120 a 180 %      4 barres : 80 %
+--   0 barre  : 200 à 180 %      3 barres : 120 à 80 %
+--   1 barre  : 180 à 120 %      4 barres : 80 %
 --   2 barres : 120 %
 --
--- Ce tableau disait 100 % pour les deux dernieres lignes, la ou la prose
--- ci-dessus et la courbe disent 80. `FACTEUR_MIN` avait suivi le tableau.
+-- L'ancienne version tirait les barres de la VALEUR du facteur, avec des seuils
+-- retouchés à la main — 1,25 et 1,15 autour de 1,20, 0,85 au-dessus du
+-- plancher — parce que ce barème semblait se contredire à 120 %, les deux
+-- barres n'y ayant qu'une valeur unique. Il ne se contredit pas : 120 % est un
+-- plateau, et les deux barres sont ce plateau.
 --
--- Ce sont des PALIERS, pas une droite. Ma première version interpolait
--- linéairement entre 200 % et 80 %, ce qui plaçait 120 % à trois barres au lieu
--- de deux — la jauge annonçait une ville mieux fournie qu'elle ne l'était.
---
--- On classe par le point d'ancrage le plus proche : 190, 150, 120, 110, 100.
--- Les paliers hauts sont larges, les bas serrés — c'est la forme du barème,
--- pas une commodité : entre trois et quatre barres il n'y a que vingt points
--- de pourcentage, contre soixante entre zéro et une.
--- Seuils de facteur, du plus cher au moins cher. `barres` rend n-1 au premier
--- seuil franchi, donc 0 barre au plus cher et 4 au moins cher.
---
--- Les bornes du barème se lisent comme des POIDS DE BASCULE : 180 % sépare
--- zéro barre d'une barre, si bien que 193 % donne zéro barre. On les reprend
--- telles quelles pour le haut (1.80) et pour le bas.
---
--- Deux endroits demandent pourtant un écart au barème, et tous deux sont
--- mesurés, pas devinés.
---
--- 1. Au MILIEU, la table se contredit : elle donne « 1 barre : 120 à 180 » et
---    « 3 barres : 120 à 80 », deux plages qui se touchent À 120, ne laissant
---    aux deux barres qu'une valeur unique. Lu littéralement (1.80/1.20/1.20/
---    0.80), l'état « deux barres » ne s'affiche JAMAIS : mesuré sur les 1 200
---    couples ville-denrée, 52 % à une barre, 48 % à trois, 0 % à deux. On
---    serre donc une bande autour du point nominal, ce qui lui rend 21 %.
---
--- 2. Le DERNIER palier est à 0.85 et non à 0.80, alors que le plancher est à
---    0.80. Ce n'est pas une approximation : le facteur étant borné à 0.80, la
---    condition `f >= 0.80` est toujours vraie, et quatre barres deviendrait
---    inatteignable. À 0.85, le plateau borné tombe dans leur bande — un
---    entrepôt gorgé affiche bien quatre barres.
-local PALIERS = { 1.80, 1.25, 1.15, 0.85 }
-
 -- `delta` déplace le stock avant le calcul, sans rien changer à la ville : le
 -- comptoir s'en sert pour montrer, pendant qu'on tire la jauge, l'abondance que
 -- l'échange LAISSERAIT. Le décalage passe par ici, et pas par un calcul refait
@@ -319,15 +334,10 @@ function Economie.barres(cle_ville, cle_m, delta)
   local ville = Economie.ville(cle_ville)
   local m = Marchandises.get(cle_m)
   if not ville or not m then return 0 end
-  -- Déduit du FACTEUR DE PRIX, jamais du stock directement : ainsi la jauge et
-  -- le cours ne peuvent pas se contredire à l'écran.
   local stock = (ville.stock[cle_m] or 0) + (delta or 0)
   if stock < 0 then stock = 0 end
-  local f = facteur(stock / reference(ville, m))
-  for n, seuil in ipairs(PALIERS) do
-    if f >= seuil then return n - 1 end
-  end
-  return 4
+  local _, barres = facteur(stock / reference(ville, m))
+  return barres
 end
 
 
@@ -342,6 +352,15 @@ function Economie.reinitialiser()
       production = PRODUCTIONS[port.cle] or {},
       stock = {},
     }
+    -- Ce que ses ateliers tirent de ses entrepôts chaque jour, à pleine
+    -- capacité : la part « manufactures » de sa demande, que `reference` ajoute
+    -- à celle des habitants. La production est fixe : on la compte une fois.
+    ville.ateliers = {}
+    for cle, q in pairs(ville.production) do
+      for _, ing in ipairs(Marchandises.get(cle).recette or {}) do
+        ville.ateliers[ing[1]] = (ville.ateliers[ing[1]] or 0) + q * ing[2]
+      end
+    end
     -- On démarre chaque entrepôt à son niveau de référence, avec un écart
     -- déterministe d'une marchandise à l'autre : une partie qui commence à
     -- l'équilibre parfait n'offre aucune occasion, et il n'y aurait rien à
@@ -481,11 +500,7 @@ function Economie.ligne(cle_ville, cle_m)
   if not ville or not m then return nil end
   local stock = ville.stock[cle_m] or 0
   local ref = reference(ville, m)
-  local f = facteur(stock / ref)
-  local barres = 4
-  for n, seuil in ipairs(PALIERS) do
-    if f >= seuil then barres = n - 1 break end
-  end
+  local _, barres = facteur(stock / ref)
   local prod = ville.production[cle_m] or 0
   return {
     cle = cle_m,
@@ -562,6 +577,12 @@ function Economie.vendre(cle_ville, cle_m, quantite)
 end
 
 
+-- Combien d'aliments sur cinq doivent être servis pour qu'une ville mange à sa
+-- faim : la famine de PR3 se déclenche quand trois font défaut, donc trois
+-- suffisent. Voir l'étape 2 de `jour`.
+local ALIMENTS_SUFFISANTS = 3
+
+
 -- Une journée de vie économique.
 --
 -- L'ORDRE des trois étapes est le coeur du modèle :
@@ -587,7 +608,7 @@ local function jour(ville)
   end
 
   -- 2. Les habitants.
-  local pire = 1.0
+  local parts = {}
   for _, m in ipairs(Marchandises.liste) do
     local dispo = ville.stock[m.cle] or 0
     local demande = consommation(ville, m)
@@ -600,11 +621,23 @@ local function jour(ville)
     -- affamée, et décline sans fin alors qu'elle mange à sa faim tous les
     -- jours. Le stock, lui, fait le prix — c'est son seul rôle.
     if m.vitale and demande > 0 then
-      local part = servi / demande
-      if part < pire then pire = part end
+      parts[#parts + 1] = servi / demande
     end
     ville.stock[m.cle] = dispo - servi
   end
+
+  -- LA FAMINE DE PR3 : « si 3 de ces produits font défaut simultanément sur une
+  -- longue période, une famine se déclenche ». Une ville tient donc tant que
+  -- trois de ses cinq aliments sont servis, et la mesure qui le dit est le
+  -- TROISIÈME le mieux servi.
+  --
+  -- On regardait le pire. C'était tenable à quatre vivres tous récoltés sur
+  -- place ; ça ne l'est plus avec le pain de PR3, qui se fait au sucre : une
+  -- ville loin des cannes serait morte de faim avec ses greniers pleins. Et le
+  -- jeu le dit lui-même — « essayez d'obtenir différentes nourritures » : c'est
+  -- la variété qui nourrit, pas l'aliment le plus rare.
+  table.sort(parts, function(a, b) return a > b end)
+  local pire = parts[math.min(ALIMENTS_SUFFISANTS, #parts)] or 1.0
 
   -- 3. Les ateliers, sur le surplus, dans l'ordre des dépendances. Ils gardent
   --    une réserve de sécurité : un atelier qui racle l'entrepôt jusqu'au fond

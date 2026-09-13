@@ -19,6 +19,9 @@ var ports: Array = []
 
 var _carte: Sprite2D
 var _mer: Sprite2D
+# Quelle mer est posée : l'ancienne nappe animée, ou celle qui suit la recette
+# de Port Royale 3 (`--eau-pr3` au lancement, F3 en jeu pour comparer).
+var _mer_pr3 := false
 var _nuages: ColorRect
 var _cam: Camera2D
 var _zoom := 0.55
@@ -411,11 +414,8 @@ func _creer_mer() -> void:
 	_mer.centered = false
 	_mer.scale = Vector2(proj.pixels) / Vector2(tex.get_size())
 	_mer.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	var mat := ShaderMaterial.new()
-	mat.shader = load("res://shaders/mer_animee.gdshader")
-	mat.set_shader_parameter("taille_monde", proj.vue_taille)
-	mat.set_shader_parameter("zoom", _zoom)
-	_mer.material = mat
+	_mer_pr3 = OS.get_cmdline_user_args().has("--eau-pr3")
+	_poser_shader_mer()
 	_mer.z_index = -9
 	# `--sans-mer` retire la nappe animée et ne laisse que l'illustration. C'est
 	# un outil de mesure : l'eau peinte de la carte et l'eau animée se
@@ -425,6 +425,20 @@ func _creer_mer() -> void:
 	if not OS.get_cmdline_user_args().has("--sans-mer"):
 		add_child(_mer)
 	_creer_nuages()
+
+
+# Pose sur la nappe l'une ou l'autre mer. Les deux shaders lisent la même fiche
+# et reçoivent les mêmes paramètres : seule la recette change, ce qui permet de
+# basculer en pleine partie et de comparer au même endroit, au même instant.
+func _poser_shader_mer() -> void:
+	if _mer == null:
+		return
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/mer_pr3.gdshader" if _mer_pr3
+		else "res://shaders/mer_animee.gdshader")
+	mat.set_shader_parameter("taille_monde", proj.vue_taille)
+	mat.set_shader_parameter("zoom", _zoom)
+	_mer.material = mat
 
 
 # Les nuages passent AU-DESSUS de tout : terrain, mer, navires, villages. C'est
@@ -1290,6 +1304,10 @@ func _unhandled_input(e: InputEvent) -> void:
 					_ouvrir_comptoir(quai)
 			KEY_I:
 				_ouvrir_infos_ville(_ville_regardee())
+			KEY_F3:
+				_mer_pr3 = not _mer_pr3
+				_poser_shader_mer()
+				_noter("Mer : %s" % ("recette Port Royale 3" if _mer_pr3 else "nappe animée d'origine"))
 			KEY_F2:
 				_mode_edition = not _mode_edition
 				_port_saisi = {}

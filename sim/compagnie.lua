@@ -1,7 +1,7 @@
 -- La compagnie du joueur : sa caisse et la cale de ses navires.
 --
 -- Départ de carrière conforme à Port Royale : 1er janvier 1600, vingt mille
--- pièces d'or et un sloop de cinquante tonneaux.
+-- pièces d'or et un sloop — celui de PR3, et sa cale de deux cents tonneaux.
 --
 -- L'achat et la vente passent obligatoirement par ici, jamais directement par
 -- `sim.economie` : c'est le seul endroit qui sache à la fois ce que la ville
@@ -10,15 +10,18 @@
 
 local Economie     = require("sim.economie")
 local Marchandises = require("sim.marchandises")
+local Navires      = require("sim.navires")
 
 local Compagnie = {}
 
 function Compagnie.reinitialiser()
+  local sloop = Navires.get("sloop")
   Compagnie.or_ = 20000
   Compagnie.navire = {
     nom = "Aurore",
-    classe = "Sloop",
-    capacite = 50,          -- tonneaux
+    classe = sloop.nom,
+    type = sloop.cle,
+    capacite = sloop.cale,  -- tonneaux
     cale = {},              -- cle -> tonnes
   }
 end
