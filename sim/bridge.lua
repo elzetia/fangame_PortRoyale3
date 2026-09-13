@@ -493,6 +493,13 @@ function Bridge.navires_marchands()
     -- (tf_barrels, tf_heart, tf_wheel, tf_knot, tf_cost) : la fiche du navire
     -- les porte déjà, le pont ne les laissait pas passer.
     d.coque = n.coque
+    -- Canons et équipage, relevés dans `ini/constdata.dat` : chaque navire y
+    -- porte ses positions de canon (blocs de 16 octets, trois flottants), mais
+    -- d'UN SEUL bord — le jeu mire l'autre. D'où canons = 2 × positions, et
+    -- équipage = canons × `[Ship] CrewmenAtGun` (5). Vérifié sur le sloop, que
+    -- PR3 affiche à 14 canons et 70 marins pour 7 positions.
+    d.canons = n.canons
+    d.equipage = n.equipage
     d.maniabilite = n.maniabilite
     d.vmax = n.vmax
     d.vmin = n.vmin

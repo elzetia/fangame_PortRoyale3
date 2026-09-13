@@ -350,17 +350,23 @@ func _rafraichir_page() -> void:
 				fiche = n
 				break
 
-	# Canons, équipage et tirant d'eau ne sont PAS dans la table navires de
-	# constdata : tant qu'on n'a pas trouvé leur source, on ne montre pas un
-	# chiffre inventé.
+	# Canons et équipage viennent des positions de canon de `constdata` : chaque
+	# navire y porte les siennes en blocs de 16 octets (trois flottants), mais
+	# d'UN SEUL bord — le jeu mire l'autre. D'où canons = 2 × positions, et
+	# équipage = canons × `[Ship] CrewmenAtGun` (5). Vérifié sur le sloop, que
+	# PR3 affiche à 14 canons et 70 marins pour 7 positions relevées.
+	#
+	# Le tirant d'eau (`Gauge`) reste en attente : sa colonne n'est pas encore
+	# ancrée avec certitude dans l'enregistrement binaire, et on préfère un tiret
+	# à un chiffre inventé.
 	_poser_navire(str(fiche.get("modele", "")))
 	_poser("tf_barrels", str(int(fiche.get("cale", 0))))
 	_poser("tf_heart", str(int(fiche.get("coque", 0))))
 	_poser("tf_knot", str(int(fiche.get("vmax", 0))))
 	_poser("tf_wheel", "%d %%" % int(fiche.get("maniabilite", 0)))
 	_poser("tf_cost", str(int(fiche.get("entretien", 0))))
-	_poser("tf_cannon", "—")
-	_poser("tf_crew", "—")
+	_poser("tf_cannon", str(int(fiche.get("canons", 0))))
+	_poser("tf_crew", str(int(fiche.get("equipage", 0))))
 	_poser("tf_draft", "—")
 
 	match _scene:
