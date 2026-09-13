@@ -164,4 +164,5 @@ func _sur_petale(sig: String) -> void:
 	match sig:
 		"infos": infos_demandee.emit(_port)
 		"dock": dock_demande.emit(_port)
+		"capitainerie": capitainerie_demande.emit(_port)
 		"chantier": chantier_demande.emit(_port)
