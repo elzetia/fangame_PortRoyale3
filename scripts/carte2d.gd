@@ -95,7 +95,7 @@ var _infos_ville: VillePanneau
 var _routes: RoutesPanneau
 var _chantier: ChantierPanneau
 var _radial: RadialVille
-var _quai: QuaiPanneau
+var _capitainerie: CapitaineriePanneau
 
 # Les cinq marchands des nations, relus à chaque image : ils bougent tout
 # seuls, y compris pendant que le joueur regarde ailleurs.
@@ -104,7 +104,8 @@ var _marchands: Array = []
 # Les convois du JOUEUR, relus à chaque image : on les dessine, on en sélectionne
 # un (clic gauche), et on l'envoie à un port (clic droit) s'il est manuel.
 var _convois_joueur: Array = []
-var _convoi_selectionne := -1     # indice sim du convoi choisi, -1 = aucun
+var _convoi_selectionne := 1      # indice sim du convoi commandé (l'Aurore au départ)
+var _sel_a_quai_prec := true      # le convoi sélectionné était-il à quai à l'image d'avant
 
 
 func _ready() -> void:
@@ -177,16 +178,20 @@ func _ready() -> void:
 	# Le menu radial au clic sur une ville : infos, dock, chantier (si elle en a un).
 	_radial = RadialVille.new()
 	add_child(_radial)
-	# Le quai d'un port : convois à quai et navires sans convoi qui y sont.
-	_quai = QuaiPanneau.new()
-	add_child(_quai)
-	_quai.negoce_demande.connect(func(port: Dictionary) -> void:
-		_ouvrir_comptoir(port))
+	# La capitainerie d'un port : convois à quai et navires sans convoi qui y sont.
+	_capitainerie = CapitaineriePanneau.new()
+	add_child(_capitainerie)
 	_radial.infos_demandee.connect(func(port: Dictionary) -> void:
 		_ouvrir_infos_ville(port))
+	# Dock = le marché. On sélectionne d'abord un convoi présent au port, pour que
+	# le comptoir échange avec celui qui est là.
 	_radial.dock_demande.connect(func(port: Dictionary) -> void:
-		if _quai != null:
-			_quai.ouvrir(sim, port))
+		_selectionner_convoi_au_port(port)
+		_ouvrir_comptoir(port))
+	# Capitainerie = la gestion des convois de ce port.
+	_radial.capitainerie_demande.connect(func(port: Dictionary) -> void:
+		if _capitainerie != null:
+			_capitainerie.ouvrir(sim, port))
 	_radial.chantier_demande.connect(func(port: Dictionary) -> void:
 		if _chantier != null:
 			_chantier.ouvrir(sim, port))
@@ -698,14 +703,12 @@ func _draw() -> void:
 	if proj == null or not proj.valide:
 		return
 
-	_dessiner_route()
 	for port in ports:
 		_dessiner_port(port)
 	if _mode_edition:
 		_dessiner_reperes_edition()
 	_dessiner_marchands()
 	_dessiner_convois_joueur()
-	_dessiner_navire()
 	# Les cartouches passent EN DERNIER, donc au-dessus des navires. Un convoi
 	# qui passe devant l'étiquette de son port la rend illisible juste au moment
 	# où l'on regarde ce port ; derrière, il ne gêne rien et l'on voit quand même
@@ -1116,6 +1119,38 @@ func _dessiner_convois_joueur() -> void:
 			_modele_voile(str(m.get("modele", "")), NAV_VOILE_JOUEUR))
 
 
+# Le dico du convoi du joueur d'indice donné (relu chaque image), ou {}.
+func _convoi_par_indice(ic: int) -> Dictionary:
+	for m in _convois_joueur:
+		if int(m.get("indice", -1)) == ic:
+			return m
+	return {}
+
+
+# La position écran du convoi sélectionné, pour recentrer la caméra dessus.
+func _pos_convoi_selectionne() -> Vector2:
+	var m := _convoi_par_indice(_convoi_selectionne)
+	if not m.is_empty():
+		var pos: Vector2 = m["position"]
+		return proj.vers_carte(pos.x, pos.y)
+	return _cam.position
+
+
+# Ouvre le comptoir quand le convoi sélectionné vient d'accoster — comme l'ancien
+# navire du joueur ouvrait le dock en arrivant.
+func _detecter_arrivee_convoi() -> void:
+	var m := _convoi_par_indice(_convoi_selectionne)
+	if m.is_empty():
+		_sel_a_quai_prec = true
+		return
+	var quai := bool(m.get("a_quai", false))
+	if quai and not _sel_a_quai_prec:
+		var p := _port_par_cle(String(m.get("ville", "")))
+		if not p.is_empty():
+			_ouvrir_comptoir(p)
+	_sel_a_quai_prec = quai
+
+
 # L'indice du convoi du joueur sous un point du monde, ou -1. Sert à en sélectionner
 # un d'un clic en pleine mer.
 func _convoi_sous_monde(monde: Vector2) -> int:
@@ -1295,11 +1330,10 @@ func _process(delta: float) -> void:
 	if not sim.pret or proj == null or not proj.valide:
 		return
 	_conduire_camera(delta)
-	var vitesse := float(sim.etat_temps()["vitesse"])
 	sim.avancer_temps(delta)
-	navire.avancer(delta * vitesse)
 	_marchands = sim.marchands()
 	_convois_joueur = sim.convois_joueur()
+	_detecter_arrivee_convoi()
 	_maj_survol()
 	_maj_hud()
 	if _comptoir != null and _comptoir.visible:
@@ -1474,7 +1508,7 @@ func _unhandled_input(e: InputEvent) -> void:
 			KEY_1, KEY_2, KEY_3, KEY_4: sim.definir_vitesse(e.keycode - KEY_0)
 			KEY_EQUAL, KEY_PLUS, KEY_KP_ADD: _zoomer(PAS_ZOOM)
 			KEY_MINUS, KEY_KP_SUBTRACT: _zoomer(1.0 / PAS_ZOOM)
-			KEY_R: _cam.position = proj.vers_carte(navire.position.x, navire.position.y)
+			KEY_R: _cam.position = _pos_convoi_selectionne()
 			KEY_M:
 				var quai := _port_a_quai()
 				if quai.is_empty():
@@ -1586,18 +1620,29 @@ func _clic_gauche() -> void:
 		# ne s'ouvrent que si un convoi du joueur est à ce port.
 		_radial.ouvrir(port, get_viewport().get_mouse_position(), _joueur_au_port(port))
 		return
-	# Pas de port : on sélectionne un convoi du joueur en pleine mer (anneau d'or),
-	# ou on désélectionne si le clic tombe dans le vide.
-	_convoi_selectionne = _convoi_sous_monde(monde)
+	# Pas de port : on sélectionne un convoi du joueur en pleine mer (anneau d'or).
+	# Un clic dans le vide garde le convoi courant — il y en a toujours un de
+	# commandé, pour le comptoir comme pour le clic droit.
+	var ic := _convoi_sous_monde(monde)
+	if ic != -1:
+		_convoi_selectionne = ic
+		sim.selectionner_convoi(ic)
 
 
-# Le joueur a-t-il un navire ou un convoi à quai dans ce port ? Son navire (à quai
-# ici) ou un de ses convois automatiques y suffit.
+# Le joueur a-t-il un convoi à quai dans ce port ? Tout est convoi désormais.
 func _joueur_au_port(port: Dictionary) -> bool:
-	var quai := _port_a_quai()
-	if not quai.is_empty() and String(quai.get("cle", "")) == String(port.get("cle", "")):
-		return true
 	return sim.convoi_au_port(String(port.get("cle", "")))
+
+
+# Sélectionne un convoi du joueur à quai dans ce port (pour que le comptoir échange
+# avec lui). Ne change rien si aucun n'y est.
+func _selectionner_convoi_au_port(port: Dictionary) -> void:
+	var cle := String(port.get("cle", ""))
+	for m in _convois_joueur:
+		if bool(m.get("a_quai", false)) and String(m.get("ville", "")) == cle:
+			_convoi_selectionne = int(m.get("indice", _convoi_selectionne))
+			sim.selectionner_convoi(_convoi_selectionne)
+			return
 
 
 # Clic droit : on COMMANDE. Si un convoi du joueur est sélectionné, on l'envoie au
@@ -1664,15 +1709,12 @@ func _sur_arrivee(port) -> void:
 		_ouvrir_comptoir(port)
 
 
-# Le port ou le navire est effectivement a quai, {} s'il est en mer.
+# Le port où le convoi SÉLECTIONNÉ est à quai, {} s'il est en mer ou absent.
 func _port_a_quai() -> Dictionary:
-	if not navire.au_mouillage():
+	var m := _convoi_par_indice(_convoi_selectionne)
+	if m.is_empty() or not bool(m.get("a_quai", false)):
 		return {}
-	var p := _port_le_plus_proche()
-	if p.is_empty():
-		return {}
-	var rade: Vector3 = p["rade"]
-	return p if navire.position.distance_to(Vector2(rade.x, rade.z)) < 70.0 else {}
+	return _port_par_cle(String(m.get("ville", "")))
 
 
 # Comptoir et infos ville ne cohabitent pas : ce sont deux vues de la même
@@ -1833,20 +1875,22 @@ func _maj_hud() -> void:
 		_panneau_date.poser(String(etat["date"]),
 			float(etat.get("heure_num", 0.0)))
 
-	if navire.au_mouillage():
-		var p := _port_le_plus_proche()
-		var rade: Vector3 = p["rade"]
-		if navire.position.distance_to(Vector2(rade.x, rade.z)) < 70.0:
-			_lbl_statut.text = "À quai - %s (%s)" % [p["nom"], p["nation"]]
-		else:
-			_lbl_statut.text = "En mer - à l'ancre"
+	# La fiche montre le CONVOI SÉLECTIONNÉ (celui qu'on commande).
+	var sel := _convoi_par_indice(_convoi_selectionne)
+	var nom_convoi := String(sel.get("nom", "Convoi")) if not sel.is_empty() else ""
+	if sel.is_empty():
+		_lbl_statut.text = "Aucun convoi"
+	elif bool(sel.get("a_quai", false)):
+		var p := _port_par_cle(String(sel.get("ville", "")))
+		_lbl_statut.text = "%s — à quai à %s (%s)" % [
+			nom_convoi, String(p.get("nom", "?")), String(p.get("nation", ""))]
 	else:
-		var duree := sim.duree_traversee(navire.distance_restante(), 8.0)
-		var nom: String = navire.destination.get("nom", "")
-		_lbl_statut.text = ("En mer - cap au large, arrivée dans %s" % duree) if nom == "" \
-			else ("En mer - cap sur %s, arrivée dans %s" % [nom, duree])
+		var pd := _port_par_cle(String(sel.get("destination", "")))
+		var dn := String(pd.get("nom", ""))
+		_lbl_statut.text = ("%s — en mer" % nom_convoi) if dn == "" \
+			else ("%s — cap sur %s" % [nom_convoi, dn])
 
-	# La cargaison du navire et l'or en caisse.
+	# La cargaison du convoi sélectionné et l'or en caisse.
 	if _lbl_cargaison != null:
 		var c := sim.etat_compagnie()
 		var cargo := String(c.get("cargaison", "sur lest"))
@@ -1881,15 +1925,24 @@ func _port_par_cle(cle: String) -> Dictionary:
 
 
 func _port_le_plus_proche() -> Dictionary:
+	var ref := _pos_monde_convoi_selectionne()
 	var meilleur: Dictionary = ports[0]
 	var d := INF
 	for p in ports:
 		var rade: Vector3 = p["rade"]
-		var dist := navire.position.distance_to(Vector2(rade.x, rade.z))
+		var dist := ref.distance_to(Vector2(rade.x, rade.z))
 		if dist < d:
 			d = dist
 			meilleur = p
 	return meilleur
+
+
+# La position MONDE du convoi sélectionné (pour trouver le port le plus proche).
+func _pos_monde_convoi_selectionne() -> Vector2:
+	var m := _convoi_par_indice(_convoi_selectionne)
+	if not m.is_empty():
+		return m["position"]
+	return navire.position
 
 
 # Outil : `-- --capture <fichier.png> [secondes]`

@@ -13,8 +13,9 @@ class_name RadialVille
 extends CanvasLayer
 
 signal infos_demandee(port: Dictionary)
-signal dock_demande(port: Dictionary)
-signal chantier_demande(port: Dictionary)
+signal dock_demande(port: Dictionary)          # le marché (marchandises)
+signal capitainerie_demande(port: Dictionary)  # la gestion des convois
+signal chantier_demande(port: Dictionary)       # acheter/réparer/construire/vendre
 
 const BOIS       := Color(0.16, 0.11, 0.07)
 const BOIS_CLAIR := Color(0.26, 0.18, 0.11)
@@ -69,20 +70,22 @@ func ouvrir(port: Dictionary, ecran_pos: Vector2, a_convoi: bool) -> void:
 
 	_centre(c)
 
-	# Les pétales, disposés en éventail au-dessus du centre. Infos toujours ; Dock
-	# seulement si un convoi du joueur est là ; Chantier en plus s'il faut que la
-	# ville en ait un.
+	# Les pétales, en éventail au-dessus du centre. Infos toujours ; Dock (marché)
+	# et Capitainerie (convois) si un convoi du joueur est là ; Chantier en plus
+	# si la ville a un chantier naval.
 	var petales: Array = [
 		{"txt": "Infos", "sig": "infos"},
 	]
 	if a_convoi:
 		petales.append({"txt": "Dock", "sig": "dock"})
+		petales.append({"txt": "Capitainerie", "sig": "capitainerie"})
 		if bool(port.get("chantier", false)):
 			petales.append({"txt": "Chantier", "sig": "chantier"})
 
 	var n := petales.size()
-	# Éventail centré sur le haut (-90°), écarté de 55° entre pétales.
-	var pas := deg_to_rad(58.0)
+	# Éventail centré sur le haut (-90°) ; on resserre l'écart quand il y a plus
+	# de pétales pour que la couronne reste lisible.
+	var pas := deg_to_rad(58.0 if n <= 3 else 46.0)
 	var depart := deg_to_rad(-90.0) - pas * (n - 1) / 2.0
 	for i in n:
 		var a := depart + pas * i

@@ -570,12 +570,16 @@ end
 -- navigation. Le même code sert les convois de l'IA et ceux du joueur — un convoi
 -- du joueur (`m.joueur`) garde tout son or (pas de plafond ni de fonds commun).
 local function piloter_convoi(m, jours)
-  m.or_ = m.or_ - (m.entretien or 0) * jours
-  if not m.joueur and m.or_ > OR_PLAFOND then
-    -- Le débordement de la caisse d'un convoi IA part au fonds de construction :
-    -- il ne garde qu'un capital de travail.
-    Marchands.fonds = Marchands.fonds + (m.or_ - OR_PLAFOND)
-    m.or_ = OR_PLAFOND
+  -- Un convoi MANUEL ne paie pas sur son propre or : c'est la caisse du joueur qui
+  -- règle son entretien (`Compagnie.payer_entretien`). Les autres paient ici.
+  if m.mode ~= "manuel" then
+    m.or_ = m.or_ - (m.entretien or 0) * jours
+    if not m.joueur and m.or_ > OR_PLAFOND then
+      -- Le débordement de la caisse d'un convoi IA part au fonds de construction :
+      -- il ne garde qu'un capital de travail.
+      Marchands.fonds = Marchands.fonds + (m.or_ - OR_PLAFOND)
+      m.or_ = OR_PLAFOND
+    end
   end
   if m.ville then
     -- Un convoi MANUEL reste à quai : c'est le joueur qui décide quand repartir

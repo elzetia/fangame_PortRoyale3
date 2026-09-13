@@ -251,15 +251,17 @@ end
 
 function Bridge.etat_compagnie()
   local d = Dictionary()
+  local m = Compagnie.convoi_actif()
   d.or_       = math.floor(Compagnie.or_ + 0.5)
-  d.navire    = Compagnie.navire.nom
-  d.classe    = Compagnie.navire.classe
-  d.modele    = Compagnie.navire.modele or ""
-  d.capacite  = Compagnie.navire.capacite
+  d.selection = Compagnie.selection
+  d.navire    = m and m.nom or "—"
+  d.classe    = ""
+  d.modele    = (m and m.navires and m.navires[1] and m.navires[1].modele) or ""
+  d.capacite  = m and m.capacite or 0
   d.charge    = Compagnie.charge()
   d.libre     = Compagnie.place_libre()
-  -- Ce que le navire porte, en clair, pour la fiche de la carte.
-  d.cargaison = Marchands.cargaison(Compagnie.navire)
+  -- Ce que le convoi actif porte, en clair, pour la fiche de la carte.
+  d.cargaison = m and Marchands.cargaison(m) or "aucun convoi"
   -- La réputation moyenne du joueur auprès de chaque nation, de 0 à 100 : la
   -- moyenne de ses villes, dont le commerce fait bouger le détail.
   local rep = Dictionary()
@@ -600,11 +602,17 @@ function Bridge.convois_joueur()
     d.destination = m.destination or ""
     d.navires     = #(m.navires or {})
     d.cargaison   = Marchands.cargaison(m)
+    d.selectionne = (i == Compagnie.selection)
     local tete = m.navires and m.navires[1]
     d.modele      = tete and tete.modele or ""
     sortie:append(d)
   end
   return sortie
+end
+
+-- Choisit le convoi que le joueur commande (déplacement, comptoir).
+function Bridge.selectionner_convoi(indice)
+  Compagnie.selectionner(indice)
 end
 
 -- Fabrique un convoi manuel depuis des navires de la flotte (indices) à `cle_port`.

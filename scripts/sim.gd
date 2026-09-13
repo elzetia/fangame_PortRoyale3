@@ -161,6 +161,10 @@ func ordonner_convoi(indice_convoi: int, cle_port_dest: String) -> Dictionary:
 	return r if r is Dictionary else {}
 
 
+func selectionner_convoi(indice_convoi: int) -> void:
+	_appel("selectionner_convoi", [indice_convoi])
+
+
 func ajouter_navire_convoi(indice_convoi: int, navires: Array) -> Dictionary:
 	var r = _appel("ajouter_navire_convoi", [indice_convoi, navires])
 	return r if r is Dictionary else {}

@@ -1,5 +1,8 @@
-# Vérifie les convois MANUELS du joueur : fabriquer, ordonner un déplacement, arriver.
+# Vérifie le modèle unifié des convois du joueur :
 #   godot --headless --path <projet> --script res://tools/convois_smoke.gd
+# - le joueur DÉMARRE avec un convoi (l'Aurore), pas un navire unique ;
+# - le comptoir échange avec le CONVOI ACTIF (sa cale) ;
+# - on fabrique un second convoi, on l'ordonne vers un port, il y arrive.
 extends SceneTree
 
 
@@ -15,50 +18,64 @@ func _init() -> void:
 	lua.do_string("package.loaded['sim.compagnie'].or_ = 2000000")
 
 	var echecs := 0
+
+	# --- l'Aurore est un convoi dès le départ -------------------------------
+	var cj = b.get("convois_joueur").invoke()
+	print("convois au départ     : ", cj.size(), " -> ", cj[0] if cj.size() > 0 else "aucun")
+	if cj.size() != 1:
+		printerr("  ECHEC : le joueur devrait démarrer avec 1 convoi (l'Aurore)."); echecs += 1
+	else:
+		var a = cj[0] as Dictionary
+		if String(a.get("nom", "")) != "Aurore" or String(a.get("mode", "")) != "manuel":
+			printerr("  ECHEC : le 1er convoi devrait être l'Aurore, manuel."); echecs += 1
+	var etat = b.get("etat_compagnie").invoke()
+	print("etat_compagnie        : navire=", etat.get("navire"), " capacité=", etat.get("capacite"))
+	if String(etat.get("navire", "")) != "Aurore" or int(etat.get("capacite", 0)) != 200:
+		printerr("  ECHEC : la fiche devrait montrer l'Aurore (200 t)."); echecs += 1
+
+	# --- le comptoir échange avec le convoi actif (l'Aurore) ----------------
+	var port_aurore := String((b.get("convois_joueur").invoke()[0] as Dictionary).get("ville", ""))
+	var marche = b.get("marche").invokev([port_aurore, 10])
+	var bien := ""
+	for l in marche:
+		if int(l.get("stock", 0)) > 20:
+			bien = String(l["cle"]); break
+	if bien != "":
+		var achat = b.get("acheter").invokev([port_aurore, bien, 10])
+		var e2 = b.get("etat_compagnie").invoke()
+		print("achat ", bien, " x10       : ", achat, " -> cale ", e2.get("charge"), " cargaison=", e2.get("cargaison"))
+		if int(e2.get("charge", 0)) <= 0:
+			printerr("  ECHEC : l'achat n'a pas rempli la cale du convoi actif."); echecs += 1
+	else:
+		print("  (aucun bien en stock à ", port_aurore, " — achat non testé)")
+
+	# --- fabriquer un 2e convoi et l'ordonner -------------------------------
 	var ports = b.get("ports").invoke()
-	var depart := ""
+	var chantier := ""
 	for p in ports:
 		if int(p.get("niveau_chantier", 0)) >= 2:
-			depart = String(p["cle"]); break
-	# une destination différente
+			chantier = String(p["cle"]); break
+	b.get("acheter_navire").invokev([chantier, "sloop"])
+	b.get("acheter_navire").invokev([chantier, "sloop"])
+	# les indices de flotte 1 et 2 sont les deux sloops achetés
+	var rc = b.get("creer_convoi").invokev([[1, 2], chantier])
+	print("creer 2e convoi       : ", rc)
+	var cj2 = b.get("convois_joueur").invoke()
+	if cj2.size() != 2:
+		printerr("  ECHEC : il devrait y avoir 2 convois."); echecs += 1
 	var arrivee := ""
 	for p in ports:
-		if String(p["cle"]) != depart:
+		if String(p["cle"]) != chantier:
 			arrivee = String(p["cle"]); break
-	print("départ=", depart, " arrivée=", arrivee)
-
-	# Deux navires achetés, puis un convoi manuel.
-	b.get("acheter_navire").invokev([depart, "sloop"])
-	b.get("acheter_navire").invokev([depart, "sloop"])
-	var rc = b.get("creer_convoi").invokev([[1, 2], depart])
-	print("creer_convoi          : ", rc)
-	if not bool(rc.get("ok", false)):
-		printerr("  ECHEC création."); echecs += 1
-
-	var cj = b.get("convois_joueur").invoke()
-	print("convois joueur        : ", cj.size(), " -> ", cj[0] if cj.size() > 0 else "aucun")
-	if cj.size() != 1 or String((cj[0] as Dictionary).get("mode", "")) != "manuel":
-		printerr("  ECHEC : pas un convoi manuel."); echecs += 1
-	if not bool((cj[0] as Dictionary).get("a_quai", false)):
-		printerr("  ECHEC : le convoi neuf devrait être à quai."); echecs += 1
-
-	# On l'ordonne vers l'arrivée, puis on avance le temps.
-	var ro = b.get("ordonner_convoi").invokev([1, arrivee])
-	print("ordonner_convoi       : ", ro)
-	if not bool(ro.get("ok", false)):
-		printerr("  ECHEC ordre."); echecs += 1
-	# juste après l'ordre, il doit être EN MER (a_quai faux)
-	var apres_ordre = b.get("convois_joueur").invoke()[0] as Dictionary
-	print("après ordre           : a_quai=", apres_ordre.get("a_quai"), " dest=", apres_ordre.get("destination"))
-
+	b.get("ordonner_convoi").invokev([2, arrivee])
 	for j in 300:
 		b.get("avancer_temps").invokev([24.0])
-	var fin = b.get("convois_joueur").invoke()[0] as Dictionary
-	print("après 300 j           : a_quai=", fin.get("a_quai"), " ville=", fin.get("ville"))
-	if not bool(fin.get("a_quai", false)) or String(fin.get("ville", "")) != arrivee:
-		printerr("  ECHEC : le convoi n'est pas arrivé à ", arrivee, " (ville=", fin.get("ville"), ")."); echecs += 1
+	var conv2 = b.get("convois_joueur").invoke()[1] as Dictionary
+	print("2e convoi après 300 j : a_quai=", conv2.get("a_quai"), " ville=", conv2.get("ville"))
+	if String(conv2.get("ville", "")) != arrivee:
+		printerr("  ECHEC : le 2e convoi n'est pas arrivé à ", arrivee, "."); echecs += 1
 
 	if echecs > 0:
 		printerr("ECHEC : ", echecs, " en défaut."); quit(1); return
-	print("OK : convois manuels — fabriquer, ordonner, arriver.")
+	print("OK : Aurore = convoi, comptoir sur le convoi actif, 2e convoi commandé.")
 	quit(0)

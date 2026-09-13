@@ -79,6 +79,7 @@ func _init() -> void:
 		print("  (construction refusée : ", rc.get("message"), " — sans doute matières manquantes)")
 
 	# --- routes : armer un convoi depuis la flotte (indices 1 et 2) ----------
+	# Le convoi 1 est l'Aurore (de départ) ; la route armée est un NOUVEAU convoi.
 	var circuit = [ports[0]["cle"], ports[1]["cle"], ports[2]["cle"]]
 	var avant = b.get("flotte").invoke().size()
 	var res = b.get("armer_route").invokev([[1, 2], circuit, "resources", 15000])
@@ -86,31 +87,32 @@ func _init() -> void:
 	if not bool(res.get("ok", false)):
 		printerr("  ECHEC armement : ", res.get("message")); echecs += 1
 	var routes = b.get("routes").invoke()
-	if routes.size() < 1:
-		printerr("  ECHEC : aucune route en service."); echecs += 1
+	var idc := 0                                   # indice du convoi armé (le dernier)
+	if routes.size() < 2:
+		printerr("  ECHEC : la route armée n'apparaît pas (Aurore + route attendues)."); echecs += 1
 	else:
-		var r = routes[0]
-		print("route en service      : ", r.get("nom"), " cale=", r.get("capacite"),
+		var r = routes[routes.size() - 1] as Dictionary
+		idc = int(r.get("indice", 0))
+		print("route armée (indice ", idc, ") : ", r.get("nom"), " cale=", r.get("capacite"),
 			" circuit=", r.get("circuit"))
-		if int(r.get("capacite", 0)) <= 0:
-			printerr("  ECHEC : cale nulle."); echecs += 1
+		if int(r.get("capacite", 0)) != 700:
+			printerr("  ECHEC : cale ", r.get("capacite"), " ≠ 700 (flûte+sloop)."); echecs += 1
 	var apres = b.get("flotte").invoke().size()
 	if apres != avant - 2:
 		printerr("  ECHEC : la flotte n'a pas cédé 2 navires (", avant, " -> ", apres, ")."); echecs += 1
 
 	# --- gestion du convoi : ajouter puis retirer un navire ------------------
-	if apres >= 1:
-		var ra2 = b.get("ajouter_navire_convoi").invokev([1, [1]])
-		var nav_apres_ajout := int((b.get("routes").invoke()[0] as Dictionary).get("navires", 0))
+	if apres >= 1 and idc > 0:
+		var ra2 = b.get("ajouter_navire_convoi").invokev([idc, [1]])
+		var nav_apres_ajout := int(_route_par_indice(b, idc).get("navires", 0))
 		print("ajouter navire convoi : ", ra2, " -> convoi a ", nav_apres_ajout, " navires")
 		if not bool(ra2.get("ok", false)) or nav_apres_ajout != 3:
 			printerr("  ECHEC : l'ajout au convoi n'a pas donné 3 navires."); echecs += 1
 		if b.get("flotte").invoke().size() != apres - 1:
 			printerr("  ECHEC : la flotte n'a pas cédé le navire ajouté."); echecs += 1
-		var rr = b.get("retirer_navire_convoi").invokev([1, 1])
-		var r1 = b.get("routes").invoke()[0] as Dictionary
-		print("retirer navire convoi : ", rr, " -> convoi a ", int(r1.get("navires", 0)),
-			" navires, noms=", r1.get("navires_noms"))
+		var rr = b.get("retirer_navire_convoi").invokev([idc, 1])
+		var r1 = _route_par_indice(b, idc)
+		print("retirer navire convoi : ", rr, " -> convoi a ", int(r1.get("navires", 0)), " navires")
 		if not bool(rr.get("ok", false)) or int(r1.get("navires", 0)) != 2:
 			printerr("  ECHEC : le retrait n'a pas ramené le convoi à 2 navires."); echecs += 1
 
@@ -124,11 +126,12 @@ func _init() -> void:
 	if avec == 0 or sans == 0:
 		printerr("  ECHEC : le flag chantier ne distingue pas les villes."); echecs += 1
 
-	# --- dissoudre : les navires reviennent à la flotte ----------------------
-	var rec = b.get("dissoudre_route").invokev([1])
+	# --- dissoudre la route armée : ses navires reviennent à la flotte -------
+	var av_diss = b.get("flotte").invoke().size()
+	var rec = b.get("dissoudre_route").invokev([idc])
 	var apres2 = b.get("flotte").invoke().size()
-	print("dissoudre route 1     : récupéré ", rec, " ; flotte ", apres, " -> ", apres2)
-	if apres2 != apres + 2:
+	print("dissoudre route ", idc, "     : récupéré ", rec, " ; flotte ", av_diss, " -> ", apres2)
+	if apres2 != av_diss + 2:
 		printerr("  ECHEC : les navires ne sont pas revenus à la flotte."); echecs += 1
 
 	if echecs > 0:
@@ -137,3 +140,11 @@ func _init() -> void:
 		return
 	print("OK : chantier + flotte + routes fonctionnent.")
 	quit(0)
+
+
+# La route (convoi) d'indice donné, ou {} si absente.
+func _route_par_indice(b, idc: int) -> Dictionary:
+	for r in b.get("routes").invoke():
+		if int((r as Dictionary).get("indice", -1)) == idc:
+			return r
+	return {}

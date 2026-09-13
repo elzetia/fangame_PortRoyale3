@@ -1,16 +1,15 @@
-# Le quai d'un port — le « bureau du port » de Port Royale 3.
+# La capitainerie d'un port — la gestion des convois de Port Royale 3.
 #
-# Ouvert par le pétale Dock du menu radial (donc seulement là où l'on a un convoi).
-# Il montre, POUR CE PORT : les convois à quai, et les navires sans convoi qui s'y
-# trouvent (achetés, construits, ou débarqués d'un convoi). On y forme un convoi des
-# navires libres, on ajoute/retire des navires d'un convoi à quai, et on négocie.
+# Ouverte par le pétale Capitainerie du menu radial (donc seulement là où l'on a un
+# convoi). Elle montre, POUR CE PORT : les convois à quai, et les navires sans convoi
+# qui s'y trouvent (achetés, construits, ou débarqués d'un convoi). On y forme un
+# convoi des navires libres, on ajoute/retire des navires d'un convoi à quai.
 #
 # Rien n'est calculé ici : tout vient du pont (compagnie). On filtre juste par port.
-class_name QuaiPanneau
+class_name CapitaineriePanneau
 extends CanvasLayer
 
 signal ferme
-signal negoce_demande(port: Dictionary)
 
 const BOIS       := Color(0.16, 0.11, 0.07)
 const BOIS_CLAIR := Color(0.26, 0.18, 0.11)
@@ -99,13 +98,9 @@ func _construire() -> void:
 
 	var titre_ligne := HBoxContainer.new()
 	col.add_child(titre_ligne)
-	_titre = _label("Quai", 26, BOIS)
+	_titre = _label("Capitainerie", 26, BOIS)
 	_titre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	titre_ligne.add_child(_titre)
-	var negoce_b := Button.new()
-	negoce_b.text = "Négocier"
-	negoce_b.pressed.connect(func() -> void: negoce_demande.emit(_port))
-	titre_ligne.add_child(negoce_b)
 	var fermer_b := Button.new()
 	fermer_b.text = "Fermer"
 	fermer_b.pressed.connect(fermer)
@@ -158,7 +153,7 @@ func _cle_port() -> String:
 func rafraichir() -> void:
 	if _sim == null or _liste_libres == null:
 		return
-	_titre.text = "Quai de %s" % String(_port.get("nom", "?"))
+	_titre.text = "Capitainerie de %s" % String(_port.get("nom", "?"))
 	var ici := _cle_port()
 
 	# Les navires libres à CE port.

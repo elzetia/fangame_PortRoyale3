@@ -89,7 +89,21 @@ end
 -- La coque et l'équipage ne sont pas encore suivis faute de combat dans la sim.
 Compagnie.flotte = {}         -- navires possédés, à quai, non affectés
 Compagnie.file_chantier = {}  -- constructions en cours : { cle, nom, ville, jours }
-Compagnie.convois = {}        -- convois automatiques en service
+Compagnie.convois = {}        -- TOUS les convois du joueur (manuel ou route)
+Compagnie.selection = 1       -- indice du convoi sélectionné (celui que commande le joueur)
+
+
+-- Le convoi que le joueur commande en ce moment : celui qu'il déplace sur la carte
+-- et pour qui il négocie au comptoir. C'est là que va la cargaison achetée.
+function Compagnie.convoi_actif()
+  return Compagnie.convois[Compagnie.selection]
+end
+
+
+-- Choisit le convoi actif (borne l'indice ; garde l'actuel si l'indice est mauvais).
+function Compagnie.selectionner(indice)
+  if Compagnie.convois[indice] then Compagnie.selection = indice end
+end
 
 -- Baptise chaque navire pour le distinguer dans la flotte : « Sloop 3 ».
 local function baptiser(navire)
@@ -103,7 +117,6 @@ end
 -- que plafonne `maxShips` (50).
 function Compagnie.nombre_navires()
   local n = #Compagnie.flotte + #Compagnie.file_chantier
-  if Compagnie.navire then n = n + 1 end
   for _, m in ipairs(Compagnie.convois) do
     n = n + #(m.navires_joueur or m.navires or {})
   end
@@ -401,33 +414,43 @@ function Compagnie.reinitialiser()
   for _, port in ipairs(Archipel.ports or {}) do
     Compagnie.reputation[port.cle] = Compagnie.REP_DEPART
   end
-  Compagnie.navire = {
-    nom = "Aurore",
-    classe = sloop.nom,
-    type = sloop.cle,
-    modele = sloop.modele,
-    entretien = sloop.entretien,  -- or par jour (`DailyCosts` de PR3)
-    capacite = sloop.cale,  -- tonneaux
-    cale = {},              -- cle -> tonnes
-  }
+  -- Le joueur DÉMARRE avec un convoi : l'Aurore, un sloop, à quai à son port
+  -- d'attache, en mode manuel. Plus de « navire unique » : tout est convoi, comme
+  -- dans PR3. C'est le convoi sélectionné par défaut.
+  local depart = (Archipel.portsParCle and Archipel.portsParCle["port_royale"] and "port_royale")
+    or (Archipel.ports and Archipel.ports[1] and Archipel.ports[1].cle) or nil
+  Compagnie.selection = 1
+  if depart then
+    local m = Marchands.armer_joueur_manuel(depart, { sloop })
+    if m then
+      m.nom = "Aurore"
+      m.navires_joueur = { { cle = sloop.cle, nom = "Aurore", attache = depart } }
+      Compagnie.convois[1] = m
+    end
+  end
 end
 
 
--- Tonnage embarqué.
+-- Tonnage embarqué DANS LE CONVOI ACTIF.
 function Compagnie.charge()
+  local m = Compagnie.convoi_actif()
+  if not m then return 0 end
   local t = 0
-  for _, q in pairs(Compagnie.navire.cale) do t = t + q end
+  for _, q in pairs(m.cale) do t = t + q end
   return t
 end
 
 
 function Compagnie.place_libre()
-  return Compagnie.navire.capacite - Compagnie.charge()
+  local m = Compagnie.convoi_actif()
+  if not m then return 0 end
+  return m.capacite - Compagnie.charge()
 end
 
 
 function Compagnie.quantite(cle_m)
-  return Compagnie.navire.cale[cle_m] or 0
+  local m = Compagnie.convoi_actif()
+  return (m and m.cale[cle_m]) or 0
 end
 
 
@@ -460,20 +483,26 @@ function Compagnie.disponible(cle_ville, cle_m)
 end
 
 
--- L'entretien du navire, prélevé à chaque journée qui passe. PR3 fait payer à
--- chaque navire ses `DailyCosts` — 110 pièces par jour pour un sloop — et c'est
--- ce qui rend un navire à quai coûteux : un marchand qui attend perd de l'argent.
--- La caisse peut passer sous zéro ; c'est au joueur de la renflouer.
+-- L'entretien, prélevé à chaque journée. PR3 fait payer à chaque navire ses
+-- `DailyCosts` (110 pièces/jour pour un sloop) : un convoi qui attend coûte. Les
+-- convois MANUELS sont payés sur la caisse (le joueur les finance directement) ;
+-- les convois sur ROUTE paient sur leur propre or, dans `piloter_convoi`. La caisse
+-- peut passer sous zéro ; c'est au joueur de la renflouer.
 function Compagnie.payer_entretien(jours)
   if not jours or jours <= 0 then return 0 end
-  local du = (Compagnie.navire.entretien or 0) * jours
+  local du = 0
+  for _, m in ipairs(Compagnie.convois) do
+    if m.mode == "manuel" then du = du + (m.entretien or 0) * jours end
+  end
   Compagnie.or_ = Compagnie.or_ - du
   return du
 end
 
 
--- Achète. Renvoie quantite, cout, message.
+-- Achète pour le CONVOI ACTIF. Renvoie quantite, cout, message.
 function Compagnie.acheter(cle_ville, cle_m, quantite)
+  local convoi = Compagnie.convoi_actif()
+  if not convoi then return 0, 0, "Aucun convoi sélectionné." end
   quantite = math.floor(quantite or 0)
   if quantite <= 0 then return 0, 0, "Quantité nulle." end
   if quantite > Compagnie.place_libre() then
@@ -501,14 +530,16 @@ function Compagnie.acheter(cle_ville, cle_m, quantite)
     ajuster_reputation(cle_ville, cle_m, ligne_avant.stock, "achat", servi)
   end
   Compagnie.or_ = Compagnie.or_ - cout
-  local cale = Compagnie.navire.cale
+  local cale = convoi.cale
   cale[cle_m] = (cale[cle_m] or 0) + servi
   return servi, cout, nil
 end
 
 
--- Vend. Renvoie quantite, recette, message.
+-- Vend depuis le CONVOI ACTIF. Renvoie quantite, recette, message.
 function Compagnie.vendre(cle_ville, cle_m, quantite)
+  local convoi = Compagnie.convoi_actif()
+  if not convoi then return 0, 0, "Aucun convoi sélectionné." end
   quantite = math.floor(quantite or 0)
   local en_cale = Compagnie.quantite(cle_m)
   if quantite > en_cale then quantite = math.floor(en_cale) end
@@ -520,7 +551,7 @@ function Compagnie.vendre(cle_ville, cle_m, quantite)
     ajuster_reputation(cle_ville, cle_m, ligne_avant.stock, "vente", servi)
   end
   Compagnie.or_ = Compagnie.or_ + recette
-  local cale = Compagnie.navire.cale
+  local cale = convoi.cale
   cale[cle_m] = en_cale - servi
   if cale[cle_m] <= 0.0001 then cale[cle_m] = nil end
   return servi, recette, nil
