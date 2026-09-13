@@ -3,13 +3,17 @@
 Ce document sert de cahier des charges à `sim/`. Il note ce que PR3 fait
 réellement, pas ce qu'on suppose qu'il fait.
 
-**D'où ça sort.** Trois sources, par ordre de fiabilité décroissante :
+**D'où ça sort.** Quatre sources :
 
-1. Les textes du jeu (`data_fr.fuk` → `ui/locale/frfr/global.res`, format `L10N`,
+1. `ini/constdata.dat`, les constantes du jeu elles-mêmes : prix, facteurs de
+   prix, consommation, rendements, recettes, bâtiments (§10). Les valeurs sont
+   exactes ; le sens de certaines colonnes est déduit.
+2. Les textes du jeu (`data_fr.fuk` → `ui/locale/frfr/global.res`, format `L10N`,
    5 546 entrées). Le tutoriel de PR3 explique ses propres règles, chiffres
    compris. Tout ce qui est entre guillemets ci-dessous en vient **mot pour mot**.
-2. `PortRoyale3.exe`, pour la table des marchandises et leurs noms internes.
-3. Les descriptions de bâtiments, pour les chaînes de production.
+3. `PortRoyale3.exe`, pour la table des marchandises, leurs noms internes et les
+   noms des réglages.
+4. Les descriptions de bâtiments, pour les chaînes de production.
 
 Le décodeur du format `L10N` : en-tête `L10N` + version + nombre d'entrées, puis
 une table de 12 octets par entrée (offset, longueur, hash), le texte en UTF-16-LE.
@@ -280,23 +284,175 @@ habituel de la série est que la ville achète toujours au prix courant, le tré
 servant aux dépenses publiques et au butin. À vérifier en jeu avant de lier les
 deux dans la simulation.
 
-## 10. Ce qui n'a pas pu être extrait
+## 10. Les tables chiffrées de `constdata.dat`
 
-Les **constantes chiffrées** ne sont pas dans les fichiers de données. Cherchées
-sans succès dans `ini/constdata.dat` (1,4 Mo) et dans l'exe :
+Une version précédente de ce document affirmait qu'elles étaient introuvables.
+C'était faux : le premier balayage cherchait des tableaux **alignés** de vingt
+valeurs, alors que le flux n'est pas aligné. Les tableaux y sont préfixés par
+leur compte (`u32 20` puis les vingt valeurs), à n'importe quel octet.
 
-- consommation par habitant et par jour, marchandise par marchandise ;
-- coût de production de référence de chaque marchandise ;
-- valeurs du plafond de prix et de la vitesse de chute ;
-- rendement et besoins exacts de chaque manufacture.
+L'ancre a été posée par texte connu : les prix relevés à l'écran (33, 33, 33,
+50…) sortent d'un bloc, en entiers 16 bits. Tout le reste s'est lu à partir de
+là, en suivant la structure. `outils/pr3_constdata.py` ressort toutes ces tables
+depuis l'installation locale, sans rien copier dans le dépôt.
 
-`constdata.dat` est un **flux sérialisé**, pas un tableau : les champs n'ont ni
-alignement ni étiquette, et aucune table de vingt valeurs cohérentes n'y apparaît.
-Un balayage de l'exe à la recherche de tables de vingt valeurs ne rend que du
-bruit. Sans symboles de débogage, tout chiffre qu'on en tirerait serait une
-devinette présentée comme une mesure.
+Les **noms** des tables ne sont pas dans le fichier. Ils sont dans l'exe, en
+allemand (`Standardpreise`, `Preisfaktoren`, `Warenverbrauch`, `Produktion`,
+`Rohstoffbedarf`…), dans l'ordre inverse de leur lecture. Ce qui est **certain**
+ci-dessous est marqué comme tel. Le reste est une lecture par recoupement,
+marquée « probable ».
 
-**La voie fiable pour ces valeurs est le jeu lui-même** : les prix et les stocks
-sont affichés à l'écran de commerce de chaque ville, et une partie posée avec un
-carnet donne en une heure des valeurs vraies plutôt que supposées. C'est aussi
-comme ça que se tranche l'ambiguïté sur la famine (§5) et la question du trésor (§9).
+### 10.1 Prix standard — certain
+
+| Denrée | Prix | | Denrée | Prix |
+|---|---|---|---|---|
+| Bois | 33 | | Outils | 200 |
+| Briques | 33 | | Teinture | 100 |
+| Blé | 33 | | Café | 140 |
+| Fruits | 50 | | Cacao | 140 |
+| Maïs | 50 | | Tabac | 100 |
+| Sucre | 50 | | Viande | 300 |
+| Chanvre | 50 | | Vêtements | 450 |
+| Tissu | 150 | | Cordage | 150 |
+| Métal | 83 | | Rhum | 267 |
+| Coton | 50 | | Pain | 142 |
+
+C'est exactement `prix` dans `sim/marchandises.lua`.
+
+### 10.2 Facteurs de prix — certain pour les valeurs, probable pour le sens
+
+Juste après les prix : **trois jeux**, chacun de deux séries de cinq
+coefficients, une « normale » et une « `knapp` » (pénurie) :
+
+| Jeu | Normal (5 paliers de stock) | Pénurie |
+|---|---|---|
+| 0 | 2,0 · 1,8 · 1,2 · 1,2 · 0,8 | 3,0 · 2,7 · 1,2 · 1,2 · 0,8 |
+| 1 | 1,8 · 1,6 · 1,2 · 1,2 · 0,7 | 2,7 · 2,4 · 1,2 · 1,2 · 0,7 |
+| 2 | 1,6 · 1,4 · 1,1 · 1,1 · 0,6 | 2,4 · 2,1 · 1,1 · 1,1 · 0,6 |
+
+Le modèle qui s'en dégage : **prix = prix standard × facteur**, le facteur étant
+interpolé selon le stock entre cinq paliers. L'outil de débogage interne du jeu
+(voir `outils/PR3_TECHNIQUE.md`) affiche pour chaque denrée de chaque ville
+quatre seuils `X1…X4` à côté du prix : ce sont les bornes de ces paliers, propres
+à chaque ville. Stock vide → ×2 (×3 en pénurie), stock plein → ×0,8.
+
+Les trois jeux correspondent très probablement aux trois crans du réglage de
+partie « prix » (`PriceStandard`). Cela rejoint §4 : le plafond est **borné**
+(le premier coefficient), la chute est **progressive** (les paliers).
+
+### 10.3 Consommation et rendement — certain pour les valeurs
+
+Deux tableaux de vingt, suivis d'un troisième :
+
+| Denrée | A (consommation) | B (rendement d'une manufacture) | C |
+|---|---|---|---|
+| Bois | 275 | 480 | 30 |
+| Briques | 550 | 480 | 60 |
+| Blé | 550 | 480 | 5 |
+| Fruits | 440 | 320 | 5 |
+| Maïs | 220 | 320 | 5 |
+| Sucre | 220 | 320 | 5 |
+| Chanvre | 220 | 320 | 5 |
+| Tissu | 110 | 160 | 5 |
+| Métal | 110 | 240 | 5 |
+| Coton | 220 | 320 | 5 |
+| Outils | 110 | 160 | 5 |
+| Teinture | 55 | 160 | 5 |
+| Café | 110 | 160 | 5 |
+| Cacao | 110 | 160 | 5 |
+| Tabac | 110 | 160 | 5 |
+| Viande | 110 | 80 | 5 |
+| Vêtements | 110 | 80 | 5 |
+| Cordage | 220 | 160 | 5 |
+| Rhum | 110 | 80 | 5 |
+| Pain | 220 | 160 | 5 |
+
+**A est la table de consommation** : `conso` dans `sim/marchandises.lua` vaut
+exactement A / 200, sauf pour quatre denrées. Café, cacao et tabac y sont à
+1,3 × A / 200, et teinture à 1,2 × A / 200. Ce sont justement les quatre denrées
+exportées vers l'Europe (§3). La table relevée par le joueur incluait donc
+probablement l'export, que PR3 compte à part (`Verbr. Export` dans l'outil de
+débogage).
+
+**B est le rendement d'une manufacture** (probable, et fortement recoupé par les
+recettes, §10.4). L'unité de temps n'est pas établie : seuls les rapports
+comptent.
+
+**C** : 30 bois, 60 briques, 5 pour tout le reste. Probablement les stocks
+minimaux qu'une ville garde (`Minimalmengen`), les matériaux de construction à
+part.
+
+### 10.4 Recettes — certain
+
+Pour chaque denrée, jusqu'à quatre index d'intrants, puis en regard leur quantité
+par unité produite, en 1/32 :
+
+| Produit | Intrants par unité |
+|---|---|
+| Tissu | 2 coton |
+| Métal | 1 bois |
+| Outils | 1 bois + 2 métal |
+| Café | 0,5 outils |
+| Cacao | 0,5 outils |
+| Viande | 4 maïs |
+| Vêtements | 2 tissu + 2 teinture |
+| Cordage | 2 chanvre |
+| Rhum | 1 bois + 2 sucre |
+| Pain | 1 blé + 1 sucre |
+
+Le recoupement avec B est parfait : **une ferme de maïs (320) nourrit exactement
+une manufacture de viande (80 × 4)**. De même, une plantation de coton nourrit
+une manufacture de tissu, une chanvrière une corderie, et un tissage plus une
+teinturerie une manufacture de vêtements. Les chaînes ont été équilibrées une
+pour une. C'est ce qui confirme que B est bien le rendement.
+
+**Écarts avec `sim/marchandises.lua`**, à corriger quand on voudra coller à PR3 :
+
+- Pain : la sim dit blé + **maïs**, PR3 dit blé + **sucre** (le §1 le disait déjà).
+- Viande : 2 maïs dans la sim, **4** dans PR3.
+- Vêtements : 1 + 1 dans la sim, **2 + 2** dans PR3.
+- Rhum : 1 sucre + 0,5 bois dans la sim, **2 sucre + 1 bois** dans PR3.
+- Métal, café et cacao n'ont pas de recette dans la sim ; PR3 leur en donne une.
+
+### 10.5 Bâtiments — valeurs certaines, sens des champs probable
+
+Quarante-trois fiches, dans l'ordre de l'enum `BLD_` de l'exe : vingt
+manufactures, puis les bâtiments de ville, puis ceux du marchand. Chaque fiche :
+trois coûts, une valeur X, un octet, une paire.
+
+| Bâtiment | Coûts | X | Octet | Paire |
+|---|---|---|---|---|
+| Bois, briques, blé, fruits, maïs, sucre, chanvre, teinture, tabac | 8 000 / 16 000 / 24 000 | 2 000 | 6 | 20 / 40 |
+| Coton | 8 000 / 16 000 / 24 000 | 3 000 | 9 | 30 / 60 |
+| Métal, café, cacao, rhum, pain | 10 000 / 20 000 / 30 000 | 4 000 | 12 | 40 / 80 |
+| Tissu, viande, cordage | 12 000 / 24 000 / 36 000 | 4 000 | 12 | 40 / 80 |
+| Outils | 16 000 / 32 000 / 48 000 | 6 000 | 18 | 60 / 120 |
+| Vêtements | 18 000 / 36 000 / 54 000 | 6 000 | 18 | 60 / 120 |
+| Maison (du marchand) | 14 000 / 28 000 / 42 000 | 18 000 | 12 | 40 / 80 |
+| Entrepôt | 6 000 / 12 000 / 18 000 | 8 000 | 6 | 20 / 40 |
+| École, hôpital, pompiers, hospice, ambassade, bordel | 14 000 / 28 000 / 42 000 | 20 000 | 18 | 60 / 120 |
+| Arbres, puits | 6 000 / 12 000 / 18 000 | 8 000 | 6 | 20 / 40 |
+| Chantier naval | 50 000 / 100 000 / 150 000 | 60 000 | — | 100 / 200 |
+| Hôtel de ville | 200 000 / 400 000 / 600 000 | 220 000 | — | 200 / 400 |
+| Forteresse | 100 000 / 200 000 / 300 000 | — | — | 25 / 50 |
+
+Pour les manufactures, X = 100 × le premier nombre de la paire, et l'octet vaut
+0,3 × ce même nombre. Tout est proportionnel à la paire. Lecture probable : la
+paire est le **nombre d'ouvriers** (au premier et au second niveau
+d'agrandissement), X le coût d'entretien, l'octet la durée du chantier en jours.
+Si c'est bien ça, `Economie.EMPLOIS_PAR_FABRIQUE = 25` est une moyenne. PR3
+emploie 20 ouvriers dans une ferme et 60 dans une manufacture d'outils, soit
+80 et 240 citoyens par la règle du ×4 (§6).
+
+### 10.6 Ce qu'il reste à trancher
+
+- L'unité de temps de A et de B (par jour ? pour 1 000 habitants ?).
+- Quel jeu de facteurs de prix s'applique, et quand bascule la série « pénurie ».
+- Les seuils `X1…X4` : leur calcul (probablement la consommation × un nombre de
+  jours, `VorratTage`).
+- La famine (§5) et le rôle du trésor (§9), toujours ouverts.
+
+Les constantes scalaires (salaires `Lohn`, solde `Heuer`, loyer d'entrepôt
+`Lagermiete`, jours de réserve `VorratTage`, chômage minimal pour bâtir
+`NeubauMinAlq`…) sont dans le fichier, mais serrées octet contre octet sans
+compte devant. Les nommer demanderait de lire le chargeur dans l'exe.

@@ -1,16 +1,33 @@
 """Lecture des maillages de Port Royale 3, et rendu en vignette.
 
-Format retrouve par sondage (aucune documentation) :
+Format retrouve par sondage (aucune documentation). Les deux fichiers partagent
+le meme debut d'en-tete : une signature `77 fe ba b0`, puis a l'octet 10 la
+TAILLE DES DONNEES sur 32 bits. L'en-tete, c'est donc ce qui reste devant :
+80 octets pour un .vbuf de port, 96 pour un .vbuf de navire, 32 pour tout .ibuf.
 
-  .vbuf   en-tete de 80 octets, puis 16 octets par sommet :
-            0-5   position, 3 demi-flottants
-            6-7   bourrage, toujours nul
-            8-11  normale, 4 entiers signes 8 bits
-            12-15 coordonnees de texture, 2 demi-flottants
-  .ibuf   en-tete de 80 octets, puis des indices sur 16 bits, par triplets
+  .ibuf   des indices sur 16 bits, par triplets
+  .vbuf   le pas d'un sommet n'est ecrit nulle part de lisible : on le deduit,
+          taille des donnees / (plus grand indice + 1). Deux formats rencontres :
 
-Verifie sur assets/port0 (7262 sommets, 5200 triangles) : les positions sortent
-bornees, les UV tombent dans [0, 1] et tous les indices sont valides.
+          16 octets (ports, decor)            80 octets (navires)
+            0-5   position, 3 demi-flottants    0-11  position, 3 flottants
+            6-7   bourrage                      12-27 couleur RGBA, 4 flottants
+            8-11  normale, 4 entiers 8 bits     28-39 normale
+            12-15 uv, 2 demi-flottants          40-51 tangente
+                                                52-63 binormale
+                                                64-71 uv
+                                                72-79 inutilise (0, 1)
+
+La couleur des navires n'est pas une teinte : c'est un MASQUE de piece
+(le gui sort en (1, 0, 1), le mat en (0, 1, 1)), que le shader lit sans doute
+pour animer ou abimer chaque partie separement.
+
+Un navire est fait de plusieurs pieces, une paire .vbuf/.ibuf chacune (coque,
+voile, mat, gui) : on les lit toutes.
+
+Verifie sur assets/port0 (7262 sommets) et assets/pinnace (1277 + 162 + 54 + 54
+sommets) : positions bornees, tous les indices valides, et un rendu qui
+ressemble a une pinasse.
 
     py -3 pr3_mesh.py <dossier_asset> <sortie.png> [--taille 512] [--angle 58]
 
@@ -24,9 +41,6 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from dds2png import lire_dds, ecrire_png
-
-ENTETE = 80
-PAS = 16
 
 
 def _demi(u):
@@ -43,31 +57,52 @@ def _demi(u):
     return -val if s else val
 
 
+def _donnees(chemin):
+    """Les octets utiles d'un .vbuf ou d'un .ibuf, en-tete retire."""
+    b = open(chemin, 'rb').read()
+    taille = struct.unpack_from('<I', b, 10)[0]
+    if not 0 < taille <= len(b):
+        raise ValueError(f"{chemin} : taille de donnees illisible ({taille})")
+    return b[len(b) - taille:]
+
+
 def lire_maillage(dossier):
-    """-> (sommets, normales, uv, triangles)"""
-    vb = glob.glob(os.path.join(dossier, "*.vbuf"))
-    ib = glob.glob(os.path.join(dossier, "*.ibuf"))
-    if not vb or not ib:
-        raise FileNotFoundError(f"pas de .vbuf/.ibuf dans {dossier}")
+    """-> (sommets, normales, uv, triangles), toutes pieces reunies"""
+    paires = [(v, v[:-5] + ".ibuf")
+              for v in sorted(glob.glob(os.path.join(dossier, "*.vbuf")))]
+    paires = [(v, i) for v, i in paires if os.path.exists(i)]
+    if not paires:
+        raise FileNotFoundError(f"pas de paire .vbuf/.ibuf dans {dossier}")
 
-    v = open(vb[0], 'rb').read()
-    i = open(ib[0], 'rb').read()
-    n = (len(v) - ENTETE) // PAS
+    sommets, normales, uv, triangles = [], [], [], []
+    for chemin_v, chemin_i in paires:
+        v = _donnees(chemin_v)
+        i = _donnees(chemin_i)
+        m = len(i) // 2
+        m -= m % 3
+        idx = struct.unpack_from(f'<{m}H', i, 0)
+        n = max(idx) + 1
+        pas = len(v) // n
+        base = len(sommets)
 
-    sommets, normales, uv = [], [], []
-    for k in range(n):
-        o = ENTETE + k * PAS
-        px, py, pz = struct.unpack_from('<3H', v, o)
-        nx, ny, nz, _ = struct.unpack_from('<4b', v, o + 8)
-        tu, tv = struct.unpack_from('<2H', v, o + 12)
-        sommets.append((_demi(px), _demi(py), _demi(pz)))
-        normales.append((nx / 127.0, ny / 127.0, nz / 127.0))
-        uv.append((_demi(tu), _demi(tv)))
+        for k in range(n):
+            o = k * pas
+            if pas == 16:
+                px, py, pz = struct.unpack_from('<3H', v, o)
+                nx, ny, nz, _ = struct.unpack_from('<4b', v, o + 8)
+                tu, tv = struct.unpack_from('<2H', v, o + 12)
+                sommets.append((_demi(px), _demi(py), _demi(pz)))
+                normales.append((nx / 127.0, ny / 127.0, nz / 127.0))
+                uv.append((_demi(tu), _demi(tv)))
+            elif pas == 80:
+                sommets.append(struct.unpack_from('<3f', v, o))
+                normales.append(struct.unpack_from('<3f', v, o + 28))
+                uv.append(struct.unpack_from('<2f', v, o + 64))
+            else:
+                raise ValueError(f"{chemin_v} : pas de sommet inconnu ({pas} octets)")
 
-    m = (len(i) - ENTETE) // 2
-    m -= m % 3
-    idx = struct.unpack_from(f'<{m}H', i, ENTETE)
-    triangles = [idx[k:k + 3] for k in range(0, m, 3)]
+        triangles.extend((idx[k] + base, idx[k + 1] + base, idx[k + 2] + base)
+                         for k in range(0, m, 3))
     return sommets, normales, uv, triangles
 
 
