@@ -1,7 +1,15 @@
 -- Les navires de Port Royale 3.
 --
 -- Seize types, relus dans `ini/constdata.dat` (voir `outils/pr3_constdata.py`) :
--- prix, cale, coque, vitesses et maniabilité sont ceux du jeu, au chiffre près.
+-- chaque colonne porte le nom que lui donne le chargeur de l'exécutable.
+--
+--   prix          `Value`       ce que coûte le navire à l'achat
+--   cale          `Capacity`    tonneaux
+--   coque         `Hitpoints`   points de coque (voiles : autant)
+--   construction  `Construct`   ce que coûte sa construction au chantier
+--   entretien     `DailyCosts`  ce qu'il coûte chaque jour, en or
+--   vmin, vmax    vitesse vent debout, vent arrière
+--   maniabilite   `Wendig`
 --
 -- Deux règles du jeu, citées de ses textes, disent comment s'en servir sur la
 -- carte :
@@ -32,22 +40,22 @@ Navires.UNITES_JOUR_SLOOP = 900
 -- pirates ; c'est ce champ, pas une liste écrite à la main, qui dit quels
 -- navires un marchand peut armer.
 Navires.liste = {
-  { cle = "pinasse",            nom = "Pinasse",            modele = "pinnace",          prix =  10000, cale = 200, coque = 100000, vmin = 24, vmax = 40, maniabilite = 100, militaire = false },
-  { cle = "sloop",              nom = "Sloop",              modele = "sloop",            prix =  19000, cale = 200, coque = 110000, vmin = 24, vmax = 44, maniabilite = 100, militaire = false },
-  { cle = "brick",              nom = "Brick",              modele = "brig",             prix =  27000, cale = 250, coque = 140000, vmin = 20, vmax = 44, maniabilite =  95, militaire = true },
-  { cle = "barque",             nom = "Barque",             modele = "barc",             prix =  36000, cale = 250, coque = 150000, vmin = 20, vmax = 48, maniabilite =  90, militaire = true },
-  { cle = "barque_pirate",      nom = "Barque pirate",      modele = "piratebarc",       prix =  36000, cale = 300, coque = 180000, vmin = 20, vmax = 48, maniabilite =  90, militaire = false, pirate = true },
-  { cle = "flute",              nom = "Flûte",              modele = "fluyt",            prix =  40000, cale = 500, coque = 220000, vmin = 16, vmax = 40, maniabilite =  85, militaire = false },
-  { cle = "flute_marchande",    nom = "Flûte marchande",    modele = "tradefluyt",       prix =  50000, cale = 800, coque = 300000, vmin = 16, vmax = 40, maniabilite =  80, militaire = false },
-  { cle = "corvette",           nom = "Corvette",           modele = "corvette",         prix =  60000, cale = 350, coque = 200000, vmin = 16, vmax = 48, maniabilite =  85, militaire = true },
-  { cle = "fregate",            nom = "Frégate",            modele = "frigate",          prix =  70000, cale = 400, coque = 220000, vmin = 20, vmax = 44, maniabilite =  80, militaire = true },
-  { cle = "corvette_militaire", nom = "Corvette militaire", modele = "militarycorvette", prix = 100000, cale = 300, coque = 210000, vmin = 20, vmax = 44, maniabilite =  85, militaire = true },
-  { cle = "fregate_militaire",  nom = "Frégate militaire",  modele = "militaryfrigate",  prix = 120000, cale = 350, coque = 250000, vmin = 20, vmax = 48, maniabilite =  85, militaire = true },
-  { cle = "galion",             nom = "Galion",             modele = "galleon",          prix = 120000, cale = 600, coque = 280000, vmin = 16, vmax = 40, maniabilite =  75, militaire = true },
-  { cle = "caraque",            nom = "Caraque",            modele = "carrack",          prix = 140000, cale = 550, coque = 320000, vmin = 20, vmax = 48, maniabilite =  75, militaire = true },
-  { cle = "caravelle",          nom = "Caravelle",          modele = "caravel",          prix = 160000, cale = 500, coque = 300000, vmin = 16, vmax = 44, maniabilite =  75, militaire = true },
-  { cle = "galion_de_guerre",   nom = "Galion de guerre",   modele = "wargalleon",       prix = 180000, cale = 400, coque = 320000, vmin = 16, vmax = 52, maniabilite =  70, militaire = true },
-  { cle = "vaisseau_de_ligne",  nom = "Vaisseau de ligne",  modele = "liner",            prix = 200000, cale = 400, coque = 340000, vmin = 12, vmax = 56, maniabilite =  70, militaire = true },
+  { cle = "pinasse",            nom = "Pinasse",            modele = "pinnace",          prix =  10000, cale = 200, coque = 100, construction =   9000, entretien = 100, vmin = 24, vmax = 40, maniabilite = 100, militaire = false },
+  { cle = "sloop",              nom = "Sloop",              modele = "sloop",            prix =  19000, cale = 200, coque = 110, construction =  18000, entretien = 110, vmin = 24, vmax = 44, maniabilite = 100, militaire = false },
+  { cle = "brick",              nom = "Brick",              modele = "brig",             prix =  27000, cale = 250, coque = 140, construction =  25000, entretien = 140, vmin = 20, vmax = 44, maniabilite =  95, militaire = true },
+  { cle = "barque",             nom = "Barque",             modele = "barc",             prix =  36000, cale = 250, coque = 150, construction =  35000, entretien = 150, vmin = 20, vmax = 48, maniabilite =  90, militaire = true },
+  { cle = "barque_pirate",      nom = "Barque pirate",      modele = "piratebarc",       prix =  36000, cale = 300, coque = 180, construction =  35000, entretien = 180, vmin = 20, vmax = 48, maniabilite =  90, militaire = false, pirate = true },
+  { cle = "flute",              nom = "Flûte",              modele = "fluyt",            prix =  40000, cale = 500, coque = 220, construction =  40000, entretien = 220, vmin = 16, vmax = 40, maniabilite =  85, militaire = false },
+  { cle = "flute_marchande",    nom = "Flûte marchande",    modele = "tradefluyt",       prix =  50000, cale = 800, coque = 300, construction =  48000, entretien = 240, vmin = 16, vmax = 40, maniabilite =  80, militaire = false },
+  { cle = "corvette",           nom = "Corvette",           modele = "corvette",         prix =  60000, cale = 350, coque = 200, construction =  60000, entretien = 200, vmin = 16, vmax = 48, maniabilite =  85, militaire = true },
+  { cle = "fregate",            nom = "Frégate",            modele = "frigate",          prix =  70000, cale = 400, coque = 220, construction =  72000, entretien = 220, vmin = 20, vmax = 44, maniabilite =  80, militaire = true },
+  { cle = "corvette_militaire", nom = "Corvette militaire", modele = "militarycorvette", prix = 100000, cale = 300, coque = 210, construction = 105000, entretien = 210, vmin = 20, vmax = 44, maniabilite =  85, militaire = true },
+  { cle = "fregate_militaire",  nom = "Frégate militaire",  modele = "militaryfrigate",  prix = 120000, cale = 350, coque = 250, construction = 130000, entretien = 250, vmin = 20, vmax = 48, maniabilite =  85, militaire = true },
+  { cle = "galion",             nom = "Galion",             modele = "galleon",          prix = 120000, cale = 600, coque = 280, construction = 135000, entretien = 280, vmin = 16, vmax = 40, maniabilite =  75, militaire = true },
+  { cle = "caraque",            nom = "Caraque",            modele = "carrack",          prix = 140000, cale = 550, coque = 320, construction = 160000, entretien = 320, vmin = 20, vmax = 48, maniabilite =  75, militaire = true },
+  { cle = "caravelle",          nom = "Caravelle",          modele = "caravel",          prix = 160000, cale = 500, coque = 300, construction = 180000, entretien = 300, vmin = 16, vmax = 44, maniabilite =  75, militaire = true },
+  { cle = "galion_de_guerre",   nom = "Galion de guerre",   modele = "wargalleon",       prix = 180000, cale = 400, coque = 320, construction = 210000, entretien = 320, vmin = 16, vmax = 52, maniabilite =  70, militaire = true },
+  { cle = "vaisseau_de_ligne",  nom = "Vaisseau de ligne",  modele = "liner",            prix = 200000, cale = 400, coque = 340, construction = 240000, entretien = 340, vmin = 12, vmax = 56, maniabilite =  70, militaire = true },
 }
 
 Navires.parCle = {}
@@ -87,6 +95,14 @@ end
 function Navires.cale(navires)
   local c = 0
   for _, n in ipairs(navires) do c = c + n.cale end
+  return c
+end
+
+
+-- Ce qu'une flotte coûte par jour : la somme de ses `DailyCosts`.
+function Navires.entretien(navires)
+  local c = 0
+  for _, n in ipairs(navires) do c = c + n.entretien end
   return c
 end
 

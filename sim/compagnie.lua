@@ -22,6 +22,7 @@ function Compagnie.reinitialiser()
     classe = sloop.nom,
     type = sloop.cle,
     modele = sloop.modele,
+    entretien = sloop.entretien,  -- or par jour (`DailyCosts` de PR3)
     capacite = sloop.cale,  -- tonneaux
     cale = {},              -- cle -> tonnes
   }
@@ -65,16 +66,25 @@ function Compagnie.achat_maximum(cle_ville, cle_m)
 end
 
 
--- Ce que la ville accepte de céder, avant toute contrainte du joueur.
+-- Ce que la ville accepte de céder, avant toute contrainte du joueur : tout son
+-- stock. Comme dans PR3, c'est le prix qui retient le joueur de la vider, pas un
+-- plancher.
 function Compagnie.disponible(cle_ville, cle_m)
-  local lignes = Economie.marche(cle_ville)
-  if not lignes then return 0 end
-  for _, l in ipairs(lignes) do
-    if l.cle == cle_m then
-      return math.max(0, l.stock - l.reference * 0.08)
-    end
-  end
-  return 0
+  local l = Economie.ligne(cle_ville, cle_m)
+  if not l then return 0 end
+  return math.max(0, l.stock)
+end
+
+
+-- L'entretien du navire, prélevé à chaque journée qui passe. PR3 fait payer à
+-- chaque navire ses `DailyCosts` — 110 pièces par jour pour un sloop — et c'est
+-- ce qui rend un navire à quai coûteux : un marchand qui attend perd de l'argent.
+-- La caisse peut passer sous zéro ; c'est au joueur de la renflouer.
+function Compagnie.payer_entretien(jours)
+  if not jours or jours <= 0 then return 0 end
+  local du = (Compagnie.navire.entretien or 0) * jours
+  Compagnie.or_ = Compagnie.or_ - du
+  return du
 end
 
 

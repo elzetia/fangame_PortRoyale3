@@ -379,10 +379,11 @@ Les noms et les transformations viennent du chargeur des réglages de l'exe.
 - **L'export** reste compté à part (café, cacao, tabac, teinture), comme le
   montrait déjà la table du joueur.
 
-**Écart de la sim.** `sim/marchandises.lua` divise A par **50**, pas par 200. Ce
-choix a été fait avant la lecture des seuils, pour qu'une cale de sloop pèse sur
-un marché. PR3 obtient cet effet autrement, par des stocks visés bien plus
-profonds (§10.5). Consommation et seuils sont à réaligner ensemble.
+**Dans la sim**, `sim/marchandises.lua` divise A par 200, comme PR3, et chaque
+denrée porte son `Grundbedarf`. Une échelle de 50 avait été essayée avant la
+lecture des seuils de prix, pour qu'une cale de sloop pèse sur un marché ; PR3
+obtient cet effet par des stocks visés profonds (§10.5), et la consommation quatre
+fois trop forte vidait la carte.
 
 ### 10.4 Recettes et coût de production — certain
 
@@ -427,8 +428,11 @@ Mesuré sur cinq ans par `tools/equilibre.gd`, à partir de 82 500 habitants :
 | Avant PR3 | 74 600 | 56 | 2 % | sans recette | 17 % |
 | Recettes à /32 | 118 600 | 15 | 48 % | 35 % | 48 % |
 | Recettes à /64 (justes) | 119 100 | 14 | 32 % | 57 % | 46 % |
+| Modèle PR3 complet (§10.10) | 155 800 | 2 | 59 % | 44 % | 29 % |
 
-Le rhum reste la chaîne la plus faible (18 %).
+Les trois premières lignes comptent en disette les villes dont le troisième
+aliment le mieux servi l'est à moins de 97 % ; la dernière compte les villes en
+famine au sens de PR3, plus de trois aliments manquants.
 
 ### 10.5 Le prix d'une ville et ses seuils — certain
 
@@ -452,10 +456,10 @@ Les coefficients se lisent donc ainsi :
 Une ville qui produit la denrée baisse son premier seuil de quinze jours de sa
 production : elle se juge moins vite en pénurie de ce qu'elle fait elle-même.
 
-Les barres d'abondance sont le nombre de seuils franchis. C'est exactement le
-modèle déjà codé dans `sim/economie.lua`, mais ses seuils sont une fraction fixe
-d'une référence de trente jours (0,17 · 0,90 · 1,10 · 2,05), bien moins profonds
-que ceux de PR3.
+Les barres d'abondance sont le nombre de seuils franchis. `sim/economie.lua`
+calcule désormais ces seuils comme PR3 (§10.10). Ils remplacent des fractions
+fixes d'une réserve de trente jours (0,17 · 0,90 · 1,10 · 2,05), qui tenaient la
+forme de la courbe mais pas sa profondeur.
 
 ### 10.6 Bâtiments — certain
 
@@ -536,9 +540,48 @@ tutoriel. Une ville de moins de 300 habitants n'entre jamais en famine.
 ### 10.9 Ce qu'il reste à trancher
 
 - **Café et cacao** : 150 calculés pour 140 affichés.
-- **Taille des convois IA** : elle vaut une somme de la ville × 420 ÷ 1 900 ; la
-  nature de cette somme reste à lire.
+- **Trajets des convois IA** : leur nombre (2 par ville) et leur taille (habitants
+  × 420 ÷ 1 900 tonneaux, 1 à 3 navires tirés au hasard) sont lus ; où ils vont
+  ne l'est pas (voir `outils/PR3_TECHNIQUE.md`, « Les convois de l'IA »).
 - **Déclin en famine** : ce que la fonction `0x7685D0` fait du compteur (vitesse
   du déclin, passage d'un niveau de prospérité à l'autre).
 - **Logement** : la vraie valeur de `FillRate`.
 - **Trésor** : son rôle (§9).
+
+### 10.10 Ce que la sim applique
+
+Tout ce qui précède et qui se simule sans bâtiments ni combats est dans `sim/` :
+
+| Règle de PR3 | Où |
+|---|---|
+| Consommation A ÷ 200 tonneaux pour mille habitants, export à part | `sim/marchandises.lua` |
+| Recettes à /64, prix standard, `Grundbedarf` | `sim/marchandises.lua` |
+| Seuils X1…X4 en jours de besoins, avec la réserve de 20 jours de production | `sim/economie.lua` |
+| Prix = moyenne de la courbe sur le lot, sans commission ; la ville peut être vidée | `sim/economie.lua` |
+| Faim : aliments manquants à partir de −3, denrées à partir de −12, pas de famine sous 300 habitants | `sim/economie.lua` |
+| 25 ouvriers par atelier, 4 citoyens par emploi, 100 locataires par maison | `sim/economie.lua` |
+| Seize navires, leur cale, leur vitesse maximale et leur entretien journalier | `sim/navires.lua` |
+| Entretien du navire du joueur, prélevé chaque jour | `sim/compagnie.lua` |
+| 2 convois IA par ville, cale visée de habitants × 420 ÷ 1 900, 1 à 3 navires tirés au hasard, 90 000 pièces | `sim/marchands.lua` |
+
+Mesuré sur dix ans par `tools/equilibre.gd`, à partir de 82 500 habitants :
+- **Population** : elle monte à 155 800 en cinq ans, puis plafonne entre 157 000
+  et 159 000.
+- **Famine** : de 0 à 6 villes selon les années.
+- **Pénurie générale** : de 1 à 3 villes.
+- **Ateliers à dix ans** : métal 96 %, outils et cordage 83 %, tissu 72 %, café
+  66 %, viande 59 %, rhum 56 %, cacao et vêtements 33 %, pain 24 %.
+
+**Ce qui reste à nous, faute d'avoir été lu ou simulé :**
+- **Croissance et déclin** : la vitesse suivant les compteurs de faim. PR3 passe par sept
+  niveaux de prospérité dont seuls les effets extrêmes sont connus.
+- **Débits** : la production de chaque ville se déduit de la demande de
+  l'archipel. PR3 la fait dépendre des ateliers bâtis.
+- **Trajets des convois** : un caboteur de voisinage et un long-courrier vers la
+  ville la plus rentable, mesurés et non lus.
+- **Non simulés** :
+  - la réputation gagnée ou perdue en commerçant ;
+  - les fléaux ;
+  - la série de prix « pénurie ».
+- **Déséquilibres** : le pain reste la chaîne la plus faible, et les convois IA
+  accumulent de l'or malgré l'entretien.

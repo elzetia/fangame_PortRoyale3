@@ -13,18 +13,21 @@
 -- vingt vignettes sont arrivées — c'est la seule façon d'avoir une icône pour
 -- chaque ligne, et une économie qui se raconte d'une seule voix.
 --
--- `verbrauch` est la table de consommation de PR3 (`Warenverbrauch`), recopiée
--- telle quelle. `conso`, qu'on en tire, est en tonnes par jour et par millier
--- d'habitants : verbrauch / ECHELLE.
+-- `verbrauch` est la table de consommation de PR3 (`Warenverbrauch`), telle que
+-- son chargeur la range. `conso`, qu'on en tire, est en tonneaux par jour et par
+-- millier d'habitants : verbrauch / 200.
 --
--- L'unité de PR3 n'est pas établie, et l'échelle est donc un choix. Elle est
--- fixée par ses NAVIRES : un sloop y porte deux cents tonneaux, une flûte
--- marchande huit cents (voir `sim/navires.lua`). Pour qu'une cale de sloop pèse
--- sur un marché ce qu'elle y pèse dans le jeu — un bon tiers de l'entrepôt d'une
--- denrée courante, pas trois fois son contenu —, il faut une consommation quatre
--- fois plus forte que celle qu'on jouait avec un sloop de cinquante tonneaux :
--- une échelle de 50, et non plus de 200. Les rapports entre denrées, eux, ne
--- dépendent pas de ce choix.
+-- L'échelle n'est pas un choix : elle se lit dans le code du jeu. Sa
+-- consommation quotidienne vaut verbrauch x habitants / 100 unités, et un
+-- tonneau (`1Fass`) en vaut 2 000. Une échelle de 50 avait été essayée avant
+-- qu'on lise les seuils de prix, pour qu'une cale de sloop pèse sur un marché ;
+-- PR3 obtient cet effet autrement, par des stocks visés de trente à cinquante
+-- jours de besoins (voir `sim/economie.lua`), et la consommation quatre fois
+-- trop forte vidait la carte.
+--
+-- `grundbedarf` est le besoin de base de PR3, en tonneaux, que chaque ville
+-- ajoute à son premier seuil de prix : trente de bois et soixante de briques
+-- pour bâtir, cinq pour tout le reste.
 --
 -- `export` est ce que l'Europe absorbe EN PLUS, dans les mêmes unités. PR3 compte
 -- cette demande à part (`Verbr. Export` dans son outil de débogage) et ne la
@@ -38,7 +41,7 @@
 
 local Marchandises = {}
 
-Marchandises.ECHELLE = 50
+Marchandises.ECHELLE = 200
 
 Marchandises.CATEGORIES = {
   vivres       = "Vivres",
@@ -74,8 +77,8 @@ Marchandises.CATEGORIES = {
 -- deux, les outils à moitié, et le métal, le café et le cacao ne sont plus tirés
 -- de rien.
 Marchandises.liste = {
-  { cle = "bois",      nom = "Bois",        prix =  33, categorie = "matieres",     verbrauch = 275 },
-  { cle = "briques",   nom = "Briques",     prix =  33, categorie = "matieres",     verbrauch = 550 },
+  { cle = "bois",      nom = "Bois",        prix =  33, categorie = "matieres",     verbrauch = 275, grundbedarf = 30 },
+  { cle = "briques",   nom = "Briques",     prix =  33, categorie = "matieres",     verbrauch = 550, grundbedarf = 60 },
   { cle = "ble",       nom = "Blé",         prix =  33, categorie = "vivres",       verbrauch = 550 },
   { cle = "fruits",    nom = "Fruits",      prix =  50, categorie = "vivres",       verbrauch = 440 },
   { cle = "mais",      nom = "Maïs",        prix =  50, categorie = "vivres",       verbrauch = 220 },
@@ -157,6 +160,7 @@ for i, m in ipairs(Marchandises.liste) do
   m.rang = i
   m.conso = m.verbrauch / Marchandises.ECHELLE
   m.export = (m.export or 0) / Marchandises.ECHELLE
+  m.grundbedarf = m.grundbedarf or 5
   Marchandises.parCle[m.cle] = m
   Marchandises.ordre[#Marchandises.ordre + 1] = m.cle
 end

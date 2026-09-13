@@ -365,10 +365,46 @@ A × habitants × pourcentage ÷ 10 000 sur une liste de denrées :
 
 ### Les convois de l'IA
 
-`0x79DB00` crée pour chaque ville **`Konvois` convois**, soit **2**, d'une
-taille proportionnelle à une somme de la ville (× 420 ÷ 1 900). La taille est
-revue tous les `KiUpdateConvoySize` (7 680). À quai, un convoi passe
-`Einlaufzeit` (128) à entrer, puis `Einkaufszeit` et `Verkaufszeit` (64 chacun).
+À la création d'une ville (`0x79F140`), le jeu enchaîne quatre étapes :
+
+1. **L'or du marchand IA** (`0x79E210`) : 120 000, 90 000 ou 76 000 selon un
+   réglage de partie.
+2. **Une étape non lue** (`0x79DCD0`).
+3. **Les convois** (`0x79DB00`). La taille visée est la somme des habitants des
+   villes rattachées au marchand, × 420 ÷ 1 900 : environ **0,22 tonneau par
+   habitant**. Chaque marchand IA de la ville reçoit ensuite **`Konvois`
+   convois**, soit **2**.
+4. **Les seuils de prix initiaux** (`0x79C8E0`).
+
+**La composition d'un convoi** (`0x79D6B0`) :
+- le jeu dresse la liste des types de navires marchands, 8 au plus ;
+- il en **tire un au hasard**, arme le navire et retranche sa cale de la taille
+  visée ;
+- il recommence tant qu'il reste du tonnage, **trois navires au plus**.
+
+Un bourg peut donc sortir avec une flûte marchande, une grande ville avec trois
+pinasses.
+
+**La taille est revue** tous les `KiUpdateConvoySize` (7 680).
+
+**À quai**, un convoi passe `Einlaufzeit` (128) à entrer, puis `Einkaufszeit` et
+`Verkaufszeit` (64 chacun). Ses ordres passent par une machine à états (autour de
+`0x79C1A0`) dont le détail des trajets n'a pas été lu.
+
+**Le commerce agit sur la réputation** (`0x7839E0`, `0x783B40`) :
+- **vendre** à une ville dont le stock est sous son premier seuil X1 fait monter
+  la réputation, au prorata de la part du manque comblée ;
+- **acheter** jusqu'à la faire passer sous X1 la fait baisser d'autant.
+
+**Dans la sim** (`sim/marchands.lua`) :
+- 2 convois par ville ;
+- une cale visée de habitants × 420 ÷ 1 900, remplie d'un à trois navires
+  marchands tirés au hasard (tirage reproductible par ville) ;
+- 90 000 pièces d'or partagées entre les deux convois ;
+- l'entretien journalier des navires (`DailyCosts`).
+
+Les trajets restent ceux qu'on a mesurés : le premier convoi en caboteur, le
+second au long cours.
 
 ### La prospérité
 

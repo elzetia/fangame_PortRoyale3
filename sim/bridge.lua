@@ -137,7 +137,8 @@ end
 function Bridge.avancer_temps(dt)
   local heures = Calendrier.avancer(dt)
   if heures > 0 then
-    Economie.avancer(heures)
+    local jours = Economie.avancer(heures)
+    Compagnie.payer_entretien(jours)
     -- Les marchands avancent en TEMPS CONTINU, pas par journées entières.
     --
     -- Je les faisais naviguer au rythme de l'économie, qui ne tourne qu'aux
@@ -343,12 +344,13 @@ function Bridge.etat_ville(cle_ville)
   d.habitants   = math.floor(v.habitants + 0.5)
   d.subsistance = v.subsistance or 1.0
 
-  -- La tendance, pas la vitesse : le panneau ne montre qu'une flèche. Le seuil
-  -- est celui de `jour()` — 97 % des besoins vitaux couverts — et il doit rester
-  -- le même des deux côtés, sinon la flèche verte accompagne une ville qui se
-  -- vide. On ne recopie pas le nombre : on redemande le signe au même endroit.
-  local pire = v.subsistance or 1.0
-  d.tendance = (pire > 0.97 and 1) or (pire < 0.97 and -1) or 0
+  -- La tendance, pas la vitesse : le panneau ne montre qu'une flèche. Elle se lit
+  -- sur les compteurs de faim de `jour()`, ceux qui font grandir ou décliner la
+  -- ville : on ne recopie pas la règle, on redemande le signe au même endroit.
+  local faim = v.faim or -3
+  local penurie = v.penurie or -12
+  d.faim = faim
+  d.tendance = ((faim > 0 or penurie > 0) and -1) or (faim == 0 and 0) or 1
 
   local dem = Economie.demographie(cle_ville)
   d.ouvriers   = dem.ouvriers

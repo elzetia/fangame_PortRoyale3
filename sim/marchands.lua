@@ -8,11 +8,13 @@
 -- partie. Et ses textes posent la règle de vitesse — « un convoi ne va jamais
 -- plus vite que son navire le plus lent ».
 --
--- Ce qui n'est écrit nulle part de lisible, c'est COMBIEN de navires une ville
--- arme. On le proportionne donc à sa population, et le coefficient est mesuré :
--- `tools/equilibre.gd` fait tourner cinq ans d'économie, et c'est lui qui a
--- montré qu'avec des cales de quarante-cinq tonneaux la carte mourait de
--- logistique — outils à 2 % de leurs ateliers, café et rhum introuvables.
+-- Le code du jeu dit COMBIEN et DE QUELLE TAILLE (`0x79DB00`, `0x79D6B0`) : chaque
+-- ville arme `Konvois` convois — deux — et chacun vise une cale proportionnelle à
+-- sa population. Ce qu'il ne montre pas lisiblement, c'est où ils vont : leurs
+-- routes sont les nôtres, ci-dessous, et elles ont été mesurées avec
+-- `tools/equilibre.gd`. Avec des cales de quarante-cinq tonneaux, la carte
+-- mourait de logistique — outils à 2 % de leurs ateliers, café et rhum
+-- introuvables.
 --
 -- Deux métiers, comme les deux ordres marchands de PR3 :
 --
@@ -57,33 +59,22 @@ local Navires      = require("sim.navires")
 
 local Marchands = {}
 
--- Tonneaux de cale marchande armés par habitant de la ville. Voir l'en-tête :
--- c'est la sonde d'équilibre qui le fixe. Mesures sur cinq ans, à partir de
--- 82 500 habitants :
+-- LA FLOTTE DE PR3. Chaque marchand IA d'une ville reçoit `Konvois` convois, soit
+-- deux, et chacun vise une cale de habitants × 420 ÷ 1 900 tonneaux. Le jeu la
+-- remplit en tirant au hasard jusqu'à trois navires parmi les types marchands,
+-- et s'arrête dès qu'il a atteint ce tonnage.
 --
---   cales de 45 t par ville (avant PR3)   74 600 hab.   56 villes en disette   outils  2 %
---   0,30 par habitant                    103 300 hab.   20 villes              outils  8 %, café  0 %
---   0,45 par habitant                    113 300 hab.   17 villes              outils 16 %, café 23 %
---   0,55 par habitant                    118 600 hab.   15 villes              outils 48 %, café 35 %
---
--- Au-delà, le gain s'essouffle : ce qui manque encore — le rhum, les vêtements —
--- tient à la distance entre les ateliers et leurs intrants, pas au tonnage.
-Marchands.CALE_PAR_HABITANT = 0.55
+-- Il remplace le coefficient qu'on avait mesuré — 0,55 tonneau par habitant pour
+-- une flotte unique, dont une part partait au long cours dans les seules grandes
+-- villes. Deux convois à 0,22 arment une cale totale du même ordre, mais en deux
+-- flottes qui ne vont pas au même endroit, et dans toutes les villes.
+Marchands.KONVOIS = 2
+Marchands.CALE_PAR_HABITANT = 420 / 1900
+Marchands.NAVIRES_MAX = 3
 
--- Une ville arme un long-courrier à partir de cette classe de taille (1 bourg,
--- 2 ville, 3 grande ville), et lui donne cette part de sa cale.
---
--- La part est fixée et non ce qui « reste » après le caboteur : au premier
--- réglage le long-courrier ne recevait que le navire en trop, et une ville de
--- deux mille âmes, armée d'une seule flûte marchande, n'en avait jamais. Six
--- villes sur soixante allaient au loin, et le café restait introuvable.
-Marchands.TAILLE_LONG_COURS = 2
-Marchands.PART_LONG_COURS = 0.40
-
--- L'or de départ, par tonneau de cale : de quoi remplir la cale une fois et
--- demie de marchandise moyenne. En dessous, une flûte marchande appareille à
--- moitié vide faute de pouvoir payer.
-local OR_PAR_TONNEAU = 80
+-- L'or du marchand IA au départ : 120 000, 90 000 ou 76 000 selon un réglage de
+-- partie. On prend le cran du milieu, partagé entre ses deux convois.
+local OR_MARCHAND = 90000
 
 local ESCALE = 1.0          -- jours passés à quai
 
@@ -103,8 +94,9 @@ local VOISINAGE = 12
 -- remplissage que l'outil de débogage de PR3 affiche pour chaque convoi IA.
 local LOTS_PAR_ESCALE = 5
 
--- Plus petit lot qui vaille une manoeuvre de chargement, en tonneaux.
-local LOT_MINIMUM = 20
+-- Plus petit lot qui vaille une manoeuvre de chargement, en tonneaux. Petit : à
+-- l'échelle de PR3, un bourg consomme moins de trois tonneaux de bois par jour.
+local LOT_MINIMUM = 5
 
 -- Une route de mer est plus longue que la ligne droite entre deux rades : il
 -- faut contourner les îles. Pour choisir une cible on n'a pas le temps de
@@ -188,23 +180,25 @@ local function tracer_circuit(cle_attache)
 end
 
 
--- La flotte d'une ville : des navires marchands de PR3, du plus grand qui ait
--- du sens au plus petit, jusqu'à la cale visée. Un navire n'est pris que s'il
--- ne dépasse pas ce qui reste de plus d'un demi-sloop : une bourgade n'arme pas
--- une flûte marchande pour trois cents tonneaux de besoins.
-local function composer_flotte(cale_visee)
+-- La flotte d'un convoi, comme PR3 la compose : un type marchand tiré au hasard,
+-- puis un autre tant que la cale visée n'est pas atteinte, trois au plus. Un
+-- bourg peut donc armer une flûte marchande, et une grande ville trois pinasses :
+-- le jeu ne cherche pas la flotte juste, il tire.
+--
+-- Le hasard est REPRODUCTIBLE : il part d'une graine tirée de la ville, pour
+-- qu'une partie relancée retrouve les mêmes convois (générateur de Park et
+-- Miller, dont les produits tiennent dans un flottant sans perte).
+local function composer_flotte(cale_visee, graine)
   local flotte = {}
   local reste = cale_visee
-  local plus_petit = Navires.marchands[#Navires.marchands]
-  while reste > plus_petit.cale * 0.75 do
-    local choisi = plus_petit
-    for _, n in ipairs(Navires.marchands) do
-      if n.cale <= reste + plus_petit.cale * 0.5 then choisi = n break end
-    end
+  local g = graine % 2147483646 + 1
+  while #flotte < Marchands.NAVIRES_MAX do
+    g = (g * 16807) % 2147483647
+    local choisi = Navires.marchands[(g % #Navires.marchands) + 1]
     flotte[#flotte + 1] = choisi
+    if choisi.cale >= reste then break end
     reste = reste - choisi.cale
   end
-  if #flotte == 0 then flotte[1] = plus_petit end
   return flotte
 end
 
@@ -230,7 +224,8 @@ local function armer(port, genre, navires, circuit)
     navires = navires,
     capacite = capacite,
     vitesse = Navires.vitesse_jour(navires),
-    or_ = capacite * OR_PAR_TONNEAU,
+    entretien = Navires.entretien(navires),   -- or par jour
+    or_ = OR_MARCHAND / Marchands.KONVOIS,
     cale = {},
     achats = {},               -- ce que chaque lot a coûté, par tonne
     circuit = circuit,
@@ -250,18 +245,19 @@ function Marchands.reinitialiser()
   construire_voisinage()
   Marchands.liste = {}
   for _, port in ipairs(Archipel.ports) do
-    local cale = port.habitants * Marchands.CALE_PAR_HABITANT
-    -- Le cabotage garde toujours la plus grosse part : servir ses voisins passe
-    -- avant le commerce lointain.
-    local part_loin = 0
-    if (port.taille or 1) >= Marchands.TAILLE_LONG_COURS then
-      part_loin = Marchands.PART_LONG_COURS
+    local graine = 0
+    for k = 1, string.len(port.cle) do
+      graine = (graine * 31 + string.byte(port.cle, k)) % 99991
     end
-    Marchands.liste[#Marchands.liste + 1] = armer(port, "caboteur",
-      composer_flotte(cale * (1 - part_loin)), tracer_circuit(port.cle))
-    if part_loin > 0 then
-      Marchands.liste[#Marchands.liste + 1] = armer(port, "long_cours",
-        composer_flotte(cale * part_loin), { port.cle })
+    local cale = port.habitants * Marchands.CALE_PAR_HABITANT
+    -- Le premier convoi dessert ses voisins, le second part au long cours : les
+    -- deux métiers qu'il a fallu pour que les chaînes de fabrication traversent
+    -- la carte.
+    for i = 1, Marchands.KONVOIS do
+      local genre = (i == 1) and "caboteur" or "long_cours"
+      local circuit = (genre == "caboteur") and tracer_circuit(port.cle) or { port.cle }
+      Marchands.liste[#Marchands.liste + 1] =
+        armer(port, genre, composer_flotte(cale, graine * 7 + i * 104729), circuit)
     end
   end
 end
@@ -380,7 +376,9 @@ local function charger(m)
       local cle = marchandise.cle
       local l = Economie.ligne(m.ville, cle)
       if l and l.barres >= SEUIL_MANQUE + 1 and not m.cale[cle] then
-        local lot = math.min(place, math.floor(l.stock - l.reference * 0.9))
+        -- On n'achète que ce qui dépasse le plateau à 120 % (X3) : le reste est
+        -- la réserve dont la ville a besoin.
+        local lot = math.min(place, math.floor(l.stock - l.seuils[4]))
         if lot >= LOT_MINIMUM then
           local achat = Economie.cotation(m.ville, cle, lot, "achat") or 0
           if achat > 0 and achat * lot <= m.or_ then
@@ -462,6 +460,8 @@ function Marchands.avancer(jours)
   if not jours or jours <= 0 then return end
 
   for _, m in ipairs(Marchands.liste) do
+    -- L'entretien des navires, au jour le jour, à quai comme en mer.
+    m.or_ = m.or_ - (m.entretien or 0) * jours
     if m.ville then
       m.escale = m.escale - jours
       if m.escale <= 0 then

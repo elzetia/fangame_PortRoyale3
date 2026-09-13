@@ -15,15 +15,16 @@ local Marchandises = require("sim.marchandises")
 local Archipel     = require("sim.archipel")
 
 local l = {}
-local pop, n, disette, mini, maxi = 0, 0, 0, math.huge, 0
+local pop, n, disette, mini, maxi, generale = 0, 0, 0, math.huge, 0, 0
 for _, v in pairs(Economie.villes) do
   pop = pop + v.habitants ; n = n + 1
-  if (v.subsistance or 1) < 0.97 then disette = disette + 1 end
+  if (v.faim or -3) > 0 then disette = disette + 1 end
+  if (v.penurie or -12) > 0 then generale = generale + 1 end
   if v.habitants < mini then mini = v.habitants end
   if v.habitants > maxi then maxi = v.habitants end
 end
-l[#l + 1] = string.format("  population %d sur %d villes (min %d, max %d), en disette : %d",
-  pop, n, mini, maxi, disette)
+l[#l + 1] = string.format("  population %d sur %d villes (min %d, max %d), en famine : %d, en penurie generale : %d",
+  pop, n, mini, maxi, disette, generale)
 l[#l + 1] = "  denree        stock/ref  vides(0-1 barre)  pleines(4)  ateliers"
 for _, m in ipairs(Marchandises.liste) do
   local s, r, vides, pleines, rend, cap = 0, 0, 0, 0, 0, 0
