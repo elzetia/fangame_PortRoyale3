@@ -517,10 +517,32 @@ d'affichage `[MissionDuration]`, comptage `[EventCount]`, drapeaux de nations
 Il faut distinguer deux combats, et c'est décisif pour la copie :
 
 **1. Le combat MANUEL (temps réel)** — celui qu'on joue. Le boulet a une physique
-(`AmmoTrajectory` : gravité, dispersion), touche selon l'angle et la distance, et
-`DmgHull` / `DmgSail` / `DmgCrew` s'appliquent en continu. Ces formules-là vivent
-dans des fonctions temps réel (`0x86C470` et suivantes) qui ne se lisent bien
-qu'en exécution. À garder pour la fin, et par traçage dynamique.
+(`AmmoTrajectory`), touche selon l'angle et la distance, et `DmgHull` / `DmgSail` /
+`DmgCrew` s'appliquent au coup. Les PARAMÈTRES sont **décodés statiquement** (loader
+`0x86C470`) — tout est dans les fichiers, il n'y a rien qui « n'existe qu'à
+l'exécution » :
+
+- **`[Battleship]` (physique du navire en bataille)** : `MaxTurn` 90, `MaxAccel` 1,
+  `ReloadTime` 5 s, `NavigationFactor` 0.05, `TurnSpeedFactor` 0.3, `SinkSpeed` −0.01,
+  `SpeedFactor` 1.
+- **`[AmmoTrajectory]` (le boulet)** : `Gravity`, `Amax`, `ACorrMax`, `FiringDelay`,
+  `ScatterMin`, `ScatterMax`, `AAimMax`.
+- **`[AmmoData]` (par type de munition `%d` — boulet, chaîne, mitraille)** :
+  `Vmax_%d`, **`DmgHull_%d`**, **`DmgSail_%d`**, **`DmgCrew_%d`**, `Asset_%d`. La
+  STRUCTURE est lue ; les VALEURS chiffrées sont dans `constdata` (tableaux par
+  munition) — voir la tâche « parseur d'arbre de config » ci-dessous.
+- **`[HullDamage]` / `[SailDamage]`** : paliers `Condition_%d` (%, jusqu'à 100) →
+  `SpeedFactor_%d` : une coque/voilure abîmée ralentit le navire par paliers.
+- **`[Boarding]` (l'abordage) — décodé** : `Prepare` 7, `Start` 3.5, `DmgMod` 5,
+  `HpModMax` 3 ; dégâts d'arme **mousquet 2 / sabre 1 / mains nues 0.7**, points de
+  vie **mousquet 5 / sabre 10 / mains nues 10** ; `MaxSpeed` 25, `CloseUpSpeed` 5.
+- **`[Captain]`** : bonus `Damage` et `Boarding` du capitaine (tableaux par niveau).
+- **`[Ship] CrewmenAtGun`**, **`[Tactic]`** (`MaxFleeDist`, `SecUpdateFleetAi`),
+  **`[Equipment]`** (prix des canons), **`[Repairs]`** (`Zeit` 30, `Kosten` 50).
+
+Reste, pour le manuel : lire les VALEURS de `[AmmoData]`/`[Captain]` dans
+`constdata`, et suivre les fonctions qui appliquent le coup (angle → touche →
+dégâts). Fastidieux, pas bloqué.
 
 **2. Le combat AUTOMATIQUE (déterministe) — LISIBLE STATIQUEMENT.** Quand la
 bataille n'est pas jouée à la main — IA contre IA, choix « combat automatique »
@@ -616,9 +638,10 @@ Cinq niveaux : **porté** (dans `sim/`), **décodé** (math/structure exacte lue
 | Pirates, tempêtes, sauterelles, mines, patrouilles, météo | **décodé** (paramètres) |
 | Signaux de ville (conseiller) — taxonomie | **décodé** |
 | Générateurs de stratégie (Profit, Resources… → ordres) | **sémantique** (logique par stratégie non décompilée) |
-| Combat AUTOMATIQUE : puissance par camp (canons, marins ≤ 5/canon, maniabilité) | **bloqué-dynamique** (valeur mise en cache dans l'ECS) |
-| Combat MANUEL : trajectoire, dégâts, abordage temps réel | **bloqué-dynamique** |
-| Affectation équipage/escorte au combat | **bloqué-dynamique** (lié à la puissance) |
+| Combat — PARAMÈTRES (`[Battleship]`, `[AmmoData]`, `[HullDamage]`, `[Boarding]`, `[Captain]`, `[Tactic]`) | **décodé** (structure + défauts) ; valeurs chiffrées dans `constdata` |
+| Combat AUTOMATIQUE : formule de puissance par camp | **partiel** — modèle connu, l'arithmétique est en cache ECS (RE profonde ou relevé en jeu) |
+| Combat MANUEL : application du coup (angle → touche → dégâts) | **partiel** — paramètres décodés, fonctions d'application à suivre |
+| Affectation équipage/escorte au combat (3 navires, ≤ 5 marins/canon) | **décodé** (règle) |
 | Missions et campagne | **contenu** (à réécrire, pas à décompiler) |
 | Rendu, caméra, interface, audio, réseau | **hors-jeu** |
 
@@ -636,6 +659,29 @@ que **trois choses, par nature** :
    mécanisme est décodé, les chiffres se relèvent en jeu, comme la puissance.
 3. **Le scénario de campagne** — du contenu scripté, à réécrire.
 4. **Le rendu, l'UI, l'audio et le réseau** — hors du modèle.
+
+**Rectification (important).** « Bloqué » n'a jamais voulu dire « indisponible » :
+tout ce que le jeu fait est dans ces fichiers, donc **tout est récupérable**. La
+seule variable, c'est l'EFFORT d'extraction. Trois niveaux : les DONNÉES/config
+(lisibles direct — fait) ; la LOGIQUE compilée (économie faite, combat en cours,
+au désassemblage) ; l'UI/l'art dans les `.swf` Iggy (chaînes extraites ; layouts
+complets avec un décodeur SWF). Le raccourci « relevé en jeu » que j'avais proposé
+pour le combat était un choix de rapidité, pas une limite.
+
+## Le programme : « connaître PR3 par les fichiers, au point de le recréer »
+
+Objectif : une bible complète tirée des seuls fichiers, et le fan game bâti dessus,
+extensible. Prochaines briques, par ordre d'utilité :
+
+1. **Parseur de l'arbre de config `constdata`** — la clé qui débloque TOUTES les
+   valeurs chiffrées d'un coup (dégâts de munition, prix des canons, coûts
+   d'agrandissement, capitaine, etc.), là où l'exe ne donne que les défauts. À
+   écrire une fois, réutilisé partout.
+2. **Combat** : fonctions d'application du coup + formule de puissance auto (RE
+   profonde de `BattleShipComponent` / `0x86C470` et suivantes).
+3. **Guerre terrestre** (`[Soldier]`, sièges) : structure et paramètres.
+4. **UI/menus exacts** : décodeur `.swf` Iggy pour les layouts (au-delà des chaînes).
+5. **Campagne/missions** : script à lire et réécrire.
 
 La liste exhaustive des 134 sections et 421 clés est reproductible par
 `py -3 outils/config_map.py` (l'outil lit l'exécutable local, jamais commité).
