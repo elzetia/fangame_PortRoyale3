@@ -102,12 +102,13 @@ func _construire() -> void:
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_child(tabs)
-	tabs.add_child(_onglet_acheter())
+	# Ordre de PR3 (DialogShipyard) : Construire (Build), Acheter (Buy), Vendre, Réparer.
 	tabs.add_child(_onglet_construire())
+	tabs.add_child(_onglet_acheter())
 	tabs.add_child(_onglet_vendre())
 	tabs.add_child(_onglet_reparer())
-	tabs.set_tab_title(0, "Acheter")
-	tabs.set_tab_title(1, "Construire")
+	tabs.set_tab_title(0, "Construire")
+	tabs.set_tab_title(1, "Acheter")
 	tabs.set_tab_title(2, "Vendre")
 	tabs.set_tab_title(3, "Réparer")
 
