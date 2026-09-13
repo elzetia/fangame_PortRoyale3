@@ -239,11 +239,11 @@ séquence exacte** de vingt étapes (esi = la ville, edi = le monde) :
 | 7 | `0x7C2B30` | Livraison de la production aux entrepôts (parcourt les ateliers) | lu (structure) |
 | 8 | `0x7C26C0` | Niveau de prospérité (note → niveau, seuils 20/40/60/90, portes 2 000/6 000) | **lu** |
 | 9 | `0x7C2900` | Recalcul des réserves + arrivée/départ des colons par les convois | lu (structure) |
-| 10 | `0x7C0920` | Emploi : ajuste les ouvriers selon la production | observé |
+| 10 | `0x7C0920` | Emploi et efficacité : lit les ouvriers d'un atelier (`+0x84`), la **réduit de moitié** en cas de manque d'ouvriers ou d'intrants, et déclenche les vérifications de construction (`0x7CBD40`/`0x7CB8E0`) | **décortiqué** |
 | 11 | `0x7C1E40` | Construction par l'IA : bâtit un atelier si demande > `Bauquotient` × production | **lu** |
 | 12 | `0x7C1A80` | Accumulation offre/demande par bien | observé |
 | 13 | `0x7C1600` | Défense / garnison selon la taille de la ville | observé |
-| 14 | `0x7BF2E0` | Mendiants et immigration selon la prospérité | observé |
+| 14 | `0x7BF2E0` | Conseiller (message d'immigration si `(+0x120 − +0x11C)/3 ≠ 0` et prospérité basse) + ajustement d'un bien sur les 4 premiers | **décortiqué** |
 | 15 | `0x7BF3D0` | Conversion colons ↔ citoyens : ≤ 10/jour vers la cible de logement, tamponnée par le vivier de colons (voir « La démographie exacte ») | **décortiqué** |
 | 16 | `0x7BF500` | Compteurs par nation | observé |
 | 17-19 | `0x855BD0`, `0x855C00`, `0x767F20` | Finalisation de la structure économique | observé |
