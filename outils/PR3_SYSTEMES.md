@@ -408,17 +408,19 @@ que l'étiquette de sérialisation ; le générateur pose une action-entier.
 L'index de stratégie (0 à 8) d'une route, et son sens (les six premières sont
 décrites au tutoriel, `PR3_TECHNIQUE.md` §5) :
 
-| # | Stratégie | Ce qu'elle génère comme ordres |
-|---|---|---|
-| 0 | `MANUAL` | aucun — le joueur pose les ordres à la main |
-| 1 | `WEALTH` (Prospérité) | échange les produits qui promettent le plus de profit |
-| 2 | `PROFIT` | achète bas, vend haut, tous biens confondus |
-| 3 | `STORAGE` (Entrepôts vides) | vide un entrepôt et décharge au premier suivant |
-| 4 | `RESOURCES` (Matières premières) | répartit les matières premières là où elles manquent |
-| 5 | `OFFICE` | approvisionne les comptoirs du joueur |
-| 6 | `CONSTRUCT` (Matériaux de construction) | bois et briques, jusqu'à 500 / 1 000 |
-| 7 | `DISTRIBUTE` | disperse les biens depuis un centre vers les voisins |
-| 8 | `CENTRAL` | rassemble les biens des voisins vers un centre |
+Noms internes EXACTS (table de saut `0x68e6b8`, mappeur `0x68e620`) :
+
+| # | Nom interne | Sens (tutoriel) | Ordres générés |
+|---|---|---|---|
+| 0 | `manuell` | Manuel | aucun — le joueur pose les ordres à la main |
+| 1 | `wealth` | Prospérité | échange les produits qui promettent le plus de profit |
+| 2 | `profit` | Profit | achète bas, vend haut, tous biens confondus |
+| 3 | `stock` | Entrepôts vides | vide un entrepôt et décharge au premier suivant |
+| 4 | `rawmaterials` | Matières premières | répartit les matières premières là où elles manquent |
+| 5 | `office` | Comptoirs | approvisionne les comptoirs du joueur |
+| 6 | `materials` | Matériaux de construction | bois et briques, jusqu'à 500 / 1 000 |
+| 7 | `distribute` | Distribution | disperse les biens depuis un centre vers les voisins |
+| 8 | `central` | Centralisation | rassemble les biens des voisins vers un centre |
 
 Chaque stratégie est un générateur qui remplit les ordres `set_goods` d'une route
 automatiquement ; leur logique fine (par stratégie) reste à décompiler une à une,
