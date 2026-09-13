@@ -83,8 +83,55 @@ environ 69 000. Chaque navire a deux textures et un `.asset` qui accroche :
 pavillon `flag_0`, l'icône `icon_top`, les voiles (`_mat_sail`). Les voiles sont
 un matériau à part, donc animables.
 
-La couleur de sommet des navires est un **masque de pièce** (le gui en (1, 0, 1),
-le mât en (0, 1, 1)), pas une teinte.
+La couleur de sommet des navires de bataille est un **masque de pièce** (le gui en
+(1, 0, 1), le mât en (0, 1, 1)), pas une teinte.
+
+### Les navires de la carte
+
+Chaque type existe en seconde version pour la carte du monde, suffixée `_wm`
+(`assets/pinnace_wm/`, `assets/tradefluyt_wm/`…) :
+
+- **Maillage** : une seule pièce `baseshape`, de 358 sommets (pinasse) à 1 730
+  (vaisseau de ligne), au même format de 80 octets par sommet. La caraque est
+  remplacée par le correctif `data0.fuk`.
+- **Couleurs de sommets** : une **occlusion en niveaux de gris**, multipliée à la
+  texture.
+- **Texture** : **une seule pour les seize navires**, `textures/0_ships_wm.dds`
+  (512², DXT5, alpha constant à 64, qui n'est pas une transparence). Aucun `.mesh`
+  ne la nomme ; le lien passe par `materials/ship_wm.mat`.
+- **Flipbook** : la texture est une grille de **trois variantes sur trois**. Toutes
+  ont la même palette (bois, toiles, peintures), seule la couleur des voiles
+  change. Les UV d'un navire couvrent une variante entière, de 0 à 1, et le
+  paramètre `g_flipBook` du `.asset` choisit la case. Appliquer ces UV à la
+  texture entière fait tomber chaque pièce sur la mauvaise couleur.
+- **Couleurs de voiles** : les neuf variantes répondent sans doute aux réglages
+  `SailColor_Trader`, `SailColor_Nation`, `SailColor_Pirate`, `SailColor_Pirate2`
+  et `SailColor_Player0…3` de l'exe. L'ordre n'est lisible nulle part.
+- **Effet attaché** : chaque `.asset` accroche l'effet `bowwave_wm`, la vague
+  d'étrave.
+- **Repère** : PR3 est en Direct3D, main gauche. Pour Godot, on retourne l'axe x et
+  l'ordre des sommets de chaque triangle.
+
+Chaîne locale, sans rien copier dans le dépôt :
+
+    py -3 outils/extraire_navires_pr3.py              → reference_pr3/navires_wm/
+    godot --path . --script outils/rendre_navires_pr3.gd
+                                                      → reference_pr3/navires_wm/atlas/
+
+L'outil de rendu produit, pour chaque modèle et chaque variante, un atlas de
+trente-deux caps (`<modele>_<variante>.png`), plus une fiche commune : cadrage
+partagé, décalage de flottaison. La carte les cherche d'abord dans
+`sprites/navires/modeles/`, où iront les modèles du projet, puis dans
+`reference_pr3/`. Sans atlas, elle retombe sur la pinasse dessinée.
+
+Sur la carte, chaque couronne a sa couleur de voiles (`NAV_VOILES_NATIONS` dans
+`scripts/carte2d.gd`), choisie à l'œil sur la planche des neuf variantes :
+
+| Espagne | Angleterre | France | Hollande | Portugal | Joueur | (pirates) |
+|---|---|---|---|---|---|---|
+| jaune (6) | rouge (2) | bleu (3) | bordeaux (4) | vert (5) | blanc (0) | noir (1) |
+
+La palette n'a pas d'orange ; la Hollande prend le bordeaux.
 
 Fiches de `constdata.dat` (valeurs certaines, sens des colonnes probable) :
 

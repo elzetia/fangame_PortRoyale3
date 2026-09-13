@@ -21,6 +21,7 @@ function Compagnie.reinitialiser()
     nom = "Aurore",
     classe = sloop.nom,
     type = sloop.cle,
+    modele = sloop.modele,
     capacite = sloop.cale,  -- tonneaux
     cale = {},              -- cle -> tonnes
   }

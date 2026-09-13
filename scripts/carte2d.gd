@@ -542,6 +542,34 @@ const CART_GROSSI_LOIN := 1.5
 # orientations autour, la vue de dessus au centre — que la carte n'utilise pas,
 # ses villages étant eux-mêmes vus de biais.
 const NAV_ATLAS := "res://sprites/navires/pinasse_atlas.png"
+# Où chercher les atlas de modèles 3D, dans l'ordre : ceux du projet d'abord,
+# ceux extraits de Port Royale 3 ensuite (voir `_atlas_modele`).
+const NAV_DOSSIERS_MODELES := [
+	"res://sprites/navires/modeles/",
+	"res://reference_pr3/navires_wm/atlas/",
+]
+# Unités de monde par unité de modèle. Une pinasse de PR3 mesure vingt-trois
+# unités de l'étrave à la poupe : à 2,2 elle garde la longueur de la pinasse
+# dessinée qu'elle remplace, et les autres navires suivent à proportion.
+const NAV_MONDE_PAR_UNITE_MODELE := 2.2
+# La couleur des voiles : la variante du flipbook de PR3 (0 à 8, voir
+# `outils/rendre_navires_pr3.gd`). Neuf couleurs — blanc, noir, rouge, bleu,
+# bordeaux, vert, jaune et deux blancs — et donc de quoi en donner une à chaque
+# couronne : on reconnaît un convoi portugais à ses voiles vertes avant d'avoir
+# lu son pavillon. La palette n'a pas d'orange ; la Hollande prend le bordeaux.
+#
+# Le joueur garde le blanc, qu'aucune nation ne porte. Le noir attend les pirates.
+const NAV_VOILES_NATIONS := {
+	"espagne": 6,
+	"angleterre": 2,
+	"france": 3,
+	"hollande": 4,
+	"portugal": 5,
+}
+const NAV_VOILE_DEFAUT := 0
+const NAV_VOILE_JOUEUR := 0
+var _atlas_modeles := {}        # modele -> {texture, fiche}, ou {} s'il n'existe pas
+var _modele_joueur := "?"       # « ? » : pas encore demandé à la simulation
 const NAV_COTE := 128.0
 # Le côté d'une vignette en UNITÉS DE MONDE, et non en pixels d'écran. Mesuré à
 # l'écran, le navire gardait la même taille à tous les zooms : il grossissait
@@ -993,7 +1021,9 @@ func _dessiner_marchands() -> void:
 			_dessiner_sillage(p, a, u)
 		draw_circle(p, NAV_TAILLE * 0.18 * u, Color(0, 0, 0, 0.18 if quai else 0.24))
 		_poser_navire(p, a, NAV_TAILLE * 0.88 * u,
-			Color(1, 1, 1, 0.55) if quai else Color(1, 1, 1, 1))
+			Color(1, 1, 1, 0.55) if quai else Color(1, 1, 1, 1),
+			_modele_voile(str(m.get("modele", "")),
+				int(NAV_VOILES_NATIONS.get(str(m.get("nation_cle", "")), NAV_VOILE_DEFAUT))))
 		continue
 
 		var coque: Array[Vector2] = [
@@ -1031,7 +1061,24 @@ func _dessiner_navire() -> void:
 	if not navire.au_mouillage():
 		_dessiner_sillage(p, a, u)
 	draw_circle(p, NAV_TAILLE * 0.20 * u, Color(0, 0, 0, 0.22))
-	_poser_navire(p, a, NAV_TAILLE * u, Color(1, 1, 1, 1))
+	_poser_navire(p, a, NAV_TAILLE * u, Color(1, 1, 1, 1), _modele_du_joueur())
+
+
+# Le modèle du navire du joueur, demandé une seule fois à la simulation : il ne
+# change pas en cours de route, et la question traverse le pont Lua.
+func _modele_du_joueur() -> String:
+	if _modele_joueur == "?":
+		var modele := str(sim.etat_compagnie().get("modele", "")) if sim != null else ""
+		_modele_joueur = _modele_voile(modele, NAV_VOILE_JOUEUR)
+	return _modele_joueur
+
+
+# Le nom d'atlas d'un modèle sous une couleur de voiles : `tradefluyt_0`. Un
+# modèle vide reste vide, et la carte retombe alors sur la pinasse dessinée.
+func _modele_voile(modele: String, voile: int) -> String:
+	if modele == "":
+		return ""
+	return "%s_%d" % [modele, voile]
 
 
 # Le sillage : deux traits qui s'ouvrent en V derrière la poupe, et s'effacent
@@ -1068,11 +1115,71 @@ func _atlas_navire() -> Texture2D:
 	return _atlas_nav
 
 
+# L'atlas d'un MODÈLE de navire : trente-deux caps, rendus depuis un maillage 3D
+# par outils/rendre_navires_pr3.gd, un fichier par modèle et une fiche commune.
+#
+# On cherche d'abord les modèles du projet, puis ceux extraits de Port Royale 3.
+# Ces derniers ne sont pas dans le dépôt — ils sont sous droits et vivent dans
+# `reference_pr3/`, ignoré par git — et ils sont donc lus comme de simples
+# fichiers, sans passer par l'import de Godot. Absent l'un et l'autre, le navire
+# retombe sur la pinasse dessinée.
+#
+# Le résultat est gardé, y compris quand il est vide : sans ça la carte irait
+# frapper au disque pour chaque navire, à chaque image.
+func _atlas_modele(modele: String) -> Dictionary:
+	if modele == "":
+		return {}
+	if _atlas_modeles.has(modele):
+		return _atlas_modeles[modele]
+	var trouve := {}
+	for dossier in NAV_DOSSIERS_MODELES:
+		var chemin := ProjectSettings.globalize_path(dossier + modele + ".png")
+		var chemin_fiche := ProjectSettings.globalize_path(dossier + "fiche.json")
+		if not FileAccess.file_exists(chemin) or not FileAccess.file_exists(chemin_fiche):
+			continue
+		var fiche = JSON.parse_string(FileAccess.get_file_as_string(chemin_fiche))
+		var image := Image.load_from_file(chemin)
+		if image == null or not (fiche is Dictionary):
+			continue
+		# Des mipmaps : au dézoom la vignette de 160 pixels tombe à une vingtaine,
+		# et sans elles les mâts scintillent d'une image à l'autre.
+		image.generate_mipmaps()
+		trouve = {"texture": ImageTexture.create_from_image(image), "fiche": fiche}
+		break
+	_atlas_modeles[modele] = trouve
+	return trouve
+
+
+# Pose la vignette d'un modèle au cap le plus proche parmi ses trente-deux.
+#
+# Sa taille ne vient pas de l'appelant mais du modèle : tous les atlas partagent
+# le même cadrage, calé sur le plus grand navire, si bien qu'une pinasse garde sa
+# taille de pinasse à côté d'une flûte marchande.
+func _poser_modele(p: Vector2, angle: float, teinte: Color, atlas: Dictionary) -> void:
+	var fiche: Dictionary = atlas["fiche"]
+	var caps := int(fiche.get("caps", 32))
+	var colonnes := int(fiche.get("colonnes", 8))
+	var px := float(fiche.get("cote", 160))
+	var t := (angle + PI * 0.5) / TAU * float(caps)
+	var k := ((int(round(t)) % caps) + caps) % caps
+	var src := Rect2(float(k % colonnes) * px, float(int(k / colonnes)) * px, px, px)
+	var cote := float(fiche.get("taille_modele", 60.0)) * NAV_MONDE_PAR_UNITE_MODELE * _par_unite_brut()
+	# La flottaison tombe sous le centre de la case : on remonte l'image d'autant
+	# pour que la coque se pose sur le point du navire, et son sillage derrière.
+	var decal := float(fiche.get("decalage_flottaison", 0.0)) * cote
+	draw_texture_rect_region(atlas["texture"],
+		Rect2(p - Vector2(cote * 0.5, cote * 0.5 + decal), Vector2(cote, cote)), src, teinte)
+
+
 # Pose la vue dont le cap est le plus proche. On ne fait PAS tourner l'image :
 # ces vues sont en volume, et les faire pivoter à plat les retournerait comme des
 # cartons découpés — le pont et l'ombre tournant avec la coque. Choisir la vue,
 # c'est tout l'intérêt d'une planche d'orientations.
-func _poser_navire(p: Vector2, angle: float, cote: float, teinte: Color) -> void:
+func _poser_navire(p: Vector2, angle: float, cote: float, teinte: Color, modele := "") -> void:
+	var atlas := _atlas_modele(modele)
+	if not atlas.is_empty():
+		_poser_modele(p, angle, teinte, atlas)
+		return
 	var tex := _atlas_navire()
 	if tex == null:
 		return

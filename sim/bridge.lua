@@ -243,6 +243,7 @@ function Bridge.etat_compagnie()
   d.or_       = math.floor(Compagnie.or_ + 0.5)
   d.navire    = Compagnie.navire.nom
   d.classe    = Compagnie.navire.classe
+  d.modele    = Compagnie.navire.modele or ""
   d.capacite  = Compagnie.navire.capacite
   d.charge    = Compagnie.charge()
   d.libre     = Compagnie.place_libre()
@@ -323,6 +324,10 @@ function Bridge.marchands()
     d.destination = m.destination or ""
     d.cargaison   = Marchands.cargaison(m)
     d.or_         = math.floor(m.or_ + 0.5)
+    -- Le navire qu'on dessine : le plus gros du convoi, celui que PR3 montre
+    -- (« seul le plus gros navire d'un convoi est affiché »).
+    local tete = m.navires and m.navires[1]
+    d.modele      = tete and tete.modele or ""
     sortie:append(d)
   end
   return sortie
