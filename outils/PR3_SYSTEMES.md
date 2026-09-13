@@ -221,6 +221,63 @@ famine, l'ambassade et l'église amènent des colons d'Europe. La croissance « 
 sans immigration » qu'évoque le jeu est exactement la croissance à la prospérité
 que la sim applique.
 
+## Le chantier naval : acheter, construire, réparer
+
+Le chantier est un **dialogue à cinq onglets** (`DialogShipyard`, classes NGUI
+natives, `0x45781f` monte le dialogue) :
+
+| Onglet | Classe NGUI | Ce qu'il fait |
+|---|---|---|
+| **Build** | `TabShipyardBuild` (`0x58c0f0`) | **construire** un navire neuf : or + marchandises + délai |
+| **Buy** | `TabShipyardBuy` (`0x58dd70`) | **acheter** un navire tout fait, au prix `Value` |
+| **Sell** | `TabShipyardSell` (`0x58d0c0`) | revendre un navire |
+| **SellPirate** | `TabShipyardSellPirate` (`0x58cee0`) | le revendre aux pirates (autre cote) |
+| **Repair** | `TabShipyardRepair` (`0x58e7b0`) | réparer la coque |
+
+**Acheter (Buy).** Le prix est le `Value` du type de navire (défaut 10 000, valeur
+réelle par navire dans `[Ship%02u]`). Livraison quasi immédiate — un petit délai
+`[Time] Einkaufszeit` = 64 pas.
+
+**Construire (Build) — le cœur.** Choisir un type produit une *offre de construction*
+(objet `ShipConstructionOffer`, lu par `0x5ec150`). La méthode qui la met en forme
+(`0x58c890`) affiche, depuis cet objet : cale (barils), canons, coque, équipage, un
+**prix en or** (format monnaie), une **durée de construction** (un seul chiffre :
+« offer time » = « constructing time »), et **jusqu'à 4 marchandises avec quantité**
+(paires (marchandise, quantité flottante), boucle `0x58cae0`, accès `+0x2a4`). L'offre
+signale si la ville A les marchandises (`prod.visible`) et si l'or suffit. Donc
+**construire = payer de l'or + consommer jusqu'à 4 marchandises + attendre un délai**,
+là où **acheter = payer le plein `Value`, tout de suite**. Le classique de Port Royale :
+on construit moins cher (contre matières + temps) à son PROPRE chantier, on achète au
+prix fort partout.
+
+Les accesseurs de l'offre : matériaux à `+4` (`0x437570`), bloc prix/durée à `+0x12b4`
+(`0x437710`). **La recette exacte** (quelles marchandises, combien, quel or, quelle
+durée par navire) est **calculée en direct** à la sélection à partir de l'état de la
+ville et du type de navire — ce n'est pas une table plate de config. Comme la
+puissance de combat, ce dernier chiffre se lit le plus sûrement **en jeu** (construire
+quelques navires et relever or + marchandises + jours) ; le mécanisme, lui, est
+entièrement décortiqué ci-dessus.
+
+**Réparer (Repair).** `[Repairs]` : `Zeit` = 30 (facteur de temps, plancher 1),
+`Kosten` = 50 (coût à l'unité de coque). `0x8557c2`.
+
+**Le bâtiment chantier** (dans la ville) : rang minimal pour le bâtir dans
+`[MinRank] ShipYard`. On le **monte de niveau** — `[AusbauKosten] Upgrade_Shipyard:i[]`
+(or par palier) et `[AusbauWaren] Upgrade_Shipyard:i[]` (marchandises par palier),
+chargés par le loader générique des bâtiments `0x85505c` ; un niveau plus haut débloque
+de plus gros navires. `[Shipyard] RotateTime` n'est que la rotation de la vue.
+
+**Stats d'un navire** — chaque type a sa section `[Ship%02u]`, lue par `0x85f760` :
+`Capacity` (obligatoire), `Hitpoints` (**×1000 en interne**), `HitpointsSail` (×1000),
+`Value` (10 000 défaut), `minRankMil`/`maxRankMil`/`minRankPir`, `Vmin` 20 / `Vmax` 28 /
+`Wendig` 60, puis la géométrie 3D (coque, voiles, `GunPos%02u`). Il n'y a **pas** de
+champ `Construct`/`Bauzeit`/matériaux dans cette table : c'est bien l'offre qui les
+calcule.
+
+**Limites de flotte** (`[Limits]`, `0x8299d9`) : `maxConvoys` 100, `maxConvoyMembers`
+50, `maxShips` 50. **Canons** (`[Equipment]`) : `PriceStandard[6]` et `PricePirates[6]`,
+six calibres. **Délais** (`[Time]`, en pas de jeu) : achat 64, vente 64, accostage 128.
+
 ## La journée d'une ville, pas à pas — le cœur de la copie
 
 Pour copier fidèlement PR3, l'ordre des opérations compte autant que les formules :
@@ -537,6 +594,7 @@ Cinq niveaux : **porté** (dans `sim/`), **décodé** (math/structure exacte lue
 | Navires (16 types, cale, vitesse, entretien), carte, eau, formats | **porté / décodé** |
 | Convois : taille (420÷1900), composition, routes à ordres `set_goods`, 9 stratégies | **décodé** ; modèle porté |
 | Bâtiments : coûts, matériaux, effets (école, hôpital, ambassade…) | **décodé** |
+| Chantier : 5 onglets (build/buy/sell/repair), stats `[Ship%02u]`, limites, réparation, montée de niveau | **décodé** (mécanisme) ; recette de construction **bloquée-dynamique** |
 | Journée d'une ville : les 20 étapes de `0x7C2D20`, dans l'ordre | **décodé** |
 | Diplomatie : 18 rangs à la richesse, licences, donations, lettres de marque | **sémantique** |
 | Réputation de nation, dérive sinusoïdale (`Offset`/`Amplitude`/`Phase`) | **sémantique** |
@@ -558,8 +616,11 @@ que **trois choses, par nature** :
    cache dans la couche de composants ECS, elles ne s'exposent pas en clair ; leur
    seule voie fiable est la **lecture à l'exécution** (le jeu affiche la puissance
    d'un convoi ; quelques relevés donnent la formule).
-2. **Le scénario de campagne** — du contenu scripté, à réécrire.
-3. **Le rendu, l'UI, l'audio et le réseau** — hors du modèle.
+2. **La recette de construction d'un navire** (quelles marchandises, combien, quel
+   or, quelle durée) — l'*offre* est bâtie en direct depuis l'état de la ville ; le
+   mécanisme est décodé, les chiffres se relèvent en jeu, comme la puissance.
+3. **Le scénario de campagne** — du contenu scripté, à réécrire.
+4. **Le rendu, l'UI, l'audio et le réseau** — hors du modèle.
 
 La liste exhaustive des 134 sections et 421 clés est reproductible par
 `py -3 outils/config_map.py` (l'outil lit l'exécutable local, jamais commité).
