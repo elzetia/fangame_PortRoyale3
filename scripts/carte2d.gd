@@ -67,6 +67,10 @@ const MARGE_DATE := Vector2(6, 2)
 var _glisse := false
 var _clic_depart := Vector2.ZERO
 var _a_glisse := false
+var _glisse_bouton := 0        # quel bouton mène le glissé (gauche = boîte, milieu = pano)
+var _boite_active := false     # une boîte de sélection est en cours de tracé
+var _boite_a := Vector2.ZERO   # coin de départ de la boîte, en coordonnées monde-carte
+var _boite_b := Vector2.ZERO   # coin courant
 
 # La barre d'espace a deux sens selon la durée : un appui bref bascule la pause,
 # un appui tenu passe en x10 le temps qu'on le tient. On ne peut donc pas
@@ -104,8 +108,9 @@ var _marchands: Array = []
 # Les convois du JOUEUR, relus à chaque image : on les dessine, on en sélectionne
 # un (clic gauche), et on l'envoie à un port (clic droit) s'il est manuel.
 var _convois_joueur: Array = []
-var _convoi_selectionne := 1      # indice sim du convoi commandé (l'Aurore au départ)
-var _sel_a_quai_prec := true      # le convoi sélectionné était-il à quai à l'image d'avant
+var _convoi_selectionne := 1      # convoi PRIMAIRE (fiche, comptoir, caméra)
+var _convois_selectionnes: Array = [1]  # tous les convois sélectionnés (mouvement)
+var _sel_a_quai_prec := true      # le convoi primaire était-il à quai à l'image d'avant
 
 
 func _ready() -> void:
@@ -724,6 +729,19 @@ func _draw() -> void:
 		_dessiner_nom(port)
 	for port in ports:
 		_dessiner_pavillon(port)
+	for port in ports:
+		_dessiner_marque_convoi(port)
+	_dessiner_boite_selection()
+
+
+# La boîte de sélection au glissé gauche : un rectangle d'or translucide.
+func _dessiner_boite_selection() -> void:
+	if not _boite_active:
+		return
+	var e := 1.0 / _zoom
+	var r := Rect2(_boite_a, Vector2.ZERO).expand(_boite_b)
+	draw_rect(r, Color(0.95, 0.83, 0.4, 0.12), true)
+	draw_rect(r, Color(0.95, 0.83, 0.4, 0.9), false, 1.5 * e)
 
 
 func _dessiner_port(port: Dictionary) -> void:
@@ -903,6 +921,34 @@ func _dessiner_nom(port: Dictionary) -> void:
 				texte, HORIZONTAL_ALIGNMENT_LEFT, -1, t_ecran,
 				Color(1, 0.98, 0.94))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+# Un de tes convois est-il à quai dans ce port ?
+func _convoi_du_joueur_au_port(cle: String) -> bool:
+	for m in _convois_joueur:
+		if bool(m.get("a_quai", false)) and String(m.get("ville", "")) == cle:
+			return true
+	return false
+
+
+# Un petit sceau d'or au bord de la plaque quand un de tes convois y est à quai :
+# d'un coup d'œil sur la carte, on sait où sont ses navires.
+func _dessiner_marque_convoi(port: Dictionary) -> void:
+	if not _convoi_du_joueur_au_port(String(port.get("cle", ""))):
+		return
+	var g := _geometrie_cartouche(port)
+	var r: Rect2 = g["nom"]
+	var u := _par_unite()
+	var c := r.position + Vector2(0.0, r.size.y * 0.5)   # bord gauche de la plaque
+	var ray := maxf(r.size.y * 0.42, 5.0 * u)
+	draw_circle(c, ray + 1.4 * u, Color(0.03, 0.03, 0.04, 0.85))
+	draw_circle(c, ray, Color(0.95, 0.83, 0.4, 1.0))
+	# Une petite ancre stylisée : jambe + jas + patte, en sombre sur l'or.
+	var sombre := Color(0.16, 0.11, 0.07)
+	var ep := maxf(ray * 0.16, 0.8 * u)
+	draw_line(c + Vector2(0, -ray * 0.55), c + Vector2(0, ray * 0.5), sombre, ep)
+	draw_line(c + Vector2(-ray * 0.45, -ray * 0.3), c + Vector2(ray * 0.45, -ray * 0.3), sombre, ep)
+	draw_arc(c + Vector2(0, ray * 0.15), ray * 0.5, deg_to_rad(20), deg_to_rad(160), 10, sombre, ep)
 
 
 # Passe 3 : le pavillon, tout au-dessus. Il mord sur le filet supérieur de la
@@ -1112,7 +1158,7 @@ func _dessiner_convois_joueur() -> void:
 		var quai := bool(m.get("a_quai", false))
 		if not quai:
 			_dessiner_sillage(p, a, u)
-		if int(m.get("indice", -1)) == _convoi_selectionne:
+		if int(m.get("indice", -1)) in _convois_selectionnes:
 			draw_arc(p, NAV_TAILLE * 0.5 * u, 0.0, TAU, 32, Color(0.95, 0.83, 0.4, 0.95), 2.5 * u)
 		draw_circle(p, NAV_TAILLE * 0.20 * u, Color(0, 0, 0, 0.22))
 		_poser_navire(p, a, NAV_TAILLE * 0.9 * u, Color(1, 1, 1, 1),
@@ -1149,6 +1195,28 @@ func _detecter_arrivee_convoi() -> void:
 		if not p.is_empty():
 			_ouvrir_comptoir(p)
 	_sel_a_quai_prec = quai
+
+
+# Fixe l'ensemble sélectionné (et le primaire, pour la fiche/le comptoir/la caméra).
+func _selectionner(indices: Array) -> void:
+	_convois_selectionnes = indices.duplicate()
+	if _convois_selectionnes.is_empty():
+		return
+	_convoi_selectionne = int(_convois_selectionnes[0])
+	sim.selectionner_convoi(_convoi_selectionne)
+
+
+# Termine une boîte de sélection : prend tous les convois du joueur dont la vignette
+# tombe dans le rectangle.
+func _finir_boite() -> void:
+	var r := Rect2(_boite_a, Vector2.ZERO).expand(_boite_b)
+	var pris: Array = []
+	for m in _convois_joueur:
+		var pos: Vector2 = m["position"]
+		if r.has_point(proj.vers_carte(pos.x, pos.y)):
+			pris.append(int(m.get("indice", -1)))
+	if not pris.is_empty():
+		_selectionner(pris)
 
 
 # L'indice du convoi du joueur sous un point du monde, ou -1. Sert à en sélectionner
@@ -1441,13 +1509,20 @@ func _unhandled_input(e: InputEvent) -> void:
 					_clic_depart = e.position
 					_a_glisse = false
 					_glisse = true
+					_glisse_bouton = MOUSE_BUTTON_LEFT
+					_boite_a = get_global_mouse_position()
+					_boite_active = false
 				else:
 					if not _port_saisi.is_empty():
 						_port_saisi = {}
 						return
 					_glisse = false
-					if not _a_glisse:
-						_clic_gauche()
+					if _a_glisse and _boite_active:
+						_finir_boite()      # glissé gauche = sélection au rectangle
+					elif not _a_glisse:
+						_clic_gauche()       # simple clic = désigner
+					_boite_active = false
+					queue_redraw()
 			# Le clic DROIT commande le navire, comme dans Port Royale 3 :
 			# « Cliquez avec le bouton droit sur votre destination pour faire
 			# partir votre convoi. » Le gauche sert alors à désigner — une ville
@@ -1464,6 +1539,7 @@ func _unhandled_input(e: InputEvent) -> void:
 			MOUSE_BUTTON_MIDDLE:
 				_glisse = e.pressed
 				_a_glisse = e.pressed
+				_glisse_bouton = MOUSE_BUTTON_MIDDLE
 	# Le trackpad ne parle PAS la langue de la molette. Sur macOS, Godot rend
 	# le glissé à deux doigts comme un InputEventPanGesture et le pincement
 	# comme un InputEventMagnifyGesture : aucun des deux n'est un bouton de
@@ -1501,7 +1577,13 @@ func _unhandled_input(e: InputEvent) -> void:
 		if e.position.distance_to(_clic_depart) > 5.0:
 			_a_glisse = true
 		if _a_glisse:
-			_cam.position -= e.relative / _zoom
+			if _glisse_bouton == MOUSE_BUTTON_LEFT:
+				# Glissé gauche : on trace une boîte de sélection (pas de pano).
+				_boite_b = get_global_mouse_position()
+				_boite_active = true
+				queue_redraw()
+			else:
+				_cam.position -= e.relative / _zoom
 	elif e is InputEventKey and e.pressed and not e.echo:
 		match e.keycode:
 			KEY_SPACE: pass   # tout se joue au relâchement, voir _input_espace
@@ -1625,8 +1707,7 @@ func _clic_gauche() -> void:
 	# commandé, pour le comptoir comme pour le clic droit.
 	var ic := _convoi_sous_monde(monde)
 	if ic != -1:
-		_convoi_selectionne = ic
-		sim.selectionner_convoi(ic)
+		_selectionner([ic])
 
 
 # Le joueur a-t-il un convoi à quai dans ce port ? Tout est convoi désormais.
@@ -1640,26 +1721,30 @@ func _selectionner_convoi_au_port(port: Dictionary) -> void:
 	var cle := String(port.get("cle", ""))
 	for m in _convois_joueur:
 		if bool(m.get("a_quai", false)) and String(m.get("ville", "")) == cle:
-			_convoi_selectionne = int(m.get("indice", _convoi_selectionne))
-			sim.selectionner_convoi(_convoi_selectionne)
+			_selectionner([int(m.get("indice", _convoi_selectionne))])
 			return
 
 
 # Clic droit : on COMMANDE. Si un convoi du joueur est sélectionné, on l'envoie au
 # port visé. Sinon, le navire met le cap sur la mer cliquée, ou sur la rade du port.
 func _clic_droit() -> void:
-	# Un convoi sélectionné : le clic droit lui donne un port de destination.
-	if _convoi_selectionne != -1:
+	# Des convois sélectionnés : le clic droit les envoie TOUS au port visé.
+	if not _convois_selectionnes.is_empty():
 		var monde0 := proj.vers_monde(get_global_mouse_position())
 		var port0 := _port_survole
 		if port0.is_empty():
 			port0 = _port_proche(monde0, RAYON_CLIC_PORT)
 		if port0.is_empty():
-			_noter("Clique sur un port pour y envoyer le convoi sélectionné.")
+			_noter("Clique sur un port pour y envoyer le(s) convoi(s) sélectionné(s).")
 		else:
-			var res := sim.ordonner_convoi(_convoi_selectionne, String(port0.get("cle", "")))
-			if not bool(res.get("ok", false)):
-				_noter(String(res.get("message", "Ordre refusé.")))
+			var cle := String(port0.get("cle", ""))
+			var refus := ""
+			for ic in _convois_selectionnes:
+				var res := sim.ordonner_convoi(int(ic), cle)
+				if not bool(res.get("ok", false)):
+					refus = String(res.get("message", "Ordre refusé."))
+			if refus != "":
+				_noter(refus)
 		return
 
 	var port := _port_survole
