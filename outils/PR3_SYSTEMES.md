@@ -308,6 +308,28 @@ Copier PR3 au bit près ici demanderait de décompiler ce calcul de cible
 ordres de route. L'entrée et la forme sont connues ; c'est un sous-chantier à part
 entière, au gain comportemental modeste puisque la sim équilibre déjà la carte.
 
+### La structure d'une route commerciale — décodée
+
+Une route (le joueur en trace, l'IA en reçoit) est **une liste de `Waypoint`**
+(escales, chacune avec un `id` de ville et une position `posx/posy`) ; à chaque
+escale, une liste de `MoveableEntries` — les **ordres**. Le schéma d'un ordre,
+lu dans son (dé)sérialiseur (`0x8801C0`, `0x880D7C`) :
+
+    { town, office, good, amount, action = "set_goods" }
+
+soit : « à l'escale *town*, dans l'entrepôt *office*, amène la marchandise *good*
+à la quantité *amount* ». Le convoi charge si le stock est sous la cible, décharge
+s'il est au-dessus — la cible par bien et par escale que le joueur règle dans
+l'interface de route (« charger jusqu'à X », « décharger jusqu'à X »). Les
+**stratégies automatiques** (Profit, Prospérité, Matières premières, Matériaux de
+construction, Entrepôts vides — voir `PR3_TECHNIQUE.md` §5) sont des générateurs
+qui remplissent ces mêmes ordres tout seuls.
+
+C'est le modèle exact de PR3, joueur comme IA. La sim l'approxime par « charger le
+surplus au-dessus de X3, décharger dans le manque » (`sim/marchands.lua`) : porter
+les ordres `set_goods` par escale donnerait le comportement fidèle, et surtout
+permettrait au joueur de tracer de vraies routes automatiques.
+
 ## Population, main-d'œuvre et logement — la carte des champs
 
 Décodés sur l'objet économie de la ville (`[ville+0x6C]`, noté E) :
