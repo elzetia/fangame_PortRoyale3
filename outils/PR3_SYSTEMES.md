@@ -233,7 +233,7 @@ séquence exacte** de vingt étapes (esi = la ville, edi = le monde) :
 | 1 | `0x7BF8A0` | Seuils de prix X1–X4 **et** note de qualité de vie | **lu** |
 | 2 | `0x7C1930` | Tirage d'incendie / déclin selon la surpopulation (fabriques × 2 000 vs habitants) et la qualité | lu (structure) |
 | 3 | `0x7C2080` | Consommation des habitants + surconsommation des fléaux | **lu** |
-| 4 | `0x7C0040` | Coût de production par atelier : `Grundkosten` + salaires ÷ production → prix standard | **lu** |
+| 4 | `0x7C0040` | **Production** : chaque atelier consomme ses intrants (`0x75FDA0`) et produit ses sorties dans l'entrepôt (`0x75FD40`) **au prix = coût de production** (`Grundkosten` + salaires ÷ production). C'est ici que le stock d'un bien produit augmente | **décortiqué** |
 | 5 | `0x7BF160` | **Conseiller** : pour chaque problème qui dure depuis > 15 jours, lève un message avec une probabilité croissante `(nb × 3 + 10) × ancienneté` contre un tirage sur 1 000 (`0x841830` crée l'événement) | **lu** (décortiqué) |
 | 6 | `0x7C2400` | Événements et conseiller : famine, fléaux, bits de prospérité | **lu** |
 | 7 | `0x7C2B30` | Livraison de la production aux entrepôts (parcourt les ateliers) | lu (structure) |
@@ -248,6 +248,14 @@ séquence exacte** de vingt étapes (esi = la ville, edi = le monde) :
 | 16 | `0x7BF500` | Compteurs par nation | observé |
 | 17-19 | `0x855BD0`, `0x855C00`, `0x767F20` | Finalisation de la structure économique | observé |
 | 20 | `0x7C1B10` | Logement : bâtit des maisons à `FillRate` de remplissage | lu (structure) |
+
+**L'entrepôt d'un comptoir**, tel qu'il ressort de la production et de la
+consommation, a une disposition simple : le **stock** de chaque bien est à
+`[comptoir + bien×4 + 0x18]`, son **prix moyen d'acquisition** à
+`[comptoir + bien×4 + 0x68]`, et le **tonnage total** à `[comptoir + 0x14]`. Poser
+du stock (`0x75FD40`) met à jour le prix moyen pondéré ; en retirer (`0x75FDA0`)
+laisse le prix. La sim tient le même couple stock/prix moyen pour ses convois
+(`m.achats`).
 
 **La sim reproduit déjà les étapes 1, 3, 4, 5, 6, 7, 8, 9, 11 et 15** dans un
 `jour()` condensé (`sim/economie.lua`), et dans le même ordre relatif :
