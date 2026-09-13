@@ -405,11 +405,37 @@ suit le même schéma pour le bit de famine (bit 2).
 Un bourg peut donc sortir avec une flûte marchande, une grande ville avec trois
 pinasses.
 
-**La taille est revue** tous les `KiUpdateConvoySize` (7 680).
+**La taille est revue** tous les `KiUpdateConvoySize` (7 680) : `0x79DB00` resomme
+les habitants des villes servies à l'instant du calcul, donc les flottes de l'IA
+grossissent avec la population. La division par 1 900 est confirmée (multiplication
+magique `0x44FC3A35`, `shr 9` → ÷1 900,6), ce qui valide le `420 ÷ 1 900` de la
+sim. *La sim ne redimensionne pas* : ses convois tournent déjà à ~18 % de
+remplissage, la capacité n'est jamais le facteur limitant.
+
+**L'objet convoi**, tel que l'exposent ses vidages de débogage (`ConvoyBasics`
+`0x880390`, `ConvoyState` `0x880950`) :
+
+| Champ | Offset | Sens |
+|---|---|---|
+| `owner` | `+0x10` | le marchand (son `+0x40` = type, `+0x14`→`+0x34` = ville d'attache) |
+| `posx`, `posy` | `+0x48`, `+0x4A` | position sur la carte (mot) |
+| route | `+0x74` | un vecteur de villes (`TownName1 -X- TownName2`, `tripLength`) |
+| `order`, `state`, `aitype` | — | l'ordre courant, l'état, et le type d'IA |
+
+**L'architecture de l'IA marchande** (repérée par le registre d'inspecteurs de
+débogage `0x717940`) est une hiérarchie de classes : `Convoy`, `Ship`, `Captain`
+(avec six compétences `skill0…skill5` et un `learn`), `GoodsContainer`,
+`TradeContainer`, `LimitedContainer`, `StoreKeeper`, `Route`, `Office`,
+`OfficeBalance`, `Trader`, `World`. Le capitaine a donc des **compétences qui
+progressent**, et le commerce automatique passe par un `StoreKeeper` sur des
+`Route` persistantes (le joueur en trace de mêmes, dans PR3).
 
 **À quai**, un convoi passe `Einlaufzeit` (128) à entrer, puis `Einkaufszeit` et
-`Verkaufszeit` (64 chacun). Ses ordres passent par une machine à états (autour de
-`0x79C1A0`) dont le détail des trajets n'a pas été lu.
+`Verkaufszeit` (64 chacun). Le détail de la décision — quelle ville viser, quoi
+charger — vit dans cette hiérarchie de classes (`StoreKeeper` / `TradeContainer`
+/ `Route`) et non dans une formule isolée : c'est le seul morceau du modèle qui
+résiste à la lecture statique. Les trajets de la sim (un caboteur de voisinage,
+un long-courrier vers la ville la plus rentable) restent donc les nôtres.
 
 **Le commerce agit sur la réputation** (`0x7839E0`, `0x783B40`), tenue **par
 ville** — un tableau indexé par l'identifiant de la ville (`0x75CEF0`, une entrée
