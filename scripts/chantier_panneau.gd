@@ -1,12 +1,9 @@
-# L'écran du chantier naval.
+# Le chantier naval — écran tabulé fidèle à PR3 (DialogShipyard : TabShipyardBuild,
+# Buy, Sell, SellPirate, Repair). On porte les quatre gestes utiles : Acheter,
+# Construire, Vendre, Réparer. Propre à CE port et borné par son niveau de chantier.
 #
-# Le geste d'avant les routes : on s'y constitue une flotte. Choisir une ville et
-# un type de navire, puis ACHETER (plein prix, tout de suite) ou CONSTRUIRE (moins
-# d'or, mais il faut les matières au marché de la ville et un délai). Les navires
-# rejoignent la flotte possédée ; on les affecte ensuite à des routes.
-#
-# Comme le panneau des routes, ce n'est qu'une façade : tout le calcul (prix,
-# matières, délai, limites) vient du pont (sim/chantier + sim/compagnie).
+# Façade pure : prix, matières, délai, limites viennent du pont (sim/chantier +
+# sim/compagnie). La structure de PR3 fait foi.
 class_name ChantierPanneau
 extends CanvasLayer
 
@@ -19,28 +16,31 @@ const LIN        := Color(0.921, 0.888, 0.812)
 const ENCRE      := Color(0.16, 0.11, 0.07)
 
 var _sim: Object
-var _titre_port: Label
-var _type: OptionButton
-var _infos: RichTextLabel
+var _port: Dictionary = {}
+var _cadre: PanelContainer
+var _titre: Label
 var _msg: Label
-var _flotte_box: VBoxContainer
+var _types: Array = []            # types constructibles à ce port
+var _type_achat: OptionButton
+var _infos_achat: RichTextLabel
+var _type_constr: OptionButton
+var _infos_constr: RichTextLabel
 var _file_box: VBoxContainer
-var _port_courant: Dictionary = {}   # le chantier est propre à CE port
-var _types: Array = []               # index -> dico de type de navire (constructibles ici)
+var _vendre_box: VBoxContainer
 
 
 func _ready() -> void:
-	layer = 61
+	layer = 62
 	visible = false
 	_construire()
 
 
 func ouvrir(sim_obj: Object, port: Dictionary) -> void:
 	_sim = sim_obj
-	_port_courant = port
-	_titre_port.text = "Chantier de %s — niveau %d" % [
+	_port = port
+	_titre.text = "Chantier de %s — niveau %d" % [
 		String(port.get("nom", "?")), int(port.get("niveau_chantier", 0))]
-	_remplir_choix()
+	_remplir_types()
 	_maj_infos()
 	rafraichir()
 	visible = true
@@ -51,7 +51,7 @@ func fermer() -> void:
 	ferme.emit()
 
 
-func _label(txt: String, taille: int, couleur: Color) -> Label:
+func _lbl(txt: String, taille: int, couleur: Color) -> Label:
 	var l := Label.new()
 	l.text = txt
 	l.add_theme_font_size_override("font_size", taille)
@@ -71,8 +71,8 @@ func _construire() -> void:
 
 	var cadre := PanelContainer.new()
 	cadre.set_anchors_preset(Control.PRESET_CENTER)
-	cadre.custom_minimum_size = Vector2(760, 620)
-	cadre.position = Vector2(-380, -310)
+	cadre.custom_minimum_size = Vector2(720, 560)
+	cadre.position = Vector2(-360, -280)
 	var style := StyleBoxFlat.new()
 	style.bg_color = LIN
 	style.border_color = BOIS
@@ -82,154 +82,160 @@ func _construire() -> void:
 	cadre.add_theme_stylebox_override("panel", style)
 	cadre.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(cadre)
+	_cadre = cadre
 
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 10)
+	col.add_theme_constant_override("separation", 8)
 	cadre.add_child(col)
 
 	var titre_ligne := HBoxContainer.new()
 	col.add_child(titre_ligne)
-	var titre := _label("Chantier naval", 26, BOIS)
-	titre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	titre_ligne.add_child(titre)
+	_titre = _lbl("Chantier naval", 24, BOIS)
+	_titre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	titre_ligne.add_child(_titre)
 	var fermer_b := Button.new()
 	fermer_b.text = "Fermer"
 	fermer_b.pressed.connect(fermer)
 	titre_ligne.add_child(fermer_b)
 
-	var deux := HBoxContainer.new()
-	deux.add_theme_constant_override("separation", 16)
-	deux.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	col.add_child(deux)
+	var tabs := TabContainer.new()
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_child(tabs)
+	tabs.add_child(_onglet_acheter())
+	tabs.add_child(_onglet_construire())
+	tabs.add_child(_onglet_vendre())
+	tabs.add_child(_onglet_reparer())
+	tabs.set_tab_title(0, "Acheter")
+	tabs.set_tab_title(1, "Construire")
+	tabs.set_tab_title(2, "Vendre")
+	tabs.set_tab_title(3, "Réparer")
 
-	# --- gauche : commander un navire ---------------------------------------
-	var gauche := VBoxContainer.new()
-	gauche.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gauche.add_theme_constant_override("separation", 6)
-	deux.add_child(gauche)
-
-	gauche.add_child(_label("Commander un navire", 18, BOIS_CLAIR))
-	# Le chantier est propre à ce port : son nom et son niveau, pas de choix de ville.
-	_titre_port = _label("", 13, BOIS)
-	gauche.add_child(_titre_port)
-
-	gauche.add_child(_label("Type de navire", 13, ENCRE))
-	_type = OptionButton.new()
-	_type.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_type.item_selected.connect(func(_i: int) -> void: _maj_infos())
-	gauche.add_child(_type)
-
-	_infos = RichTextLabel.new()
-	_infos.bbcode_enabled = true
-	_infos.fit_content = true
-	_infos.custom_minimum_size = Vector2(0, 150)
-	_infos.add_theme_color_override("default_color", ENCRE)
-	gauche.add_child(_infos)
-
-	var boutons := HBoxContainer.new()
-	boutons.add_theme_constant_override("separation", 8)
-	gauche.add_child(boutons)
-	var acheter_b := Button.new()
-	acheter_b.text = "Acheter"
-	acheter_b.pressed.connect(_acheter)
-	boutons.add_child(acheter_b)
-	var construire_b := Button.new()
-	construire_b.text = "Construire"
-	construire_b.pressed.connect(_construire_navire)
-	boutons.add_child(construire_b)
-
-	_msg = _label("", 13, Color(0.5, 0.1, 0.1))
+	_msg = _lbl("", 13, Color(0.5, 0.1, 0.1))
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD
-	gauche.add_child(_msg)
+	col.add_child(_msg)
 
-	# --- droite : flotte et constructions -----------------------------------
-	var droite := VBoxContainer.new()
-	droite.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	droite.add_theme_constant_override("separation", 6)
-	deux.add_child(droite)
 
-	droite.add_child(_label("En construction", 16, BOIS_CLAIR))
+func _onglet_acheter() -> Control:
+	var v := VBoxContainer.new()
+	v.name = "Acheter"
+	v.add_theme_constant_override("separation", 6)
+	v.add_child(_lbl("Acheter un navire tout fait (livré aussitôt)", 15, BOIS_CLAIR))
+	_type_achat = OptionButton.new()
+	_type_achat.item_selected.connect(func(_i: int) -> void: _maj_infos())
+	v.add_child(_type_achat)
+	_infos_achat = RichTextLabel.new()
+	_infos_achat.bbcode_enabled = true
+	_infos_achat.fit_content = true
+	_infos_achat.custom_minimum_size = Vector2(0, 120)
+	_infos_achat.add_theme_color_override("default_color", ENCRE)
+	v.add_child(_infos_achat)
+	var b := Button.new()
+	b.text = "Acheter"
+	b.pressed.connect(func() -> void:
+		_apres(_sim.acheter_navire(String(_port.get("cle", "")), _cle(_type_achat))))
+	v.add_child(b)
+	return v
+
+
+func _onglet_construire() -> Control:
+	var v := VBoxContainer.new()
+	v.name = "Construire"
+	v.add_theme_constant_override("separation", 6)
+	v.add_child(_lbl("Construire un navire (or + matières + délai)", 15, BOIS_CLAIR))
+	_type_constr = OptionButton.new()
+	_type_constr.item_selected.connect(func(_i: int) -> void: _maj_infos())
+	v.add_child(_type_constr)
+	_infos_constr = RichTextLabel.new()
+	_infos_constr.bbcode_enabled = true
+	_infos_constr.fit_content = true
+	_infos_constr.custom_minimum_size = Vector2(0, 120)
+	_infos_constr.add_theme_color_override("default_color", ENCRE)
+	v.add_child(_infos_constr)
+	var b := Button.new()
+	b.text = "Construire"
+	b.pressed.connect(func() -> void:
+		_apres(_sim.construire_navire(String(_port.get("cle", "")), _cle(_type_constr))))
+	v.add_child(b)
+	v.add_child(_lbl("En construction ici", 14, BOIS_CLAIR))
 	_file_box = VBoxContainer.new()
 	_file_box.add_theme_constant_override("separation", 3)
-	droite.add_child(_file_box)
+	v.add_child(_file_box)
+	return v
 
-	droite.add_child(_label("Navires à ce port (revente / réparation)", 16, BOIS_CLAIR))
+
+func _onglet_vendre() -> Control:
+	var v := VBoxContainer.new()
+	v.name = "Vendre"
+	v.add_theme_constant_override("separation", 6)
+	v.add_child(_lbl("Vendre un navire de la flotte présent ici", 15, BOIS_CLAIR))
 	var defil := ScrollContainer.new()
 	defil.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	defil.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	droite.add_child(defil)
-	_flotte_box = VBoxContainer.new()
-	_flotte_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_flotte_box.add_theme_constant_override("separation", 3)
-	defil.add_child(_flotte_box)
+	v.add_child(defil)
+	_vendre_box = VBoxContainer.new()
+	_vendre_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_vendre_box.add_theme_constant_override("separation", 4)
+	defil.add_child(_vendre_box)
+	return v
 
 
-func _remplir_choix() -> void:
-	if _sim == null:
-		return
-	# Seuls les navires que le chantier de CE port peut fournir (niveau requis ≤
-	# niveau du chantier).
-	var niveau := int(_port_courant.get("niveau_chantier", 0))
+func _onglet_reparer() -> Control:
+	var v := VBoxContainer.new()
+	v.name = "Réparer"
+	v.add_theme_constant_override("separation", 6)
+	v.add_child(_lbl("Réparer", 15, BOIS_CLAIR))
+	v.add_child(_lbl("Disponible quand les combats abîmeront les coques : sans avarie, "
+		+ "rien à réparer. Tarif de PR3 : Kosten 50 par unité de coque, Zeit 30.",
+		12, ENCRE))
+	return v
+
+
+func _cle(ob: OptionButton) -> String:
+	if ob.selected >= 0 and ob.selected < _types.size():
+		return String(_types[ob.selected].get("cle", ""))
+	return ""
+
+
+func _remplir_types() -> void:
+	var niveau := int(_port.get("niveau_chantier", 0))
 	_types = []
 	for n in _sim.navires_marchands():
 		var req := int(_sim.chantier_infos(String(n.get("cle", ""))).get("niveau_requis", 99))
 		if req <= niveau:
 			_types.append(n)
-	_type.clear()
-	for i in _types.size():
-		_type.add_item(String(_types[i].get("nom", "?")), i)
-	if _types.is_empty():
-		_type.add_item("(aucun navire à ce niveau)", -1)
-
-
-func _type_choisi() -> String:
-	if _type.selected >= 0 and _type.selected < _types.size():
-		return String(_types[_type.selected].get("cle", ""))
-	return ""
-
-
-func _ville_choisie() -> String:
-	return String(_port_courant.get("cle", ""))
+	for ob in [_type_achat, _type_constr]:
+		ob.clear()
+		for i in _types.size():
+			ob.add_item(String(_types[i].get("nom", "?")), i)
+		if _types.is_empty():
+			ob.add_item("(aucun navire à ce niveau)", -1)
 
 
 func _maj_infos() -> void:
 	if _sim == null:
 		return
-	var cle := _type_choisi()
-	if cle == "":
-		_infos.text = ""
-		return
-	var d: Dictionary = _sim.chantier_infos(cle)
-	var mats := ""
-	for m in (d.get("materiaux", []) as Array):
-		mats += "  %d %s" % [int(m.get("quantite", 0)), String(m.get("nom", "?"))]
-	if mats == "":
-		mats = " —"
-	_infos.text = ("[b]Acheter[/b] : %s pièces, livré tout de suite.\n"
-		+ "[b]Construire[/b] : %s pièces + %d jours.\n"
-		+ "[b]Matières[/b] (au marché de la ville) :%s") % [
-		_nombre(int(d.get("prix_achat", 0))), _nombre(int(d.get("cout_construction", 0))),
-		int(d.get("jours", 0)), mats]
+	var ca := _cle(_type_achat)
+	if ca != "":
+		var d: Dictionary = _sim.chantier_infos(ca)
+		_infos_achat.text = "[b]Prix d'achat[/b] : %s pièces, livré tout de suite." % _nombre(int(d.get("prix_achat", 0)))
+	var cc := _cle(_type_constr)
+	if cc != "":
+		var d2: Dictionary = _sim.chantier_infos(cc)
+		var mats := ""
+		for m in (d2.get("materiaux", []) as Array):
+			mats += "  %d %s" % [int(m.get("quantite", 0)), String(m.get("nom", "?"))]
+		if mats == "":
+			mats = " —"
+		_infos_constr.text = ("[b]Construction[/b] : %s pièces + %d jours.\n[b]Matières[/b] (au marché de la ville) :%s") % [
+			_nombre(int(d2.get("cout_construction", 0))), int(d2.get("jours", 0)), mats]
 
 
-func _acheter() -> void:
-	if _sim == null:
-		return
-	var res: Dictionary = _sim.acheter_navire(_ville_choisie(), _type_choisi())
-	_apres_commande(res)
-
-
-func _construire_navire() -> void:
-	if _sim == null:
-		return
-	var res: Dictionary = _sim.construire_navire(_ville_choisie(), _type_choisi())
-	_apres_commande(res)
-
-
-func _apres_commande(res: Dictionary) -> void:
+func _apres(res: Dictionary) -> void:
 	if bool(res.get("ok", false)):
 		_msg.add_theme_color_override("font_color", Color(0.1, 0.4, 0.1))
-		_msg.text = "Commande passée."
+		var somme := int(res.get("somme", 0))
+		_msg.text = "Fait." if somme == 0 else "Vendu (%s pièces)." % _nombre(somme)
 		rafraichir()
 	else:
 		_msg.add_theme_color_override("font_color", Color(0.5, 0.1, 0.1))
@@ -237,56 +243,40 @@ func _apres_commande(res: Dictionary) -> void:
 
 
 func rafraichir() -> void:
-	if _sim == null or _flotte_box == null:
+	if _sim == null or _file_box == null:
 		return
-	var ici := String(_port_courant.get("cle", ""))
-
-	# Les constructions en cours À CE PORT.
+	var ici := String(_port.get("cle", ""))
 	for e in _file_box.get_children():
 		e.queue_free()
-	var n_file := 0
+	var n := 0
 	for b in _sim.chantier_file():
 		if String(b.get("ville_cle", "")) == ici:
-			_file_box.add_child(_label("%s — %d j" % [
-				String(b.get("nom", "?")), int(b.get("jours", 0))], 12, ENCRE))
-			n_file += 1
-	if n_file == 0:
-		_file_box.add_child(_label("Aucune construction en cours ici.", 12, ENCRE))
+			_file_box.add_child(_lbl("%s — %d j" % [String(b.get("nom", "?")), int(b.get("jours", 0))], 12, ENCRE))
+			n += 1
+	if n == 0:
+		_file_box.add_child(_lbl("Aucune construction en cours ici.", 12, ENCRE))
 
-	# Les navires possédés À CE PORT : chacun vendable (ou réparable, à terme).
-	for e in _flotte_box.get_children():
+	for e in _vendre_box.get_children():
 		e.queue_free()
-	var n_ici := 0
+	var m := 0
 	for s in _sim.flotte():
 		if String(s.get("attache", "")) != ici:
 			continue
-		n_ici += 1
+		m += 1
 		var ligne := HBoxContainer.new()
 		ligne.add_theme_constant_override("separation", 8)
-		var nom := _label("%s — %s, %d t" % [
+		var nom := _lbl("%s — %s, %d t" % [
 			String(s.get("nom", "?")), String(s.get("type", "?")), int(s.get("cale", 0))], 13, BOIS)
 		nom.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		ligne.add_child(nom)
 		var vendre := Button.new()
 		vendre.text = "Vendre %s" % _nombre(int(_sim.chantier_infos(String(s.get("cle", ""))).get("prix_revente", 0)))
-		vendre.add_theme_font_size_override("font_size", 11)
 		var idx := int(s.get("indice", 0))
-		vendre.pressed.connect(func() -> void:
-			var res: Dictionary = _sim.vendre_navire(idx)
-			if bool(res.get("ok", false)):
-				_msg.add_theme_color_override("font_color", Color(0.1, 0.4, 0.1))
-				_msg.text = "Navire vendu (%s pièces)." % _nombre(int(res.get("somme", 0)))
-			else:
-				_msg.add_theme_color_override("font_color", Color(0.5, 0.1, 0.1))
-				_msg.text = String(res.get("message", "Échec."))
-			rafraichir())
+		vendre.pressed.connect(func() -> void: _apres(_sim.vendre_navire(idx)))
 		ligne.add_child(vendre)
-		_flotte_box.add_child(ligne)
-	if n_ici == 0:
-		_flotte_box.add_child(_label("Aucun navire à ce port. Achète ou construis.", 12, ENCRE))
-	# La réparation viendra avec le combat : sans avarie de coque, rien à réparer.
-	_flotte_box.add_child(_label("Réparation : disponible quand les combats abîmeront les coques.",
-		11, Color(0.4, 0.33, 0.2)))
+		_vendre_box.add_child(ligne)
+	if m == 0:
+		_vendre_box.add_child(_lbl("Aucun navire à ce port.", 12, ENCRE))
 
 
 func _nombre(n: int) -> String:
