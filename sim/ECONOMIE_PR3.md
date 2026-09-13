@@ -612,24 +612,26 @@ Tout ce qui précède et qui se simule sans bâtiments ni combats est dans `sim/
 | Faim : aliments manquants à partir de −3, denrées à partir de −12, pas de famine sous 300 habitants | `sim/economie.lua` |
 | 25 ouvriers par atelier, 4 citoyens par emploi, 100 locataires par maison | `sim/economie.lua` |
 | **Qualité de vie sur cent, par quatre groupes de denrées ; sept niveaux de prospérité** | `sim/economie.lua` |
-| **Croissance et déclin gradués par la prospérité : Pauvreté −2 %/j, Récession −1 %/j, Prospérité +colons, freinés par la subsistance** | `sim/economie.lua` |
+| **Croissance exacte de PR3 : citoyens → capacité de logement, `(capacité − citoyens) × facteur ÷ 200` ; capacité = maisons × 100, maisons vers citoyens/100+1. Déclin au tutoriel (Pauvreté −2 %/j, Récession −1 %/j)** | `sim/economie.lua` |
+| **Efficacité des ateliers : production = capacité × efficacité ; −1 point/jour si intrants manquants, +1 sinon (inertie de PR3)** | `sim/economie.lua` |
 | **Série de prix « pénurie » par ville, levée par un compteur de manque lissé (seuil 24)** | `sim/economie.lua` |
 | Seize navires, leur cale, leur vitesse maximale et leur entretien journalier | `sim/navires.lua` |
 | Entretien du navire du joueur, prélevé chaque jour | `sim/compagnie.lua` |
 | 2 convois IA par ville, cale visée de habitants × 420 ÷ 1 900, 1 à 3 navires tirés au hasard, 90 000 pièces | `sim/marchands.lua` |
 | **Or d'un convoi plafonné à son capital de travail ; le débordement bâtit des ateliers pour les chaînes faibles (comme l'IA de PR3)** | `sim/marchands.lua` |
 | **Réputation du joueur par ville, montée en comblant un manque, baissée en le creusant (moyenne par nation pour l'affichage)** | `sim/compagnie.lua` |
-| **Fléaux (peste, sauterelles, feu) : consommation doublée sur leurs denrées, peste mortelle ; tirés surtout dans les villes mal loties** | `sim/economie.lua` |
+| **Fléaux (peste, sauterelles, feu) : consommation doublée sur leurs denrées, peste mortelle ; tirés selon la SURPOPULATION (habitants / capacité)** | `sim/economie.lua` |
 
-Mesuré sur douze ans par `tools/equilibre.gd`, à partir de 82 500 habitants :
-- **Population** : elle monte régulièrement puis plafonne autour de 160 000 (un peu
-  moins qu'avant les fléaux, qui coûtent quelques habitants).
-- **Famine** : de 0 à 6 villes selon les années.
-- **Pénurie générale** : 0 à 1 ville.
-- **Or moyen d'un convoi** : borné, autour de 65 000 à 85 000 pièces (au lieu de
-  s'envoler vers plusieurs millions).
-- **Ateliers à douze ans** : métal et tissu 91 %, cordage 80 %, viande et vêtements
-  60 %, café 59 %, outils 57 %, pain 48 %, rhum 37 %, cacao 22 %.
+Mesuré sur douze ans par `tools/equilibre.gd`, à partir de 82 500 habitants, avec
+le modèle de croissance exact de PR3 :
+- **Population** : elle monte en douceur puis plafonne autour de 162 000, plus
+  homogène (min ~900, max ~6 000) car bornée par le logement bâti.
+- **Famine** : de 6 à 9 villes selon les années.
+- **Pénurie générale** : 2 à 4 villes.
+- **Or moyen d'un convoi** : borné, autour de 55 000 à 70 000 pièces.
+- **Ateliers à douze ans** : métal 79-93 %, tissu 63-71 %, outils 48-72 %, viande
+  56-67 %, café 34-49 %, vêtements 34-50 %, rhum 23-50 %, cacao ~20 %, pain 16-20 %
+  (l'inertie d'efficacité abaisse les chaînes chroniquement privées d'intrants).
 
 Le pain, qui restait la chaîne la plus faible (24 %), monte à 48 % ; les vêtements
 passent de 33 % à 60 %. La construction de l'IA comble les chaînes dont les
