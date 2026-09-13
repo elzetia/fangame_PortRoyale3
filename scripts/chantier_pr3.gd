@@ -367,7 +367,10 @@ func _rafraichir_page() -> void:
 	_poser("tf_cost", str(int(fiche.get("entretien", 0))))
 	_poser("tf_cannon", str(int(fiche.get("canons", 0))))
 	_poser("tf_crew", str(int(fiche.get("equipage", 0))))
-	_poser("tf_draft", "—")
+	# Le tirant est une CLASSE (0, 1, 2) et non une profondeur : PR3 ne garde de
+	# `Gauge` que son reste modulo 3. C'est pourquoi son écran affiche « 0 » pour
+	# le sloop.
+	_poser("tf_draft", str(int(fiche.get("tirant", 0))) if fiche.has("tirant") else "—")
 
 	match _scene:
 		"exports.Tab_Shipyard_buy":

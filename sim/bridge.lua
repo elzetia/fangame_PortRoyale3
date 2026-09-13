@@ -493,13 +493,19 @@ function Bridge.navires_marchands()
     -- (tf_barrels, tf_heart, tf_wheel, tf_knot, tf_cost) : la fiche du navire
     -- les porte déjà, le pont ne les laissait pas passer.
     d.coque = n.coque
-    -- Canons et équipage, relevés dans `ini/constdata.dat` : chaque navire y
-    -- porte ses positions de canon (blocs de 16 octets, trois flottants), mais
-    -- d'UN SEUL bord — le jeu mire l'autre. D'où canons = 2 × positions, et
-    -- équipage = canons × `[Ship] CrewmenAtGun` (5). Vérifié sur le sloop, que
-    -- PR3 affiche à 14 canons et 70 marins pour 7 positions.
+    -- Canons et équipage, relevés dans `ini/constdata.dat` : l'enregistrement
+    -- déclare son nombre de positions de canon, puis autant d'entrées de 21
+    -- octets. Il n'en garde qu'UN SEUL bord — le jeu mire l'autre. D'où
+    -- canons = 2 × positions, et équipage = canons × `[Ship] CrewmenAtGun` (5).
+    -- Vérifié sur le sloop, que PR3 affiche à 14 canons et 70 marins pour 7
+    -- positions ; les seize navires concordent avec le fichier du jeu.
     d.canons = n.canons
     d.equipage = n.equipage
+    -- Le tirant d'eau de PR3 n'est pas une profondeur mais une CLASSE 0/1/2 :
+    -- son chargeur lit `Gauge` puis n'en garde que le reste modulo 3
+    -- (`idiv ecx` avec ecx = 3, en `0x85fe34`). Le sloop y vaut 0, ce que
+    -- l'écran du chantier de PR3 affiche bien comme « 0 ».
+    d.tirant = n.tirant
     d.maniabilite = n.maniabilite
     d.vmax = n.vmax
     d.vmin = n.vmin

@@ -207,10 +207,17 @@ navires. Une colonne n'est retenue qu'au-delà de quatorze concordances sur seiz
 
 ### Les canons, et l'équipage qui s'en déduit
 
-Après les deux noms viennent des blocs de **16 octets** : un préfixe puis trois
-flottants, soit la **position (x, y, z) d'un canon**. Le fichier n'en garde
-qu'**un seul bord** — pour un navire donné, toutes les positions partagent le
-signe de leur x — et le jeu mire l'autre. D'où :
+Après les deux noms, l'enregistrement **déclare son compte** : un octet de garde,
+puis un `u32` qui donne le nombre de positions de canon. Suivent autant d'entrées
+de **21 octets** — un octet de garde, un `u32` égal à 4 (le nombre de flottants),
+puis quatre flottants : x, y, z et un quatrième toujours nul.
+
+C'était d'abord décrit comme des blocs de 16 octets à trois flottants, trouvés
+par reconnaissance de motif. La lecture du compte déclaré donne les mêmes valeurs
+sur quinze navires et **corrige le seizième** (voir plus bas).
+
+Le fichier ne garde qu'**un seul bord** — pour un navire donné, toutes les
+positions partagent le signe de leur x — et le jeu mire l'autre. D'où :
 
 ```
 canons   = 2 × nombre de positions
@@ -219,8 +226,15 @@ canons   = 2 × nombre de positions
 
 Vérifié sur une capture du jeu : le sloop y affiche **14 canons et 70 marins**,
 et `constdata` lui donne **7 positions**. Deux champs indépendants qui tombent
-juste. De la pinasse (4 positions → 8 canons) au vaisseau de ligne (26 → 52), la
+juste. De la pinasse (4 positions → 8 canons) au vaisseau de ligne (25 → 50), la
 série est monotone avec le prix et le tonnage.
+
+Le vaisseau de ligne en portait 26 dans la première lecture ; son compte déclaré
+dit **25**. La structure tranche : à 25 positions, le triplet qui suit vaut
+`02 04 02` — quatre mâts, tirant de classe 2, l'un et l'autre valides ; à 26, il
+tomberait sur `00 00 00`, et un navire à **zéro mât** n'existe pas. Le motif de
+cinq octets qui clôt l'enregistrement se retrouve alors au même endroit que chez
+la pinasse et le sloop.
 
 | navire | positions | canons | équipage |
 |---|---:|---:|---:|
@@ -234,7 +248,7 @@ série est monotone avec le prix et le tonnage.
 | frégate combat, galion | 18 | 36 | 180 |
 | caraque, caravelle | 20 | 40 | 200 |
 | galion de guerre | 23 | 46 | 230 |
-| vaisseau de ligne | 26 | 52 | 260 |
+| vaisseau de ligne | 25 | 50 | 250 |
 
 ### Colonnes prouvées, seconde passe
 
@@ -272,17 +286,64 @@ En appliquant le décalage d'un navire, la colonne `+5` donne :
 | barque, barque pirate | 3 | | galion de guerre | **4** |
 
 Un sloop à un mât, un galion de guerre à quatre, une pinasse à deux : la série
-est historiquement juste sur les quinze navires mesurables. C'est `Masts`.
+est historiquement juste. C'est `Masts`. Le vaisseau de ligne, longtemps hors
+d'atteinte faute de voisin où lire sa colonne, en porte **4** lui aussi : les
+seize navires sont désormais lus, par le compte de canons déclaré.
 
 Nuance de méthode : contrairement aux colonnes ci-dessus, celle-ci n'est pas
 vérifiée contre une valeur numérique connue mais contre la vraisemblance du
 domaine. Solidement indiquée, donc, plutôt que prouvée.
 
+### `Gauge` n'est pas une profondeur mais une CLASSE — prouvé
+
+La colonne `+7` avait d'abord été proposée puis écartée à juste titre. Le
+chargeur tranche la question, en `0x85fe2f` :
+
+```
+0085fe25  push 0
+0085fe27  push 0xb7be6c      ; "Gauge"
+0085fe2d  mov ecx, edi
+0085fe2f  call 0x89d6e0      ; lecteur d'entier
+0085fe34  cdq
+0085fe35  mov ecx, 3
+0085fe3a  idiv ecx           ; DIVISE PAR TROIS
+0085fe3f  mov byte [ebp-0x118], dl   ; et ne garde que le RESTE
+```
+
+Le jeu ne conserve donc que `Gauge mod 3` : un tirant d'eau à **trois niveaux**,
+0, 1 ou 2 — et non une profondeur. C'est ce qui explique le « 0 » affiché au
+chantier pour le sloop, qu'on avait pris pour un champ vide.
+
+La colonne est à **+6** de la fenêtre, soit `ancre(suivant) − 114`. L'ancrage se
+vérifie sans rien supposer du domaine : à `ancre(suivant) − 115`, la colonne `+5`
+reproduit **11 fois sur 11** les mâts publiés ci-dessus (sloop 1, brick 2, galion
+de guerre 4) ; sa voisine `+6` tient dans 0..2 pour les quinze navires, ce que la
+voisine `+4` ne fait pas — celle-ci porte des masques (15, 143, 255, 8…), c'est
+`Nations`. Les trois se suivent dans l'ordre même du chargeur.
+
+L'appartenance au navire *précédent* est elle aussi structurelle et non
+seulement vraisemblable : le triplet tombe toujours **quinze octets avant le bloc
+numérique du navire suivant**, sur les quinze paires mesurables.
+
+| classe | navires |
+|---|---|
+| **0** | pinasse, sloop, brick, barque, barque pirate, corvette, corvette combat |
+| **1** | flûte, flûte commerciale, frégate, frégate combat |
+| **2** | galion, caraque, caravelle, galion de guerre |
+
+La classe suit la **carène** et non le tonnage, ce qui est physiquement juste :
+la flûte commerciale (800 tonneaux) est en classe 1, le galion de guerre (400)
+en classe 2.
+
+Le **vaisseau de ligne** a d'abord échappé à cette mesure : tant qu'on ancrait le
+triplet sur le navire *suivant*, le dernier des seize n'en avait pas. Le compte
+de canons déclaré lève l'obstacle — le triplet suit la dernière position de
+canon, sans rien devoir au voisin. Il vaut `Nations=2`, `Masts=4`, `Gauge=2` :
+quatre mâts et le tirant le plus fort, ce qu'on attend du plus gros navire du
+jeu. **Les seize sont lus.**
+
 ### Ce qui n'est toujours PAS établi
 
-- **`Gauge` (tirant d'eau).** La colonne `+7` était le candidat le plus plausible ;
-  elle est écartée : elle n'égale `vmax/4` qu'une fois sur quinze et n'est pas
-  monotone avec la taille (corvette 42 contre vaisseau de ligne 36).
 - **Les colonnes flottantes** (+52, +64, +68, +84, +100, +108) : huit navires y
   partagent exactement les mêmes valeurs (5.5, 2.75, 7.0, 15.0, 16.0). Valeurs
   par défaut partagées ou mauvaise lecture — indécidable par inspection seule.
