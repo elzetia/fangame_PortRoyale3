@@ -231,7 +231,7 @@ séquence exacte** de vingt étapes (esi = la ville, edi = le monde) :
 | # | Fonction | Rôle | État |
 |---|---|---|---|
 | 1 | `0x7BF8A0` | Seuils de prix X1–X4 **et** note de qualité de vie | **lu** |
-| 2 | `0x7C1930` | Tirage d'incendie / déclin selon la surpopulation (fabriques × 2 000 vs habitants) et la qualité | lu (structure) |
+| 2 | `0x7C1930` | **Déclencheur de fléau/feu par surpopulation** : si citoyens > `[+0x112] × 2000` (seuil de logement), un tirage `RNG % 30000` déclenche un événement négatif — d'autant plus probable que la ville est surpeuplée | **décortiqué** |
 | 3 | `0x7C2080` | Consommation des habitants + surconsommation des fléaux | **lu** |
 | 4 | `0x7C0040` | **Production** : chaque atelier consomme ses intrants (`0x75FDA0`) et produit ses sorties dans l'entrepôt (`0x75FD40`) **au prix = coût de production** (`Grundkosten` + salaires ÷ production). C'est ici que le stock d'un bien produit augmente | **décortiqué** |
 | 5 | `0x7BF160` | **Conseiller** : pour chaque problème qui dure depuis > 15 jours, lève un message avec une probabilité croissante `(nb × 3 + 10) × ancienneté` contre un tirage sur 1 000 (`0x841830` crée l'événement) | **lu** (décortiqué) |
@@ -242,12 +242,19 @@ séquence exacte** de vingt étapes (esi = la ville, edi = le monde) :
 | 10 | `0x7C0920` | Emploi et efficacité : lit les ouvriers d'un atelier (`+0x84`), la **réduit de moitié** en cas de manque d'ouvriers ou d'intrants, et déclenche les vérifications de construction (`0x7CBD40`/`0x7CB8E0`) | **décortiqué** |
 | 11 | `0x7C1E40` | Construction par l'IA : bâtit un atelier si demande > `Bauquotient` × production | **lu** |
 | 12 | `0x7C1A80` | Accumulation offre/demande par bien | observé |
-| 13 | `0x7C1600` | Défense / garnison selon la taille de la ville | observé |
+| 13 | `0x7C1600` | Garnison / défense selon la taille (militaire, hors économie) | **caractérisé** |
 | 14 | `0x7BF2E0` | Conseiller (message d'immigration si `(+0x120 − +0x11C)/3 ≠ 0` et prospérité basse) + ajustement d'un bien sur les 4 premiers | **décortiqué** |
 | 15 | `0x7BF3D0` | **Emploi** : ouvriers employés → cible (citoyens ÷ 4 selon la taille) d'au plus 10/jour, depuis le vivier d'ouvriers (voir « Population, main-d'œuvre et logement ») | **décortiqué** |
-| 16 | `0x7BF500` | Compteurs par nation | observé |
-| 17-19 | `0x855BD0`, `0x855C00`, `0x767F20` | Finalisation de la structure économique | observé |
-| 20 | `0x7C1B10` | Logement : bâtit des maisons à `FillRate` de remplissage | lu (structure) |
+| 16 | `0x7BF500` | Met à jour des compteurs par nation à partir des citoyens (statistiques, non économique) | **caractérisé** |
+| 17-19 | `0x855BD0`, `0x855C00`, `0x767F20` | **Indicateurs dérivés** : emploi %, richesse par tête (`citoyens × 100 × 100`), et publication des champs de synthèse de la ville (`+0x134…+0x140` : actElq, actAlq…). Ne changent pas l'état, ils le publient | **décortiqué** |
+| 20 | `0x7C1B10` | Logement : bâtit/retire des maisons pour viser `citoyens ÷ 100 + 1` (100 locataires/maison → capacité `maisons × 100`) | **décortiqué** |
+
+**L'état économique d'une ville est donc entièrement décortiqué** : toutes les
+étapes qui MODIFIENT l'état (2 fléau, 3 consommation, 4 production, 6 prospérité,
+7 efficacité, 8 niveau, 9 croissance, 10-15 emploi, 11 construction, 20 logement)
+ont leur math exacte ci-dessus et dans `ECONOMIE_PR3.md`. Les étapes 5, 12, 13, 16,
+17-19 sont du conseiller, de la détection d'inactivité, de la garnison, des
+compteurs et des indicateurs dérivés — elles lisent l'état, ne le changent pas.
 
 **L'entrepôt d'un comptoir**, tel qu'il ressort de la production et de la
 consommation, a une disposition simple : le **stock** de chaque bien est à
@@ -378,7 +385,12 @@ complet :
 Les trois premiers manques (`missing_raw`, `missing_worker`, `nofood`) et
 `townwealth` sont exactement ce que la sim calcule (rendement des ateliers,
 subsistance, qualité) ; `Bridge.besoin_prioritaire` et `etat_ville` en sont
-l'écho. Les événements recouvrent les fléaux (§ économie).
+l'écho. Les événements recouvrent les fléaux (§ économie). **Leur déclencheur est décodé**
+(`0x7C1930`, étape 2 de la journée) : c'est la **surpopulation** — quand les
+citoyens dépassent un seuil dérivé du logement (`[+0x112] × 2000`), un tirage
+`RNG % 30000` peut déclencher un fléau, d'autant plus probable que la ville est
+surpeuplée. (La sim les tire d'après la qualité de vie, ce qui en est une
+approximation raisonnable.)
 
 Les missions et quêtes de la campagne sont une couche scriptée par-dessus (durée
 d'affichage `[MissionDuration]`, comptage `[EventCount]`, drapeaux de nations
