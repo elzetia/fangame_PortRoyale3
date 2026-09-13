@@ -489,6 +489,16 @@ function Bridge.navires_marchands()
     d.cale = n.cale
     d.prix = n.prix
     d.entretien = n.entretien
+    -- Les statistiques que l'écran de chantier de PR3 affiche en grille
+    -- (tf_barrels, tf_heart, tf_wheel, tf_knot, tf_cost) : la fiche du navire
+    -- les porte déjà, le pont ne les laissait pas passer.
+    d.coque = n.coque
+    d.maniabilite = n.maniabilite
+    d.vmax = n.vmax
+    d.vmin = n.vmin
+    d.construction = n.construction
+    d.militaire = n.militaire and true or false
+    d.modele = n.modele
     a:append(d)
   end
   return a

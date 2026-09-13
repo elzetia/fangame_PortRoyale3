@@ -51,7 +51,7 @@ func ouvrir(sim_obj: Object, port: Dictionary) -> void:
 	_sim = sim_obj
 	_port = port
 	_titre.text = "%s — chantier niveau %d" % [
-		String(port.get("nom", "?")), int(port.get("niveau_chantier", 0))]
+		str(port.get("nom", "?")), int(port.get("niveau_chantier", 0))]
 	_remplir_types()
 	_poser_page()
 	visible = true
@@ -98,12 +98,12 @@ func _batir() -> void:
 	var x := 20.0
 	for nom in ONGLETS.keys():
 		var b := Button.new()
-		b.text = String(nom)
+		b.text = str(nom)
 		b.position = Vector2(x, 62)
 		b.custom_minimum_size = Vector2(96, 28)
 		b.add_theme_font_size_override("font_size", 14)
 		b.focus_mode = Control.FOCUS_NONE
-		b.pressed.connect(_choisir.bind(String(nom)))
+		b.pressed.connect(_choisir.bind(str(nom)))
 		_racine.add_child(b)
 		x += 100.0
 
@@ -129,7 +129,7 @@ func _poser_page() -> void:
 	if _page != null:
 		_page.queue_free()
 		_page = null
-	var scene := String(ONGLETS.get(_onglet, ""))
+	var scene := str(ONGLETS.get(_onglet, ""))
 	if scene == "":
 		return
 	_page = EcranPR3.batir(SWF, scene)
@@ -141,7 +141,7 @@ func _poser_page() -> void:
 
 func _cle_choisie() -> String:
 	if _type.selected >= 0 and _type.selected < _types.size():
-		return String(_types[_type.selected].get("cle", ""))
+		return str(_types[_type.selected].get("cle", ""))
 	return ""
 
 
@@ -150,11 +150,11 @@ func _remplir_types() -> void:
 	_types = []
 	_type.clear()
 	for n in _sim.navires_marchands():
-		var req := int(_sim.chantier_infos(String(n.get("cle", ""))).get("niveau_requis", 99))
+		var req := int(_sim.chantier_infos(str(n.get("cle", ""))).get("niveau_requis", 99))
 		if req <= niveau:
 			_types.append(n)
 	for i in _types.size():
-		_type.add_item(String(_types[i].get("nom", "?")), i)
+		_type.add_item(str(_types[i].get("nom", "?")), i)
 	if _types.is_empty():
 		_type.add_item("(aucun navire à ce niveau)", -1)
 
@@ -169,18 +169,23 @@ func _rafraichir_page() -> void:
 	var d: Dictionary = _sim.chantier_infos(cle)
 	var fiche := {}
 	for n in _sim.navires_marchands():
-		if String(n.get("cle", "")) == cle:
+		if str(n.get("cle", "")) == cle:
 			fiche = n
 			break
 
+	# Les noms sont ceux de PR3 (tf_barrels…), les valeurs celles du pont.
+	# Canons, équipage et tirant d'eau ne sont PAS dans la table navires de
+	# constdata (Value, Capacity, Hitpoints, HitpointsSail, Construct,
+	# DailyCosts, rangs, Vmin, Vmax, Wendig) : tant qu'on n'a pas trouvé leur
+	# source dans PR3, on ne montre pas un chiffre inventé.
 	_poser("tf_barrels", str(int(fiche.get("cale", 0))))
-	_poser("tf_cannon", str(int(fiche.get("canons", 0))))
 	_poser("tf_heart", str(int(fiche.get("coque", 0))))
-	_poser("tf_crew", str(int(fiche.get("equipage", 0))))
-	_poser("tf_knot", "%.1f" % float(fiche.get("vitesse", 0.0)))
-	_poser("tf_wheel", "%.1f" % float(fiche.get("manoeuvre", 0.0)))
-	_poser("tf_draft", str(int(fiche.get("tirant", 0))))
+	_poser("tf_knot", str(int(fiche.get("vmax", 0))))
+	_poser("tf_wheel", str(int(fiche.get("maniabilite", 0))))
 	_poser("tf_cost", str(int(fiche.get("entretien", 0))))
+	_poser("tf_cannon", "—")
+	_poser("tf_crew", "—")
+	_poser("tf_draft", "—")
 
 	match _onglet:
 		"Acheter", "Vendre":

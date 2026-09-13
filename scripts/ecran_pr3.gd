@@ -90,8 +90,8 @@ static func _icone(classe: String) -> Texture2D:
 
 # Bâtit UN élément selon sa classe de composant PR3.
 static func _noeud(el: Dictionary) -> Control:
-	var classe := String(el.get("classe", ""))
-	var nom := String(el.get("nom", ""))
+	var classe := str(el.get("classe", ""))
+	var nom := str(el.get("nom", ""))
 
 	if classe.contains("Visual_Textfeld"):
 		var l := Label.new()
@@ -152,10 +152,10 @@ static func batir(swf: String, scene: String) -> Control:
 
 	for el in (ecrans[scene] as Array):
 		var d: Dictionary = el
-		if String(d.get("type", "")) == "texte":
+		if str(d.get("type", "")) == "texte":
 			continue
 		var n := _noeud(d)
-		var nom := String(d.get("nom", ""))
+		var nom := str(d.get("nom", ""))
 		if nom != "":
 			n.name = nom
 		n.position = Vector2(float(d.get("x", 0.0)), float(d.get("y", 0.0)))
@@ -170,7 +170,7 @@ static func cadre_tabbed(hauteur := 572) -> Control:
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var y := 0
 	for cle in ["tete", "corps"]:
-		var tex := SkinPR3.texture(SKIN + String(CADRE_TABBED[cle]))
+		var tex := SkinPR3.texture(SKIN + str(CADRE_TABBED[cle]))
 		if tex == null:
 			continue
 		var tr := TextureRect.new()
@@ -179,7 +179,7 @@ static func cadre_tabbed(hauteur := 572) -> Control:
 		c.add_child(tr)
 		y += int(tex.get_height())
 	# Le corps se répète jusqu'au pied.
-	var tuile := SkinPR3.texture(SKIN + String(CADRE_TABBED["tuile"]))
+	var tuile := SkinPR3.texture(SKIN + str(CADRE_TABBED["tuile"]))
 	if tuile != null:
 		while y < hauteur - 50:
 			var tr2 := TextureRect.new()
@@ -187,7 +187,7 @@ static func cadre_tabbed(hauteur := 572) -> Control:
 			tr2.position = Vector2(0, y)
 			c.add_child(tr2)
 			y += int(tuile.get_height())
-	var pied := SkinPR3.texture(SKIN + String(CADRE_TABBED["pied"]))
+	var pied := SkinPR3.texture(SKIN + str(CADRE_TABBED["pied"]))
 	if pied != null:
 		var tp := TextureRect.new()
 		tp.texture = pied
