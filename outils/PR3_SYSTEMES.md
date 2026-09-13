@@ -651,6 +651,28 @@ sur le modèle connu** (somme sur ≤ 3 navires de combat de `canons·a + min(é
 canons·5)·b`, modulée par la maniabilité), à ajuster au ressenti. Le modèle est sûr ;
 seuls les coefficients a/b manquent.
 
+## Guerre terrestre — batailles de ville (pilier mappé)
+
+Quand on assiège/prend une ville, PR3 joue une **bataille terrestre** : des SOLDATS
+se disputent des **points de contrôle** de la ville. Système mappé (à porter) :
+- **Points d'attaque** : `TownBattleApMarket` (le marché), `TownBattleApFortress`
+  (la forteresse) — les objectifs à tenir/prendre.
+- **Soldats** : composant ECS `Client::TownSoldierComponent` (`0x68a4c0`). Chaque
+  type de soldat a des stats `[Soldier]` : `Damage:f[]`, `Health:f[]`, `Range:f[]`,
+  `Speed:f[]` (**tableaux par type, valeurs dans `constdata`** — à extraire comme les
+  munitions, par ancre binaire). Scalaires décodés (`0x863e81`, et `PR3_CONFIG.md`) :
+  `MovementFactor` 1, `EvadeSpeed` 2, `InteractStand` 1.5, `WalkFactor`, `UnitSize`,
+  `UnitMax`, `RangeFactor` 1.4, `Speed` de base 3.
+- **Données de bataille** : `Database::TownBattle` (`0x767330`) — paramètres de la
+  bataille (table binaire `constdata`). `Database::Fortress` / `[Fortress]` (`Range`
+  100, `ReloadTime`, `Hit:i[]`, `Gun_%u_%02u:f[]`) — les canons de la forteresse.
+- **UI/temps** : `HudTownBattle` (`0x5fbd80`), musique `MusicTownBattle`, `[Timer]
+  SoldierLeave` (les soldats quittent après un délai).
+
+Comme le combat naval, la **résolution** (dégâts/déplacement en temps réel) vit dans
+le composant ECS `TownSoldierComponent` : même mur que la puissance navale, à faire
+dans la passe combat dédiée. La STRUCTURE et les PARAMÈTRES, eux, sont lisibles.
+
 ## État du rétro-engineering — le bilan complet
 
 Cinq niveaux : **porté** (dans `sim/`), **décodé** (math/structure exacte lue),
@@ -682,6 +704,7 @@ Cinq niveaux : **porté** (dans `sim/`), **décodé** (math/structure exacte lue
 | Combat AUTOMATIQUE : formule de puissance par camp | **partiel** — modèle connu, l'arithmétique est en cache ECS (RE profonde ou relevé en jeu) |
 | Combat MANUEL : application du coup (angle → touche → dégâts) | **partiel** — paramètres décodés, fonctions d'application à suivre |
 | Affectation équipage/escorte au combat (3 navires, ≤ 5 marins/canon) | **décodé** (règle) |
+| Guerre terrestre : batailles de ville (soldats, points marché/forteresse, `[Soldier]`, `TownBattle`, `Fortress`) | **mappé** — structure + params scalaires ; stats soldats (tableaux `constdata`) à extraire ; résolution ECS avec le combat |
 | Missions et campagne | **contenu** (à réécrire, pas à décompiler) |
 | Rendu, caméra, interface, audio, réseau | **hors-jeu** |
 
