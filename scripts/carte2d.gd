@@ -1228,7 +1228,10 @@ func _finir_boite() -> void:
 # un d'un clic en pleine mer.
 func _convoi_sous_monde(monde: Vector2) -> int:
 	var meilleur := -1
-	var d2 := RAYON_CLIC_PORT * RAYON_CLIC_PORT
+	# PR3 : rayon de sélection d'un convoi (SelectionRange 16) plus large que celui
+	# d'une ville (SelectionRangeTown 11), ratio 16/11.
+	var rayon := RAYON_CLIC_PORT * 16.0 / 11.0
+	var d2 := rayon * rayon
 	for m in _convois_joueur:
 		var pos: Vector2 = m["position"]
 		var dd := monde.distance_squared_to(pos)

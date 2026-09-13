@@ -673,6 +673,39 @@ Comme le combat naval, la **résolution** (dégâts/déplacement en temps réel)
 le composant ECS `TownSoldierComponent` : même mur que la puissance navale, à faire
 dans la passe combat dédiée. La STRUCTURE et les PARAMÈTRES, eux, sont lisibles.
 
+## Actions du joueur sur la carte maritime
+
+Décodé du système de carte (`SeaMapComponent` `0x6fc200`, registre d'entités
+`0x460d11`, config `[Gui]` / `[SeaMapMovement]`). C'est le modèle exact à porter.
+
+**Sélection.** On clique un convoi ; il est pris s'il est dans un rayon de
+`[Gui] SelectionRange` = **16** (unités carte) du clic — un marqueur `SelectionConvoyMap`
+s'affiche dessus (`SelectionConvoyTown` pour une ville, rayon `SelectionRangeTown`
+= **11**). PR3 sélectionne **un convoi à la fois** sur la carte. (La sim ajoute, à la
+demande, une sélection au rectangle multi-convois — un plus, pas du PR3.)
+
+**Ordre de déplacement.** Clic droit sur la destination : « Cliquez avec le bouton
+droit sur votre destination pour faire partir votre convoi. » Une **ligne de cible**
+`ConvoyTargetLine` se trace du convoi vers le point (mer ou rade d'un port), et le
+convoi s'y rend ; sa route suivie est `ConvoyRoute`. Le convoi du joueur est
+`PlayerShipConvoy`.
+
+**Déplacement / vision.** `[SeaMapMovement]` : `SpeedFactor` **0.1** (vitesse sur la
+carte), `RangeOfVision1` **8** / `RangeOfVision2` **12** / `RangeOfVisionWatch` **12**
+(portées de vue — le brouillard se lève selon la taille/veille du convoi). La carte
+elle-même : `[Gui] SeaMapWidth` 1024 × `SeaMapHeight` 512, `SpeedFactor` 0.25 (vitesse
+de défilement de la vue).
+
+**Entités visuelles** (assets, registre `0x460d11`) : `PlayerShipConvoy` (le convoi),
+`SelectionConvoyMap` / `SelectionConvoyTown` (le marqueur de sélection), `ConvoyTargetLine`
+(la ligne d'ordre), `ConvoyRoute` (le tracé de route), `SeaMapView` (la vue).
+
+**Alignement de la sim.** `scripts/carte2d.gd` fait déjà : clic gauche = sélection,
+clic droit = destination (port OU point de mer), anneau d'or = marqueur de sélection,
+sceau sur la ville = convoi à quai. La sim déplace le convoi via `Marchands.ordonner`
+/ `ordonner_position`. Écarts assumés : sélection au rectangle (ajout joueur), et les
+rayons de clic en unités-monde de la sim (à mettre au ratio 16:11 de PR3 si l'on veut).
+
 ## État du rétro-engineering — le bilan complet
 
 Cinq niveaux : **porté** (dans `sim/`), **décodé** (math/structure exacte lue),
