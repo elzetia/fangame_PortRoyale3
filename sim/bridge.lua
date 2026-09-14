@@ -431,9 +431,17 @@ end
 
 -- Les mouillages tels que Port Royale 3 les donne : c'est la reference qui dit
 -- si une ville a ete deplacee ou non.
+--
+-- ELLE SE LIT SUR `caseOrigine`, ET SURTOUT PAS SUR `case`. `Archipel.ports` a
+-- déjà appliqué les retouches de `villes_reglages.lua` : bâtir la référence
+-- dessus revenait à comparer chaque ville à elle-même, donc à ne JAMAIS voir de
+-- déplacement. Le critère « a bougé » se réduisait alors au seul `decalage`, et
+-- une ville rendue à sa place d'origine continuait d'être réécrite — les
+-- retouches étaient devenues indéboulonnables, et les soixante l'étaient.
 local Origines = {}
 for _, p in ipairs(Archipel.ports) do
-  Origines[p.cle] = { p.case[1], p.case[2] }
+  local o = p.caseOrigine or p.case
+  Origines[p.cle] = { o[1], o[2] }
 end
 
 -- Les retouches de placement, en Lua, prêtes à devenir `sim/villes_reglages.lua`.

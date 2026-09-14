@@ -143,7 +143,11 @@ for _, v in ipairs(Villes) do
     region = v.region,
     taille = v.taille,
     produits = v.produits,
-    case = cas,                -- le mouillage, en cases
+    case = cas,                -- le mouillage, en cases (retouches comprises)
+    -- Le mouillage TEL QUE PORT ROYALE 3 LE DONNE, avant toute retouche. Sans
+    -- lui, rien ne permet de savoir si une ville a été déplacée : `case` porte
+    -- déjà la retouche, donc la comparer à elle-même ne dit jamais rien.
+    caseOrigine = v.case,
     caseBourg = { bx, bz },    -- le village, en cases
     habitants = population(v),
     -- `decalage` ne bouge QUE l'image, en unités de monde : le point réel du

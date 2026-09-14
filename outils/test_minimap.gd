@@ -34,14 +34,20 @@ const LOIN := 99            # distance sentinelle
 # LA COPIE EST VOULUE, ne pas la remplacer par une lecture de `HudDroitePR3` :
 # une attente qui lit la valeur qu'elle verifie ne verifie plus rien.
 #
-# Refait DEUX FOIS, chaque fois que la projection de la grande carte a bouge :
+# Refait TROIS FOIS, chaque fois que la projection OU la position des ports a
+# bouge :
 #   1. le decor passe de l'illustration a la carte de Port Royale 3
 #      (1,070/0,930 -> 1,170/1,090) ;
 #   2. le masque de navigation recale sur le relief de PR3 -- la fiche prend un
 #      centre non nul et `vue_taille.y` perd 3,55 %, donc seul l'axe V bouge
-#      (1,090 -> 1,040).
-const CADRAGE_ATTENDU_U := 1.170
-const CADRAGE_ATTENDU_V := 1.040
+#      (1,090 -> 1,040) ;
+#   3. les soixante ports rendus aux cases de PR3, `villes_reglages.lua` vide.
+#
+# L'ECHELLE VERTICALE EST ALORS TOMBEE A 1,000 EXACTEMENT (1,090 -> 1,040 ->
+# 1,000) : la minimap n'a plus rien a redimensionner. Une constante de
+# compensation qui s'annule dit que ce qu'elle compensait a disparu.
+const CADRAGE_ATTENDU_U := 1.160
+const CADRAGE_ATTENDU_V := 1.000
 # La taille de la carte des mers, pour formuler l'attente sans relire l'image.
 const MINIMAP_L := 196.0
 const MINIMAP_H := 156.0
