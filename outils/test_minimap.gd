@@ -307,6 +307,28 @@ func _init() -> void:
 				"claire, lisible sur le bois" if claire
 				else "*** SOMBRE : le fichier declare du noir, mais le jeu teinte ***"])
 
+		# --- la PIECE d'or -------------------------------------------------
+		# `poser()` n'etait appele par aucun test : `_placer_piece()` n'avait
+		# donc JAMAIS tourne. On la pose pour de vrai et on regarde ou elle
+		# tombe -- elle doit suivre le nombre, pas flotter au bord du champ.
+		planche.poser(1480445, 3, 2)
+		var piece: TextureRect = null
+		for e in champ_or.get_parent().get_children():
+			var tr := e as TextureRect
+			if tr != null and tr.size == Vector2(12, 12):
+				piece = tr
+		if piece == null:
+			print("\n=== piece d'or : AUCUNE (12x12 introuvable) ===")
+		else:
+			var centre_texte := champ_or.position.x + champ_or.size.x * 0.5
+			print("\n=== piece d'or ===")
+			print("   posee en (%.0f, %.0f), le champ est en %.0f..%.0f"
+				% [piece.position.x, piece.position.y, champ_or.position.x,
+					champ_or.position.x + champ_or.size.x])
+			print("   a droite du centre du texte (%.0f) : %s"
+				% [centre_texte,
+					"oui" if piece.position.x > centre_texte else "*** NON ***"])
+
 	# --- les INFOBULLES, avec les mots du JEU -------------------------------
 	# Rien ne lisait un `tooltip_text`. Or les six libelles viennent desormais de
 	# `LocaPR3.propre()` : une cle mal epelee retomberait EN SILENCE sur mon

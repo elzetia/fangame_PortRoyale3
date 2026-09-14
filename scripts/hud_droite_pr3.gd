@@ -99,6 +99,12 @@ const CADRE_EPAISSEUR := 1.0
 const TRACE_ROUTE := Color(0.98, 0.86, 0.48, 0.70)
 const TRACE_EPAISSEUR := 1.0
 
+# La pièce d'or accolée au nombre (`ID_FORMATTER_ICON_GOLD`).
+const PIECE := "skinlib_pr3/1826"
+const PIECE_TAILLE := Vector2(12, 12)
+const ECART_PIECE := 3.0
+
+var _piece: TextureRect = null
 var _villes_posees := false
 # Les quatre bords du cadre de vue, gardés d'une image à l'autre : les recréer à
 # chaque rafraîchissement ferait soixante allocations par seconde pour rien.
@@ -326,9 +332,44 @@ func poser_vue(proj: ProjectionCarte, vue: Rect2) -> void:
 	_vue[3].size = Vector2(e, r.size.y)
 
 
+# La PIÈCE d'or, collée au nombre. PR3 ne la pose pas dans l'agencement : son
+# formateur la colle au texte, `ID_FORMATTER_ICON_GOLD` valant
+# « %1&nbsp;<img src='Window_Trade_Icon_Goldcoin.png'> ». D'où son absence de la
+# planche, que j'avais d'abord prise pour un élément dessiné au runtime.
+#
+# L'asset est `Window_Trade_Icon_Goldcoin.png` = skinlib_pr3/1826, en 12x12.
+func _placer_piece() -> void:
+	if _or == null:
+		return
+	if _piece == null:
+		var tex := SkinPR3.texture(PIECE)
+		if tex == null:
+			return
+		_piece = TextureRect.new()
+		_piece.texture = tex
+		_piece.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_piece.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_piece.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_piece.size = PIECE_TAILLE
+		_or.get_parent().add_child(_piece)
+
+	# Le champ est CENTRÉ : la pièce se pose donc au bord droit du texte rendu,
+	# pas au bord du champ — sinon elle flotterait loin du nombre.
+	var police := _or.get_theme_font("font")
+	var corps := _or.get_theme_font_size("font_size")
+	var large := 0.0
+	if police != null:
+		large = police.get_string_size(_or.text, HORIZONTAL_ALIGNMENT_LEFT,
+			-1.0, corps).x
+	var centre := _or.position.x + _or.size.x * 0.5
+	_piece.position = Vector2(centre + large * 0.5 + ECART_PIECE,
+		_or.position.y + (_or.size.y - PIECE_TAILLE.y) * 0.5)
+
+
 func poser(or_: int, en_mer: int, a_quai: int) -> void:
 	if _or != null:
 		_or.text = nombre(or_)
+		_placer_piece()
 	if _en_mer != null:
 		_en_mer.text = str(en_mer)
 	if _a_quai != null:
