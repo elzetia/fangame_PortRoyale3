@@ -48,15 +48,17 @@ var _villes: Villes
 
 # HUD
 var _hud_planche: HudPR3
+var _hud_droite: HudDroitePR3
 var _lbl_statut: Label
 var _lbl_cargaison: Label
 var _lbl_message: Label
 
 const MARGE_FICHE := Vector2(12, 10)
-# La planche du HUD mesure 210x66 dans hud_pc.swf : à cette taille elle ne se lit
-# pas à l'écran. On la grossit EN BLOC, sans toucher à son agencement interne,
-# qui est celui de PR3 au pixel.
-const ECHELLE_HUD := 1.6
+# Les planches du HUD sont posées à LEUR taille, celle de PR3 : 210x66 pour
+# celle de gauche, 207x275 pour la minimap. Elles étaient d'abord grossies x1,6
+# pour la lisibilité, mais la planche droite mangeait alors 68 % de la hauteur
+# d'écran contre 36 % dans le vrai jeu. La fidélité tranche.
+const ECHELLE_HUD := 1.0
 const MARGE_HUD := Vector2(8, 6)
 
 var _glisse := false
@@ -1881,20 +1883,19 @@ func _creer_hud() -> void:
 		sim.definir_vitesse(i))
 	couche.add_child(_hud_planche)
 
-	# Le bouton « Bureau du port » : en haut à droite, il ouvre l'écran de ville
-	# tabulé (Convois/Navires/Villes/Routes) sans passer par le radial. On l'ouvre
-	# sur le port du convoi sélectionné, sinon le premier port.
-	var routes_b := Button.new()
-	routes_b.text = "Bureau du port"
-	routes_b.add_theme_font_size_override("font_size", 16)
-	routes_b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	routes_b.offset_left = -170
-	routes_b.offset_top = 14
-	routes_b.offset_right = -14
-	routes_b.pressed.connect(func() -> void:
+	# La planche de droite de PR3 : minimap, or en caisse, convois en mer et à
+	# quai. Voir scripts/hud_droite_pr3.gd. Son `bu_liste` remplace le bouton
+	# « Bureau du port » écrit à la main, qui occupait ce même coin.
+	#
+	# Ancrée en haut à DROITE sans marge : tous ses enfants ont un x négatif,
+	# c'est ainsi que le .swf la conçoit.
+	_hud_droite = HudDroitePR3.new()
+	_hud_droite.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_hud_droite.scale = Vector2.ONE * ECHELLE_HUD
+	_hud_droite.liste_demandee.connect(func() -> void:
 		if _convoy_town != null:
 			_convoy_town.ouvrir(sim, _port_pour_bureau()))
-	couche.add_child(routes_b)
+	couche.add_child(_hud_droite)
 
 	# Plus de bouton « Chantier » global : le chantier est propre à chaque port et
 	# ne s'ouvre que depuis le menu radial d'une ville où l'on a un convoi.
@@ -1979,6 +1980,19 @@ func _maj_hud() -> void:
 		var dn := String(pd.get("nom", ""))
 		_lbl_statut.text = ("%s — en mer" % nom_convoi) if dn == "" \
 			else ("%s — cap sur %s" % [nom_convoi, dn])
+
+	# La planche droite : l'or en caisse, et les convois comptés en mer et à quai
+	# — c'est ce que PR3 met derrière `tf_on_sea` et `tf_anchor`.
+	if _hud_droite != null:
+		var compagnie := sim.etat_compagnie()
+		var en_mer := 0
+		var a_quai := 0
+		for m in sim.convois_joueur():
+			if bool((m as Dictionary).get("a_quai", false)):
+				a_quai += 1
+			else:
+				en_mer += 1
+		_hud_droite.poser(int(compagnie.get("or_", 0)), en_mer, a_quai)
 
 	# La cargaison du convoi sélectionné et l'or en caisse.
 	if _lbl_cargaison != null:

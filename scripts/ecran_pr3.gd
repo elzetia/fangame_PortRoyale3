@@ -273,12 +273,42 @@ static func _noeud(el: Dictionary, repli: bool, swf: String) -> Control:
 
 # --- construction d'un écran ---------------------------------------------------
 
+# Ce que PR3 REMPLIT AU RUNTIME et qu'il ne faut donc jamais rejouer depuis
+# l'agencement : dans le .swf, tous les membres de ces collections sont empilés
+# au même point d'auteur, et le jeu les replace ensuite lui-même.
+#
+# Composer la planche droite à la main l'a montré sans appel : les 60 villes de
+# `Minimap_Steadte_Liste_14` sortaient en un bloc de losanges bleus flottant
+# HORS du cadre, toutes au même endroit. Même cause pour les trois créneaux
+# d'événement du bandeau de ville, qui affichaient trois fois la même icône.
+#
+# Ces nœuds existent quand même, vides et nommés : c'est la simulation qui les
+# peuplera (convois, villes, batailles), chacun à sa place sur la carte.
+const RUNTIME := [
+	"Minimap_Steadte_Liste_14",   # les 60 villes de la minimap
+	"Visual_Minimap_Frame",       # les tracés de route, les navires, la vue
+	"Visual_Minimap_Mc_Objects",  # les batailles navales
+	"Visual_CustomRender",        # un rendu 3D temps réel dans PR3
+	"Visual_CustomRender_Minimap",
+	"Visual_TooltipContainer",    # les infobulles, posées au survol
+]
+
+
+# Faut-il descendre dans ce conteneur ? Non s'il est rempli au runtime, non si
+# c'est un masque — de la géométrie qui découpe, jamais de l'art.
+static func _rejouable(classe: String) -> bool:
+	var court := classe.get_slice(".", classe.get_slice_count(".") - 1)
+	if RUNTIME.has(court):
+		return false
+	return not (court.contains("Mask_") or court.contains("Maske_"))
+
 # Bâtit la page `scene` du fichier `swf` : rend un Control dont chaque enfant
 # porte le nom d'instance de PR3, posé à ses coordonnées d'origine.
 #
 # `repli` se transmet à `_noeud()` : à ouvrir pour un écran dont on a vérifié À
 # L'ŒIL que la table lui rend les bonnes images, jamais par défaut.
-static func batir(swf: String, scene: String, repli := false) -> Control:
+static func batir(swf: String, scene: String, repli := false,
+		profondeur := 0) -> Control:
 	var racine := Control.new()
 	racine.name = scene.get_slice(".", scene.get_slice_count(".") - 1)
 	racine.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -291,7 +321,15 @@ static func batir(swf: String, scene: String, repli := false) -> Control:
 		var d: Dictionary = el
 		if str(d.get("type", "")) == "texte":
 			continue
-		var n := _noeud(d, repli, swf)
+		var classe := str(d.get("classe", ""))
+		var n: Control
+		# Un CONTENEUR est une classe qui est elle-même une scène du même .swf.
+		# `batir` n'en descendait aucun : la planche droite du HUD, faite de son
+		# fond, de sa minimap et de sa barre d'XP, sortait en trois Control 1x1.
+		if profondeur > 0 and ecrans.has(classe) and _rejouable(classe):
+			n = batir(swf, classe, repli, profondeur - 1)
+		else:
+			n = _noeud(d, repli, swf)
 		var nom := str(d.get("nom", ""))
 		if nom != "":
 			n.name = nom
@@ -333,6 +371,48 @@ static func cadre_tabbed(hauteur := CADRE_HAUTEUR) -> Control:
 	if bandeau != null:
 		c.add_child(_image(bandeau, bandeau.get_size()))
 	return c
+
+
+# Encre des libellés posés sur une plaque d'or.
+const ENCRE_BOUTON := Color(0.16, 0.10, 0.05)
+const ENCRE_BOUTON_SURVOL := Color(0.10, 0.24, 0.42)
+
+
+# Arme un bouton : recentre son image sur son point, puis pose par-dessus une
+# zone sensible transparente. `batir()` rend des images INERTES, jamais des
+# boutons — c'est voulu, une planche n'est pas forcément cliquable.
+#
+# Le recentrage n'est pas un ajustement à vue. Dans PR3 les boutons sont ancrés
+# par leur CENTRE là où les plaques et les champs le sont par leur COIN, et cela
+# se DÉDUIT de la mise en page : sur la planche gauche, bu_minus (96,36) occupe
+# ainsi 82..110 et bu_plus (167,36) 153..181, de part et d'autre de la plaque
+# 112..152 — deux pixels de jeu d'un côté, un de l'autre. Posés par le coin, ils
+# la chevaucheraient.
+#
+# Le LIBELLÉ est porté par le bouton et non par son image : les plaques d'or
+# (453.png) sont nues, PR3 pose le glyphe en texte par-dessus. Composer l'art à
+# la main l'a montré — sans libellé, « + » et « − » sont deux carrés identiques.
+static func bouton(racine: Control, nom: String, libelle := "",
+		infobulle := "") -> Button:
+	var image := champ(racine, nom)
+	if image == null:
+		return null
+	var taille := image.size
+	image.position -= taille * 0.5
+
+	var zone := Button.new()
+	zone.flat = true
+	zone.focus_mode = Control.FOCUS_NONE
+	zone.text = libelle
+	zone.tooltip_text = infobulle
+	zone.add_theme_font_size_override("font_size", 18)
+	zone.add_theme_color_override("font_color", ENCRE_BOUTON)
+	zone.add_theme_color_override("font_hover_color", ENCRE_BOUTON_SURVOL)
+	zone.add_theme_color_override("font_pressed_color", ENCRE_BOUTON_SURVOL)
+	zone.position = image.position
+	zone.size = taille
+	image.get_parent().add_child(zone)
+	return zone
 
 
 # Retrouve un élément par son nom d'instance PR3 (tf_hp, icon_town, li_trade…).

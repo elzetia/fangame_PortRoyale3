@@ -45,4 +45,40 @@ func _init() -> void:
 			nommes.append(n)
 	print("HUD planche gauche -> %d noeuds, %d avec image : %s"
 		% [h.get_child_count(), avec_image, ", ".join(nommes)])
+
+	# La planche DROITE vit de conteneurs imbriqués — son fond, la minimap, la
+	# barre d'XP. Sans profondeur, `batir` les rendait en Control 1x1 : on doit
+	# donc voir beaucoup plus de nœuds avec profondeur qu'à plat.
+	for prof in [0, 4]:
+		var dr := EcranPR3.batir("hud_pc", "Hud_pc_fla.Hud_Woodboard_Right_3",
+			true, prof)
+		var total := 0
+		var images := 0
+		var pile: Array = [dr]
+		while not pile.is_empty():
+			var noeud: Node = pile.pop_back()
+			for e in noeud.get_children():
+				total += 1
+				if e is TextureRect and (e as TextureRect).texture != null:
+					images += 1
+				pile.append(e)
+		print("HUD planche droite (profondeur %d) -> %d noeuds, %d avec image"
+			% [prof, total, images])
+
+	# `carte2d.gd` n'a PAS de class_name : rien ne le chargeait dans ce test, et
+	# une erreur de syntaxe y serait donc passée inaperçue — c'est précisément le
+	# trou par lequel un écran cassé pouvait être livré « tests au vert ».
+	print("--- chargement des scripts sans class_name ---")
+	for chemin in ["res://scripts/carte2d.gd", "res://scripts/hud_pr3.gd",
+			"res://scripts/hud_droite_pr3.gd", "res://scripts/ecran_pr3.gd"]:
+		# `ResourceLoader.load()` rend un objet NON NUL même quand le script ne
+		# compile pas : le tester ne prouve RIEN. Première version de ce test,
+		# elle affichait « carte2d.gd OK » dans l'exécution même où Godot criait
+		# « Failed to load script : Parse error ». `reload()` rend, lui, le vrai
+		# code d'erreur.
+		var sc := ResourceLoader.load(chemin) as GDScript
+		var etat := "ECHEC (illisible)"
+		if sc != null:
+			etat = "OK" if sc.reload() == OK else "ECHEC (erreur de syntaxe)"
+		print("   %-24s %s" % [chemin.get_file(), etat])
 	quit()

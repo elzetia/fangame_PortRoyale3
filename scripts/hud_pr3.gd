@@ -99,26 +99,12 @@ func _ready() -> void:
 # par-dessus une zone sensible transparente : `EcranPR3` rend des images inertes,
 # jamais des boutons.
 func _armer(nom: String, libelle: String, infobulle: String, geste: Callable) -> void:
-	var image := EcranPR3.champ(_plateau, nom)
-	if image == null:
-		return
-	var taille := image.size
-	image.position -= taille * 0.5
-
-	var zone := Button.new()
-	zone.flat = true
-	zone.focus_mode = Control.FOCUS_NONE
-	zone.text = libelle
-	zone.tooltip_text = infobulle
-	# Encre sombre sur la plaque d'or, comme le reste de la planche.
-	zone.add_theme_font_size_override("font_size", 18)
-	zone.add_theme_color_override("font_color", ENCRE)
-	zone.add_theme_color_override("font_hover_color", ENCRE_SURVOL)
-	zone.add_theme_color_override("font_pressed_color", ENCRE_SURVOL)
-	zone.position = image.position
-	zone.size = taille
-	zone.pressed.connect(geste)
-	_plateau.add_child(zone)
+	# Le recentrage et la zone sensible vivent dans `EcranPR3.bouton()` : les
+	# deux planches du HUD les partagent, et la règle d'ancrage par le centre n'a
+	# ainsi qu'un seul endroit où être juste.
+	var zone := EcranPR3.bouton(_plateau, nom, libelle, infobulle)
+	if zone != null:
+		zone.pressed.connect(geste)
 
 
 # Les boutons ne choisissent pas une allure, ils la déplacent d'un cran — c'est
