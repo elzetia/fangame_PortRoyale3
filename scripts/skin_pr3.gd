@@ -30,7 +30,16 @@ static var _cache: Dictionary = {}
 # Rend la texture `reference_pr3/ui/<swf>/<id>.png`, ou `null` si absente.
 # `cle` est "<swf>/<id>", p. ex. "skinlib_pr3/801".
 static func texture(cle: String) -> Texture2D:
-	return fichier(RACINE + cle + ".png")
+	var tex := fichier(RACINE + cle + ".png")
+	if tex != null:
+		return tex
+	# Repli `.jpg` : `swf_bitmaps.py` dépose les DefineBitsJPEG sous cette
+	# extension, et 14 des 969 entrées de la table d'icônes n'existent QUE
+	# ainsi — dont `Dialog_Scroll_Small_Top`, `Dialog_Scroll_Small_Bottom` et
+	# `Visual_Seabattle_Big`, qui sont de l'art bien visible — plus cinq
+	# caractères de `hud_pc`. Godot lit le JPEG aussi bien que le PNG : seule
+	# l'extension supposée ici les rendait introuvables.
+	return fichier(RACINE + cle + ".jpg")
 
 
 # Charge N'IMPORTE QUELLE image de `reference_pr3/` par son chemin `res://`, au

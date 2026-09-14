@@ -48,6 +48,7 @@ const LARGEUR_TEXTE := 82.0
 
 static var _json: Dictionary = {}
 static var _icones: Dictionary = {}
+static var _caracteres: Dictionary = {}
 
 
 # --- lecture des données décodées --------------------------------------------
@@ -75,6 +76,47 @@ static func icones() -> Dictionary:
 			if bouts.size() >= 2:
 				_icones[bouts[0].strip_edges()] = bouts[1].strip_edges()
 	return _icones
+
+
+# La table charId -> bitmap d'UN .swf, écrite par `outils/swf_caracteres.py`.
+#
+# Un caractère anonyme n'a pas de nom de classe : seul son numéro le désigne, et
+# ce numéro ne vaut que dans son propre .swf. D'où une table par fichier, posée à
+# côté de ses PNG, et non dans la table globale des classes.
+#
+# Le piège qu'elle résout : un charId placé désigne une FORME, alors que le PNG
+# extrait porte l'identifiant du BITMAP que cette forme remplit. Les deux
+# numérotations sont disjointes.
+static func caracteres(swf: String) -> Dictionary:
+	if _caracteres.has(swf):
+		return _caracteres[swf]
+	var table := {}
+	var chemin := ProjectSettings.globalize_path(
+		SkinPR3.RACINE + swf + "/caracteres.txt")
+	if FileAccess.file_exists(chemin):
+		for ligne in FileAccess.get_file_as_string(chemin).split("\n"):
+			var bouts := ligne.split("\t")
+			if bouts.size() >= 2:
+				table[bouts[0].strip_edges()] = bouts[1].strip_edges()
+	_caracteres[swf] = table
+	return table
+
+
+# L'image d'un caractère anonyme, si la classe en est un (« char172 »).
+#
+# On exige des CHIFFRES derrière « char » : PR3 a de vraies classes qui
+# commencent par ces quatre lettres — `char_dutch_admin01.png`,
+# `char_england_admin01.png` — et les happer ici les priverait de leur image.
+static func _caractere(swf: String, classe: String) -> Texture2D:
+	if not classe.begins_with("char"):
+		return null
+	var numero := classe.substr(4)
+	if not numero.is_valid_int():
+		return null
+	var fichier: String = caracteres(swf).get(numero, "")
+	if fichier == "":
+		return null
+	return SkinPR3.texture(swf + "/" + fichier.replace(".png", ""))
 
 
 # Où la scène pose cet onglet. C'est le décalage que PR3 applique à la page
@@ -139,7 +181,7 @@ static func _image(tex: Texture2D, taille: Vector2) -> TextureRect:
 # plaque d'onglet de 138x34 sous les 395 `Visual_TextButton_Tab` d'écrans qui
 # dessinent déjà leurs onglets. Les écrans livrés gardent donc leur rendu ; seul
 # qui le demande obtient le repli.
-static func _noeud(el: Dictionary, repli := false) -> Control:
+static func _noeud(el: Dictionary, repli: bool, swf: String) -> Control:
 	var classe := str(el.get("classe", ""))
 	var sx := float(el.get("sx", 1.0))
 	var sy := float(el.get("sy", 1.0))
@@ -169,9 +211,19 @@ static func _noeud(el: Dictionary, repli := false) -> Control:
 		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		return p
 
+	# Ce qui ne doit JAMAIS se peindre.
+	#
 	# `Visual_Button_Empty` est une zone de clic invisible dans PR3 : la rendre
 	# en bouton posait un rectangle gris fantôme sous l'action.
-	if classe.contains("Visual_Button_Empty") or classe.contains("Button_Mask"):
+	#
+	# Les `Mask_*` / `Maske_*` sont des MASQUES — de la géométrie qui découpe,
+	# jamais de l'art. Leur forme est un aplat noir opaque (char9 en 32x32,
+	# char22 en 34x34, char96 en 156x34), et la peindre poserait un carré noir
+	# par-dessus la minimap ou le nom de la ville. PR3 les affecte au runtime en
+	# ActionScript, pas par le `ClipDepth` du conteneur : le drapeau est absent
+	# des balises, et seul le NOM du sprite parent les trahit.
+	if classe.contains("Visual_Button_Empty") or classe.contains("Button_Mask") \
+			or classe.contains("Mask_") or classe.contains("Maske_"):
 		var vide := Control.new()
 		vide.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		vide.size = Vector2(1, 1)
@@ -201,6 +253,14 @@ static func _noeud(el: Dictionary, repli := false) -> Control:
 	# HUD de sa planche de bois et de ses boutons ronds, `Visual_RoundButton_*` ne
 	# contenant pas la chaîne « Visual_Button ».
 	if repli:
+		# D'abord les caractères ANONYMES : « charNNN » ne dit rien par son nom,
+		# mais la table du .swf sait à quel bitmap il mène. Sous les planches du
+		# HUD ils sont la majorité — minimap, fond de planche droite et bandeau
+		# de ville tiennent presque entièrement à eux.
+		var anonyme := _caractere(swf, classe)
+		if anonyme != null:
+			return _image(anonyme, anonyme.get_size())
+
 		var reste := _icone(classe)
 		if reste != null:
 			return _image(reste, reste.get_size())
@@ -231,7 +291,7 @@ static func batir(swf: String, scene: String, repli := false) -> Control:
 		var d: Dictionary = el
 		if str(d.get("type", "")) == "texte":
 			continue
-		var n := _noeud(d, repli)
+		var n := _noeud(d, repli, swf)
 		var nom := str(d.get("nom", ""))
 		if nom != "":
 			n.name = nom
