@@ -650,8 +650,25 @@ Deux de ces détails expliquent des chiffres qu'on avait pris tels quels :
 
 - le **4** par défaut de `Nations` est la valeur « pirates » de l'énumération
   `@nation` — une ville sans nation valide tombe donc chez les pirates ;
-- `Region` est stocké **+1**, ce qui est la raison pour laquelle les régions se
-  lisent 11 à 14 dans les données plutôt que 10 à 13.
+- `Region` et `SoundRegion` sont rangés **incrémentés de 1**, mais dans la
+  structure en mémoire seulement. Dans le fichier, ce sont deux `u32` valant
+  **0 à 3**, aux décalages **+69** et **+73** — leurs trois octets de poids fort
+  sont nuls, ce qui les avait d'abord fait prendre pour de simples octets.
+
+Correction d'une note antérieure : j'avais écrit que cet incrément expliquait des
+régions « 11 à 14 ». C'est faux, et les deux choses n'ont rien à voir. Les
+régions valent 0 à 3 dans le fichier ; les valeurs 11 à 14 sont les indices des
+**cultures coloniales**, qui se trouvent répondre une pour une aux régions (voir
+plus bas), d'où la confusion.
+
+### Le dernier octet, `+96`, reste inexpliqué
+
+Il prend **huit** valeurs, de 0 à 7, réparties 11/1/17/6/6/2/9/8 sur les soixante
+villes. Il ne détermine ni la taille, ni la nation, ni la région, ni la région
+sonore. Ce n'est pas non plus un compte d'emplacements de repères : toutes les
+villes en ont exactement huit. Bélize est seule à porter 1, Santiago et les Iles
+Turques seules à porter 5 — une répartition trop inégale pour un simple index de
+variante, trop fine pour un drapeau. Laissé ouvert plutôt que deviné.
 
 Le nom français n'est pas une translittération : 1 *Nouvelle Orléans*, 25 *La
 Havane*, 34 *Saint-Domingue*, 46 *Iles Caïmans*, 48 *Carthagène*.
