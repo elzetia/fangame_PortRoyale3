@@ -171,6 +171,7 @@ class Swf:
         self.sprites = {}   # charId -> [(charId, tx, ty) des enfants places]
         self.shapes = {}    # charId -> (code, offset, longueur)
         self.corps = {}     # charId -> (offset, longueur) du DefineSprite
+        self.textes = {}    # charId -> proprietes d'un DefineEditText
         self._parcourir()
 
     def _parcourir(self):
@@ -211,6 +212,12 @@ class Swf:
                 sid = struct.unpack_from("<H", d, body)[0]
                 self.sprites[sid] = self._enfants(body, ln)
                 self.corps[sid] = (body, ln)
+            elif code == 37:                    # DefineEditText
+                try:
+                    self.textes[struct.unpack_from("<H", d, body)[0]] = \
+                        self._champ_texte(body)
+                except Exception:
+                    pass
             elif code in (2, 22, 32, 83):       # DefineShape*
                 self.shapes[struct.unpack_from("<H", d, body)[0]] = (code, body, ln)
             o += ln
@@ -373,6 +380,85 @@ class Swf:
             r = self.origine(k, cible, prof + 1, seen)
             if r is not None:
                 return (tx + r[0], ty + r[1])
+        return None
+
+    def _champ_texte(self, body):
+        """Les proprietes d'un DefineEditText : hauteur, couleur, alignement.
+
+        L'ORDRE REEL, lu dans les octets et non dans la spec : la CLASSE de
+        police d'abord, la HAUTEUR ensuite -- et cette hauteur est ecrite MEME
+        quand HasFont vaut 0, ce qui est le cas partout chez Scaleform, qui
+        nomme sa police par une classe (`$RegularFont1`) sans embarquer de
+        FontID. Lire la hauteur sous `if hasFont` revient a ne la lire jamais,
+        puis a prendre ses octets pour la couleur et a decaler tout le reste :
+        la variable sortait alors a « ( ».
+
+        Controle gratuit : `Visual_Textfeld_NN` doit rendre NN*20 twips.
+        """
+        d = self.d
+        b = Bits(d, body + 2)
+        bornes = rect(b)
+        hasText = b.u(1); b.u(1); b.u(1); b.u(1); b.u(1)
+        hasColor = b.u(1); hasMax = b.u(1); hasFont = b.u(1)
+        hasFontClass = b.u(1); b.u(1)
+        hasLayout = b.u(1); b.u(1); b.u(1); b.u(1); b.u(1); b.u(1)
+        b.align()
+        p = b.p
+        fonte = None
+        if hasFontClass:
+            fonte, p = strz(d, p)
+        if hasFont:
+            p += 2                               # FontID
+        hauteur = None
+        if hasFont or hasFontClass:
+            hauteur = struct.unpack_from("<H", d, p)[0] / 20.0
+            p += 2
+        couleur = None
+        alpha = 255
+        if hasColor:
+            couleur = "#%02x%02x%02x" % (d[p], d[p + 1], d[p + 2])
+            alpha = d[p + 3]
+            p += 4
+        if hasMax:
+            p += 2
+        align = None
+        if hasLayout:
+            align = d[p]
+            p += 9
+        var, p = strz(d, p)
+        texte = ""
+        if hasText:
+            texte, p = strz(d, p)
+        return {"hauteur": hauteur, "couleur": couleur, "alpha": alpha,
+                "align": align, "fonte": fonte, "var": var,
+                "largeur": (bornes[1] - bornes[0]) / 20.0,
+                "texte": texte[:60]}
+
+    def champ_texte(self, cid, prof=0, seen=None):
+        """Le DefineEditText qu'un symbole finit par contenir, ou None.
+
+        Les ecrans (hud_pc, dialog_trade) n'en DEFINISSENT aucun : les 25 du jeu
+        vivent a la racine de skinlib_pr3, et les ecrans se contentent de placer
+        des `Visual_Textfeld_*`. C'est pourquoi ces proprietes doivent voyager
+        par une table indexee par CLASSE, et non par l'agencement.
+        """
+        if seen is None:
+            seen = set()
+        if cid in seen or prof > 6:
+            return None
+        seen = seen | {cid}
+        if cid in self.textes:
+            return self.textes[cid]
+        ims = self.etats(cid)
+        if ims:
+            for v in ims[0][1].values():
+                r = self.champ_texte(v[0], prof + 1, seen)
+                if r is not None:
+                    return r
+        for t in self.sprites.get(cid, []):
+            r = self.champ_texte(t[0], prof + 1, seen)
+            if r is not None:
+                return r
         return None
 
     def etats(self, cid):

@@ -74,3 +74,32 @@ dest2 = os.path.join(SORTIE, "agencement", "icones_couches.txt")
 open(dest2, "w", encoding="utf-8").write("\n".join(couches) + "\n")
 print(f"{len(couches)} couches -> icones_couches.txt  "
       f"({n_multi} symboles en portent plusieurs)")
+
+# --- la table des CHAMPS TEXTE ------------------------------------------------
+#
+# Les ecrans ne definissent aucun DefineEditText : les 25 du jeu vivent a la
+# RACINE de skinlib_pr3, et hud_pc comme dialog_trade se contentent de placer des
+# `Visual_Textfeld_*` (58 rien que dans hud_pc). Le constructeur d'ecrans ne peut
+# donc structurellement pas les voir -- sa branche « texte » n'a jamais rien
+# produit. Ces proprietes voyagent par une table indexee par CLASSE.
+#
+#     <classe>  <hauteur>  <couleur>  <alpha>  <align>  <fonte>
+#
+# align : 0 gauche, 1 droite, 2 centre, 3 justifie. PR3 dit « gauche » pour 19
+# de ses 22 champs et ne centre que la famille Subheadline -- alors que le rendu
+# les centrait tous.
+textes = []
+for cid in sorted(s.names, key=lambda i: s.names[i].lower()):
+    if motif and motif not in s.names[cid].lower():
+        continue
+    ch = s.champ_texte(cid)
+    if ch is None or ch["hauteur"] is None:
+        continue
+    nm = s.names[cid]
+    court = nm if nm.lower().endswith(".png") else nm.split('.')[-1]
+    textes.append(f"{court}\t{ch['hauteur']:.0f}\t{ch['couleur'] or '-'}"
+                  f"\t{ch['alpha']}\t{ch['align']}\t{ch['fonte'] or '-'}")
+
+dest3 = os.path.join(SORTIE, "agencement", "textes.txt")
+open(dest3, "w", encoding="utf-8").write("\n".join(textes) + "\n")
+print(f"{len(textes)} champs texte -> textes.txt")

@@ -55,6 +55,8 @@ static var _decalages: Dictionary = {}
 static var _caracteres_dec: Dictionary = {}
 # La table en COUCHES : une classe -> l'empilement de son état au repos.
 static var _couches: Dictionary = {}
+# La table des champs texte : hauteur, couleur et alignement déclarés par PR3.
+static var _textes: Dictionary = {}
 
 
 # --- lecture des données décodées --------------------------------------------
@@ -160,6 +162,27 @@ static func _pile(classe: String) -> Control:
 		im.position = dec2 - coin
 		racine.add_child(im)
 	return racine
+
+
+# La table des CHAMPS TEXTE (`outils/swf_icones.py` -> textes.txt).
+#
+# Les écrans ne définissent aucun `DefineEditText` : les 25 du jeu vivent à la
+# RACINE de skinlib_pr3, et hud_pc comme dialog_trade se contentent de placer des
+# `Visual_Textfeld_*`. La branche « texte » du constructeur d'écrans n'a donc
+# jamais rien produit — elle ne le pouvait pas. D'où cette table par CLASSE.
+static func textes() -> Dictionary:
+	if not _textes.is_empty():
+		return _textes
+	var chemin := ProjectSettings.globalize_path(AGENCEMENT + "textes.txt")
+	if FileAccess.file_exists(chemin):
+		for ligne in FileAccess.get_file_as_string(chemin).split("\n"):
+			var bouts := ligne.split("\t")
+			if bouts.size() >= 5:
+				_textes[bouts[0].strip_edges()] = {
+					"hauteur": int(bouts[1]),
+					"couleur": bouts[2].strip_edges(),
+					"align": int(bouts[4]) if bouts[4].strip_edges().is_valid_int() else 0}
+	return _textes
 
 
 # La table charId -> bitmap d'UN .swf, écrite par `outils/swf_caracteres.py`.
@@ -308,10 +331,30 @@ static func _noeud(el: Dictionary, repli: bool, swf: String) -> Control:
 
 	if classe.contains("Visual_Textfeld"):
 		var l := Label.new()
-		l.add_theme_font_size_override("font_size", _taille_police(classe))
+		# La hauteur DÉCLARÉE par PR3 quand la table la connaît, le nom sinon.
+		# Les deux s'accordent sur 17 des 19 symboles ; les deux écarts
+		# (`_18_Shadow` qui rend 17, `_24` qui rend 22) réutilisent
+		# l'enregistrement d'un voisin — un fait du fichier, pas une erreur.
+		var fiche: Dictionary = textes().get(
+			classe.get_slice(".", classe.get_slice_count(".") - 1), {})
+		l.add_theme_font_size_override("font_size",
+			int(fiche.get("hauteur", _taille_police(classe))))
 		l.add_theme_color_override("font_color", Color(0.19, 0.13, 0.07))
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		# L'alignement DÉCLARÉ, lu dans la table, et non plus un test sur le nom.
+		# Le bloc de mise en page d'un `DefineEditText` porte un octet
+		# d'alignement (0 gauche, 1 droite, 2 centre, 3 justifié) qui était sauté
+		# avec le reste du bloc. Tout centrer décalait chaque valeur dans sa
+		# plaque — l'or de la planche droite le premier.
+		#
+		# Un test sur « Subheadline » aurait couvert trois classes ; la table en
+		# mesure 115, dont `Visual_ListButton_Lock` et
+		# `Visual_TextButton_Input_Chooser`, centrés sans que leur nom le dise.
+		match int(fiche.get("align", 0)):
+			1: l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			2: l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			3: l.horizontal_alignment = HORIZONTAL_ALIGNMENT_FILL
+			_: l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		l.clip_text = true
 		l.size = Vector2(LARGEUR_TEXTE * sx, PLAQUE.y)
 		l.mouse_filter = Control.MOUSE_FILTER_IGNORE

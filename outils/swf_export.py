@@ -88,21 +88,45 @@ def edittext(d,body):
     hasColor=b.u(1); hasMaxLen=b.u(1); hasFont=b.u(1); hasFontClass=b.u(1); b.u(1)
     hasLayout=b.u(1); b.u(1); b.u(1); b.u(1); b.u(1); b.u(1)
     b.align(); p=b.p
+    # L'ORDRE REEL, lu dans les octets et non dans la spec : la CLASSE de police
+    # vient d'abord, la HAUTEUR ensuite -- et cette hauteur est ecrite meme
+    # quand HasFont vaut 0, ce qui est le cas partout chez Scaleform (il nomme
+    # sa police par une classe, `$RegularFont1`, sans embarquer de FontID).
+    # L'ancienne version lisait la hauteur sous `if hasFont` : elle ne la lisait
+    # donc JAMAIS, puis prenait ces octets pour la couleur et decalait tout le
+    # reste. Les `police` et `couleur` de tous les agencements etaient faux, et
+    # `var` sortait a « ( ».
+    #
+    # Controle gratuit : `Visual_Textfeld_NN` doit rendre NN*20 twips. 17 des 19
+    # tombent juste ; les deux autres (18_Shadow -> 340, 24 -> 440) reutilisent
+    # l'enregistrement d'un voisin, ce qui est un fait du fichier, pas un bug.
+    classe_police=None
+    if hasFontClass: classe_police,p=strz(d,p)
+    if hasFont: p+=2                       # FontID
     taille=None
-    if hasFont:
-        taille=struct.unpack_from("<H",d,p+2)[0]/20.0; p+=4
-    if hasFontClass: _,p=strz(d,p)
+    if hasFont or hasFontClass:
+        taille=struct.unpack_from("<H",d,p)[0]/20.0; p+=2
     col=None
     if hasColor:
-        col="#%02x%02x%02x"%(d[p],d[p+1],d[p+2]); p+=4
+        col="#%02x%02x%02x"%(d[p],d[p+1],d[p+2])
+        alpha=d[p+3]; p+=4
+    else:
+        alpha=255
     if hasMaxLen: p+=2
-    if hasLayout: p+=9
+    # L'ALIGNEMENT : 0 gauche, 1 droite, 2 centre, 3 justifie. Il etait saute
+    # d'un `p+=9` avec le reste du bloc de mise en page. PR3 declare « gauche »
+    # pour 19 de ses 22 champs, le centre etant reserve aux Subheadline -- alors
+    # que le rendu les centrait TOUS.
+    align=None
+    if hasLayout:
+        align=d[p]; p+=9
     var,p=strz(d,p)
     txt=""
     if hasText: txt,p=strz(d,p)
     return {"type":"texte","cid":eid,"x":round(r[0]),"y":round(r[2]),
             "w":round(r[1]-r[0]),"h":round(r[3]-r[2]),
-            "police":taille,"couleur":col,"var":var,"texte":txt[:80]}
+            "police":taille,"couleur":col,"alpha":alpha,"align":align,
+            "fonte":classe_police,"var":var,"texte":txt[:80]}
 
 def walk(d,start,end,sprites,items):
     o=start
