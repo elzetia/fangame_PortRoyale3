@@ -470,6 +470,43 @@ Ce qui est acquis, en revanche : l'onglet bascule entre **trois** panneaux. En
 contrat proprement dit. Ce sont les quatre denrées du panneau `offer` qu'il
 reste à nommer.
 
+**Ce qu'on sait désormais de leur forme.** La boucle qui remplit l'offre est en
+`0x58cae0`. Elle itère sur un vecteur et s'arrête à **quatre** (`cmp [ebp-0x3c], 4`).
+Deux fonctions en donnent la géométrie sans ambiguïté : `0x696af0` fait
+`(fin − début) >> 3` et `0x669490` fait `début + i*8`. Chaque élément pèse donc
+**huit octets**, et la boucle les lit ainsi :
+
+```
+mov ecx, [eax]            ; +0 : u32, l'indice de la denrée
+call 0x68db30             ;      -> son nom d'icône
+fld dword ptr [eax + 4]   ; +4 : f32, la QUANTITÉ — un flottant, pas un entier
+```
+
+Chercher le code qui bâtit ce vecteur, c'est donc chercher qui écrit un `u32` et
+un `f32` dans des éléments de huit octets. `0x58cd60`, qu'on pouvait croire
+candidat, n'est qu'un accesseur (`ecx + 0x18`).
+
+### Une même denrée, trois noms selon l'endroit
+
+`0x68db30` est une table de sauts bornée à `0x13`, qui traduit un indice de
+denrée en nom d'icône. Lue par sa table à `0x68dc08` — et non dans l'ordre où
+les gestionnaires tombent en mémoire, qui n'est pas celui des indices — elle
+confirme notre ordre des vingt denrées **une quatrième fois**, après la table
+`GET_*`, `wac.xsl` et les tables binaires.
+
+Elle met surtout au jour un piège interne à PR3 : le même indice porte trois
+noms différents.
+
+| indice | API `GET_*` | nom d'icône | texte français |
+|---:|---|---|---|
+| 8 | `ORE` | `metals` | Métal |
+| 10 | `METAL` | `tools` | Objets métal |
+
+L'icône `metals` désigne donc le **minerai**, et `tools` les **objets métal** —
+exactement l'inverse de ce que les mots suggèrent. C'est une confusion facile,
+et elle m'a d'ailleurs fait annoncer un écart 19/20 là où la concordance est
+entière : l'erreur était dans ma table d'équivalence, pas dans le jeu.
+
 ### Quelle archive lit-on ? `data0.fuk` recouvre `data.fuk`
 
 L'installation porte **trois** archives, et non une : `data.fuk` (1,5 Go, 7218

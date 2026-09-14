@@ -13,10 +13,21 @@
 --   * limites de flotte `[Limits]` : 50 navires, 50 par convoi, 100 convois ;
 --   * réparation `[Repairs]` : Zeit 30, Kosten 50 la coque.
 --
--- Ce qui est PROVISOIRE (la recette de construction — matières et durée — est
--- calculée EN JEU par PR3 depuis l'état de la ville, pas rangée en table ; on pose
+-- Ce qui est PROVISOIRE : la recette de construction — matières et durée. On pose
 -- une recette raisonnable, à caler sur des relevés en jeu, comme la puissance de
--- combat). Tout ce qui est provisoire est marqué CALER.
+-- combat. Tout ce qui est provisoire est marqué CALER.
+--
+-- CORRECTION d'une note antérieure, qui affirmait que PR3 ne range pas sa recette
+-- en table. C'est faux au moins en partie : sa clé `Construct` est un tableau de
+-- six entiers dont le PREMIER est le coût en or (exact, déjà utilisé ici) et les
+-- cinq suivants CINQ OCTETS rangés par navire, juste après le triplet
+-- Nations/Masts/Gauge. Ils croissent avec la coque — la pinasse porte
+-- 11, 20, 10, 15, 10 et le vaisseau de ligne 38, 65, 35, 45, 45.
+--
+-- Cinq octets pour quatre emplacements de marchandise à l'écran : le cinquième
+-- est vraisemblablement la durée en jours (10 pour la pinasse, 45 pour le
+-- vaisseau de ligne), ce qui n'est pas démontré. Et rien ne dit encore QUELLES
+-- denrées désignent les quatre autres. Voir `outils/PR3_DONNEES.md`.
 
 local Navires = require("sim.navires")
 
@@ -43,7 +54,9 @@ function Chantier.prix_revente(cle_type)
 end
 
 -- Les matières navales de PR3 : bois, cordage (gréement), tissu (voiles), et métal
--- pour les coques armées. Jusqu'à QUATRE, comme l'offre du jeu (boucle `0x58cae0`).
+-- pour les coques armées. Jusqu'à QUATRE, comme l'offre du jeu (boucle `0x58cae0`,
+-- qui itère sur un vecteur d'éléments de huit octets — un `u32` d'indice de denrée
+-- et un `f32` de quantité — et s'arrête à quatre).
 -- CALER : quantités provisoires, à l'échelle de la cale. Relever en jeu la recette
 -- réelle (construire quelques navires, noter les marchandises) puis remplacer.
 local function recette_materiaux(navire)
