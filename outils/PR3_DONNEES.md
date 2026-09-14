@@ -465,3 +465,35 @@ valent pour la structure **en mémoire** et non pour le fichier :
 | `Masts` | +0x1b |
 | `Gauge` | +0x1c |
 | matériaux (5 octets) | +0x1d … +0x21 |
+
+### Vérifié sur la partie en cours
+
+La table des navires a été retrouvée **dans le jeu qui tourne**, en cherchant la
+signature du sloop (son triplet `8f 01 00` suivi de ses cinq matériaux
+`0e 19 0f 0f 0f`) dans la mémoire du processus. Elle est unique, à `0x24146c4e`.
+
+L'enregistrement en mémoire suit **le même ordre de champs que le fichier** :
+
+```
+50 46 00 00   Construct (or)      18 000
+c8 00         Capacity               200
+6e 00         DailyCosts             110
+ff 00 00      rangs mil/mil/pir
+18 2c 64      Vmin 24, Vmax 44, Wendig 100
+8f 01 00      Nations, Masts, Gauge
+0e 19 0f 0f 0f  les cinq matériaux
+"sloop"       puis 05 00 00 00 / 0f 00 00 00
+```
+
+Les deux noms sont des `std::string` MSVC en mémoire, reconnaissables à leur
+petite optimisation : un tampon de 16 octets, puis la longueur (5 pour
+« sloop », 8 pour « sloop_wm ») et la capacité, toujours 15. La géométrie suit,
+`9a 99 41 c1 …` — les mêmes flottants que le fichier.
+
+C'est une confirmation indépendante du décodage : la même structure lue deux
+fois, une fois dans `constdata.dat` et une fois dans la mémoire du jeu.
+
+Une remarque à ne pas confondre avec une preuve : la paire de points de coque du
+sloop (110 000 deux fois) apparaît **quatre fois** dans une tout autre région
+(`0x1704xxxx`). Ce sont vraisemblablement des navires *instanciés* plutôt que des
+gabarits — mais rien ne l'établit pour l'instant.
