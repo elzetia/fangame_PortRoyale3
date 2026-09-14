@@ -252,7 +252,7 @@ Ce qui est établi :
   villes).
 - Chaque convoi IA affiche ses **navires**, sa **capacité**, **cinq taux de
   remplissage** `F0…F4` et une **ville cible** (`Zielstadt`).
-- L'exe a une section `Konvois` avec `KiUpdateConvoySize` : la **taille** des
+- L'exe a un réglage `[Time] KiUpdateConvoySize` (7 680) : la **taille** des
   convois IA est recalculée en cours de partie. Ils ont aussi des temps fixes
   pour entrer au port, acheter et vendre (`Einlaufzeit`, `Einkaufszeit`,
   `Verkaufszeit`).
@@ -404,16 +404,44 @@ suit le même schéma pour le bit de famine (bit 2).
 
 ### Les convois de l'IA
 
-À la création d'une ville (`0x79F140`), le jeu enchaîne quatre étapes :
+`0x79F140` **crée un marchand IA, pas une ville** : il alloue un objet de 0x438
+octets et enchaîne cinq étapes :
 
-1. **L'or du marchand IA** (`0x79E210`) : 120 000, 90 000 ou 76 000 selon un
-   réglage de partie.
+1. **L'or du marchand IA** (`0x79E210`) : 120 000, 90 000 ou 76 000, choisis par
+   une table de sauts sur `[ville+0x20]` (valeurs 1 à 9) — donc selon la nation.
 2. **Une étape non lue** (`0x79DCD0`).
-3. **Les convois** (`0x79DB00`). La taille visée est la somme des habitants des
-   villes rattachées au marchand, × 420 ÷ 1 900 : environ **0,22 tonneau par
-   habitant**. Chaque marchand IA de la ville reçoit ensuite **`Konvois`
-   convois**, soit **2**.
-4. **Les seuils de prix initiaux** (`0x79C8E0`).
+3. **Les comptoirs.** Une boucle parcourt les enregistrements du monde
+   (`0x825080`, pas de 0x40 octets) en appelant `0x79EC80`, qui abandonne quand
+   `0x828260(enregistrement, nation) == 4`. Chaque retour non nul est empilé par
+   `0x79F0A0` dans le vecteur `+0x30` du marchand.
+4. **Les convois** (`0x79DB00`). La taille visée est la somme des habitants des
+   villes rattachées au marchand (vecteur `+0x20`), × 420 ÷ 1 900 : environ
+   **0,22 tonneau par habitant**. Puis, **pour chaque élément du vecteur `+0x30`**
+   dont l'octet `+0x40` est nul, le jeu crée **`Konvois` convois** (`0x79D6B0`).
+5. **Les seuils de prix initiaux** (`0x79C8E0`).
+
+Le nombre de convois d'un marchand vaut donc `Konvois × (éléments retenus du
+vecteur +0x30)` — **ce n'est ni « par ville » ni « par marchand »**, et ce compte
+d'éléments n'a pas encore été mesuré.
+
+**`Konvois` vaut 2.** Le défaut *compilé* est 3 (`0x8556A6 : push 3 ; push
+"Konvois" ; push "Initial" ; call 0x89d6e0 ; mov byte ptr [edi+0x878], al`), mais
+`ini/constdata.dat` le surcharge à **2**. Le piège mérite d'être noté : ce fichier
+sérialise les champs dans l'ordre de la structure **sans leurs noms**, donc
+chercher la chaîne « Konvois » dans les archives ne rend rien et ferait conclure à
+tort que le défaut fait foi. Seul `outils/pr3_constdata.py` lit la valeur réelle ;
+son calage est confirmé par les six mots qui suivent (64, 64, 128, 7 680, 10,
+1 000). Trois autres réglages du même bloc sont également surchargés : `1Fass`
+2 000 (défaut 1 000), `Faktor` 1,1 (1,0), `Lohn` 6 (5).
+
+**Combien de marchands IA ? Non résolu**, et la voie statique est fermée. La
+chaîne de création est `0x79F140` ← `0x77A460` ← `0x777D20` (le constructeur du
+marchand) ← `0x0079947E`, qui vit dans la **méthode virtuelle** `0x00799450` d'un
+objet-commande (table virtuelle `0xB77654`), lui-même construit par la **fabrique
+de commandes** `0x007751B0`, **case 1** de sa table de sauts (`0x00776290`). Les
+commandes étant créées par numéro, un balayage de `call rel32` ne peut pas
+remonter plus haut. Les sauvegardes n'aident pas davantage : leur corps est à
+8,000 bits/octet d'entropie (0,41 % d'octets nuls), donc comprimé ou chiffré.
 
 **La composition d'un convoi** (`0x79D6B0`) :
 - le jeu dresse la liste des types de navires marchands, 8 au plus ;
@@ -569,7 +597,7 @@ thésaurise pas, il bâtit.
 
 ### Ce que les noms de clés laissent deviner
 
-Les réglages économiques de l'exe (sections `Konvois`, `Produktion`, `Hausbau`…)
+Les réglages économiques de l'exe (sections `Initial`, `Produktion`, `Hausbau`…)
 esquissent la logique de l'IA. **Ce sont des noms, pas du code** : tout ce qui
 suit est une hypothèse à vérifier.
 

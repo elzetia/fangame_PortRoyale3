@@ -49,7 +49,7 @@ Pour la logique et les systèmes, voir `PR3_SYSTEMES.md`.
    NeubauWeltVorratTage                       15   seuil de reserve mondiale pour batir
    NeubauMinAlq                               50   chomage minimal pour batir un atelier
    StartFabriken                              20   ateliers au depart
-   Konvois (Initial)                           2   convois IA par ville au depart
+   Konvois (Initial)                           2   convois IA par comptoir (defaut compile 3)
    Verkaufszeit                               64   temps de vente a quai
    Einkaufszeit                               64   temps d'achat a quai
    Einlaufzeit                               128   temps d'entree au port

@@ -504,7 +504,7 @@ tutoriel parle de 80 %. La valeur réelle n'a pas été retrouvée.
 | `NeubauOfficeVorratTage` / `NeubauWeltVorratTage` | 5 / 15 | seuils de réserve pour bâtir |
 | `NeubauMinAlq` | 50 | chômage minimal pour bâtir un atelier |
 | `StartFabriken` | 20 | ateliers au départ |
-| `Konvois` | 2 | convois IA par ville au départ |
+| `Konvois` | 2 | convois IA **par comptoir** du marchand (défaut compilé 3, surchargé ici) |
 | `Einlaufzeit` / `Einkaufszeit` / `Verkaufszeit` | 128 / 64 / 64 | temps à quai |
 | `BasicCapacity` | 1 000 | capacité de base d'un comptoir |
 | `Lagermiete` | 0,1 / 0,2 / 0,3 | loyer d'entrepôt |

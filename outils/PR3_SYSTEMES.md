@@ -213,9 +213,14 @@ droits :
   de nombreuses villes, plus l'architecte fait payer cher la concession ».
 
 Les seuils, décodés dans le grand chargeur de config (`0x8297e1`, `0x865a90`) :
-- **Droit aux convois** : on démarre à `[Initial] Konvois` = **3** ; le rang le fait
-  monter jusqu'au plafond dur `[Limits] maxConvoys` = **100** (avec `maxConvoyMembers`
-  50 et `maxShips` 50, voir la section chantier).
+- **Droit aux convois** : le plafond dur est `[Limits] maxConvoys` = **100** (avec
+  `maxConvoyMembers` 50 et `maxShips` 50, voir la section chantier), rangé en
+  `[structure+0x134]` par `0x008299EA`. **Le point de départ reste inconnu** : ce
+  document a longtemps écrit qu'on démarrait à `[Initial] Konvois`, c'était faux.
+  `[Initial] Konvois` vit dans une **autre structure** (`+0x878`), n'est lu qu'en
+  `0x79DB00` — la création des convois **de l'IA** — et vaut **2**, pas 3 (voir
+  « Les convois de l'IA » dans `PR3_TECHNIQUE.md`). Les deux champs n'ont aucun
+  rapport ; la progression du droit du joueur avec le rang n'a pas été décodée.
 - **Concessions de l'architecte** : `[Licence]` = `Rank` **10**, `RepNation` **5**,
   `RepTown` **5**, `Buildings` **3** (le seuil de base pour obtenir une licence).
 - **Exigences par bâtiment / palier** : des sections `[Requirements%02u]`, chacune

@@ -8,9 +8,13 @@
 -- partie. Et ses textes posent la règle de vitesse — « un convoi ne va jamais
 -- plus vite que son navire le plus lent ».
 --
--- Le code du jeu dit COMBIEN et DE QUELLE TAILLE (`0x79DB00`, `0x79D6B0`) : chaque
--- ville arme `Konvois` convois — deux — et chacun vise une cale proportionnelle à
--- sa population. Ce qu'il ne montre pas lisiblement, c'est où ils vont : leurs
+-- Le code du jeu dit COMBIEN et DE QUELLE TAILLE (`0x79DB00`, `0x79D6B0`) : un
+-- marchand IA arme `Konvois` convois — deux — PAR ÉLÉMENT de son vecteur `+0x30`,
+-- que `0x79F140` remplit d'un objet par ville accessible (vraisemblablement ses
+-- comptoirs). CE N'EST DONC PAS « deux par ville » : la sim le simplifie ainsi,
+-- faute d'avoir mesuré ce compte d'éléments. Chacun vise une cale proportionnelle
+-- à la population desservie. Ce qu'il ne montre pas lisiblement, c'est où ils
+-- vont : leurs
 -- routes sont les nôtres, ci-dessous, et elles ont été mesurées avec
 -- `tools/equilibre.gd`. Avec des cales de quarante-cinq tonneaux, la carte
 -- mourait de logistique — outils à 2 % de leurs ateliers, café et rhum
@@ -60,10 +64,15 @@ local Strategies   = require("sim.strategies")
 
 local Marchands = {}
 
--- LA FLOTTE DE PR3. Chaque marchand IA d'une ville reçoit `Konvois` convois, soit
--- deux, et chacun vise une cale de habitants × 420 ÷ 1 900 tonneaux. Le jeu la
--- remplit en tirant au hasard jusqu'à trois navires parmi les types marchands,
--- et s'arrête dès qu'il a atteint ce tonnage.
+-- LA FLOTTE DE PR3. `Konvois` vaut DEUX — c'est la valeur STOCKÉE dans
+-- `ini/constdata.dat`. Le défaut compilé dans l'exe est 3 (`0x8556A6`), surchargé
+-- au chargement ; le fichier sérialise les champs sans leurs noms, d'où le piège :
+-- chercher « Konvois » dans les archives ne rend rien et ferait croire que le
+-- défaut fait foi. Le jeu en arme deux PAR ÉLÉMENT du vecteur de comptoirs du
+-- marchand ; ici on en arme deux par ville, faute d'avoir mesuré ce compte.
+-- Chacun vise une cale de habitants × 420 ÷ 1 900 tonneaux. Le jeu la remplit en
+-- tirant au hasard jusqu'à trois navires parmi les types marchands, et s'arrête
+-- dès qu'il a atteint ce tonnage.
 --
 -- Il remplace le coefficient qu'on avait mesuré — 0,55 tonneau par habitant pour
 -- une flotte unique, dont une part partait au long cours dans les seules grandes

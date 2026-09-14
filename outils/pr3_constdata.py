@@ -147,7 +147,7 @@ def main():
         ("NeubauWeltVorratTage", neubau_welt, "seuil de reserve mondiale pour batir"),
         ("NeubauMinAlq", neubau_alq, "chomage minimal pour batir un atelier"),
         ("StartFabriken", start_fabriken, "ateliers au depart"),
-        ("Konvois (Initial)", konvois, "convois IA par ville au depart"),
+        ("Konvois (Initial)", konvois, "convois IA par comptoir (defaut compile 3)"),
         ("Verkaufszeit", verkauf, "temps de vente a quai"),
         ("Einkaufszeit", einkauf, "temps d'achat a quai"),
         ("Einlaufzeit", einlauf, "temps d'entree au port"),
