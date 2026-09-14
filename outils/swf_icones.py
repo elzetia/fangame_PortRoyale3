@@ -30,6 +30,22 @@ def rect(b):
     nb=b.u(5); a=[b.sg(nb) for _ in range(4)]; b.align(); return a
 def strz(d,o):
     e=d.index(b'\0',o); return d[o:e].decode('latin1'), e+1
+def sof(jpg):
+    """Dimensions d'un flux JPEG, lues a son marqueur SOF. Sans elles, les
+    symboles dont l'art est un JPEG sortaient en (0,0) et le filtre de taille
+    les jetait en silence -- quatre entrees de la table avaient ainsi disparu."""
+    i=jpg.find(b"\xff\xd8")
+    if i<0: return (0,0)
+    i+=2
+    while i+4 < len(jpg):
+        if jpg[i]!=0xFF: i+=1; continue
+        m=jpg[i+1]
+        if m in (0xC0,0xC1,0xC2,0xC3,0xC9,0xCA,0xCB):
+            return (struct.unpack_from(">H",jpg,i+7)[0],
+                    struct.unpack_from(">H",jpg,i+5)[0])
+        if m in (0xD8,0xD9) or 0xD0<=m<=0xD7: i+=2; continue
+        i += 2+struct.unpack_from(">H",jpg,i+2)[0]
+    return (0,0)
 d=charger(sys.argv[1])
 b=B(d,8); rect(b); o=b.p+4
 names={}; bmp={}; sprites={}; shapes={}
@@ -47,8 +63,11 @@ while o<len(d)-2:
     elif code in (20,36):
         cid=struct.unpack_from("<H",d,body)[0]
         bmp[cid]=(struct.unpack_from("<H",d,body+3)[0], struct.unpack_from("<H",d,body+5)[0])
-    elif code in (21,35):
-        cid=struct.unpack_from("<H",d,body)[0]; bmp[cid]=(0,0)
+    elif code in (21,35,6,90):
+        cid=struct.unpack_from("<H",d,body)[0]
+        p=body+2
+        if code==35: p+=4          # DefineBitsJPEG3 : longueur des donnees alpha
+        bmp[cid]=sof(bytes(d[p:body+ln]))
     elif code==39:
         sid=struct.unpack_from("<H",d,body)[0]
         p=body+4; kids=[]
@@ -126,7 +145,13 @@ for cid in sorted(names, key=lambda i:names[i].lower()):
     # Cycle -> 1872 (deux fleches) et non 436 (une plaque) ; Bships -> 1186 (un
     # navire) et non 1480 (un bandeau). Mesure : 622 entrees justes sur 677
     # contre 599 pour l'ancienne regle. C'est une approximation, pas une loi.
-    best=min(lv, key=lambda b: bmp[b][0]*bmp[b][1])
+    # ... mais avec un PLANCHER : sans lui, « la plus petite » attrapait parfois
+    # un eclat de plaque de texte (607, qui fait 6x20) au lieu de l'icone. Le
+    # plancher a 10 px garde les memes 622 bonnes reponses et ramene ces eclats
+    # de 50 a 19 -- soit le compte de l'ancienne regle. Au-dela il degrade :
+    # 620 a 16 px, 613 a 20 px.
+    franc=[b for b in lv if min(bmp[b][0],bmp[b][1])>=10] or lv
+    best=min(franc, key=lambda b: bmp[b][0]*bmp[b][1])
     # Le nom ENTIER quand c'est un nom de fichier : `split('.')[-1]` reduisait
     # « Flag_England.png » a « png » et faisait s'effondrer 414 symboles sur une
     # seule cle. Sinon, le dernier segment pointe : components.button.Visual_X.
