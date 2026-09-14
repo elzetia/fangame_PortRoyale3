@@ -530,7 +530,9 @@ de 0 à 100, et bouge à chaque transaction selon cette règle ; l'affichage par
 nation en est la moyenne.
 
 **Dans la sim** (`sim/marchands.lua`) :
-- 2 convois par ville ;
+- 2 convois par ville — la SIMPLIFICATION assumée de la règle de PR3 ci-dessus
+  (`Konvois` convois par comptoir du marchand), faute d'avoir mesuré combien de
+  comptoirs un marchand ouvre ;
 - une cale visée de habitants × 420 ÷ 1 900, remplie d'un à trois navires
   marchands tirés au hasard (tirage reproductible par ville) ;
 - 90 000 pièces d'or partagées entre les deux convois ;

@@ -622,7 +622,7 @@ Tout ce qui précède et qui se simule sans bâtiments ni combats est dans `sim/
 | **Série de prix « pénurie » par ville, levée par un compteur de manque lissé (seuil 24)** | `sim/economie.lua` |
 | Seize navires, leur cale, leur vitesse maximale et leur entretien journalier | `sim/navires.lua` |
 | Entretien du navire du joueur, prélevé chaque jour | `sim/compagnie.lua` |
-| 2 convois IA par ville, cale visée de habitants × 420 ÷ 1 900, 1 à 3 navires tirés au hasard, 90 000 pièces | `sim/marchands.lua` |
+| 2 convois IA par ville — simplification : PR3 arme `Konvois` = 2 convois **par comptoir** du marchand —, cale visée de habitants × 420 ÷ 1 900, 1 à 3 navires tirés au hasard, 90 000 pièces | `sim/marchands.lua` |
 | **Or d'un convoi plafonné à son capital de travail ; le débordement bâtit des ateliers pour les chaînes faibles (comme l'IA de PR3)** | `sim/marchands.lua` |
 | **Réputation du joueur par ville, montée en comblant un manque, baissée en le creusant (moyenne par nation pour l'affichage)** | `sim/compagnie.lua` |
 | **Fléaux (peste, sauterelles, feu) : consommation doublée sur leurs denrées, peste mortelle ; tirés selon la SURPOPULATION (habitants / capacité)** | `sim/economie.lua` |
