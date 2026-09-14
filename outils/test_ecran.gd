@@ -35,11 +35,21 @@ func _init() -> void:
 	# Avant le repli sur la table d'icônes, DEUX seulement portaient une image :
 	# ni la planche ni le bouton rond ne tombaient dans une branche de `_noeud`.
 	var h := EcranPR3.batir("hud_pc", "Hud_pc_fla.Hud_Woodboard_Left_PC_68", true)
+	# On parcourt TOUT L'ARBRE, pas seulement les enfants directs. Depuis que les
+	# symboles se rendent en EMPILEMENT (un bezel, son glyphe par-dessus), les
+	# images vivent un cran plus bas, dans le Control de la pile : compter les
+	# enfants directs affichait « 0 avec image » pour une planche qui en porte
+	# cinq. Un compteur qui ment est pire qu'un compteur absent.
 	var avec_image := 0
 	var nommes: Array = []
+	var a_voir: Array = [h]
+	while not a_voir.is_empty():
+		var noeud: Node = a_voir.pop_back()
+		for e in noeud.get_children():
+			if e is TextureRect and (e as TextureRect).texture != null:
+				avec_image += 1
+			a_voir.append(e)
 	for e in h.get_children():
-		if e is TextureRect and (e as TextureRect).texture != null:
-			avec_image += 1
 		var n := str(e.name)
 		if n.begins_with("tf_") or n.begins_with("bu_"):
 			nommes.append(n)

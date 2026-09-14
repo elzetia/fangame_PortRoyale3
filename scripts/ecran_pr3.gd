@@ -53,6 +53,8 @@ static var _caracteres: Dictionary = {}
 # au point de placement. Voir `_pose()`.
 static var _decalages: Dictionary = {}
 static var _caracteres_dec: Dictionary = {}
+# La table en COUCHES : une classe -> l'empilement de son état au repos.
+static var _couches: Dictionary = {}
 
 
 # --- lecture des données décodées --------------------------------------------
@@ -88,6 +90,76 @@ static func icones() -> Dictionary:
 				if bouts.size() >= 5:
 					_decalages[cle] = Vector2(float(bouts[3]), float(bouts[4]))
 	return _icones
+
+
+# La table en COUCHES (`outils/swf_icones.py` -> icones_couches.txt).
+#
+# Un bouton de PR3 n'est pas une image mais un EMPILEMENT : un bezel de 42x42 et
+# son glyphe par-dessus. La table à une seule feuille gardait le glyphe et jetait
+# l'anneau — et pire, prenait le glyphe de l'image 0, qui pour un bouton rond est
+# étiquetée « NormalDisable ». Les boutons sortaient donc nus ET grisés.
+#
+# 1383 couches pour 967 classes, dont 139 en portent plusieurs : 100 bezel +
+# glyphe, 30 disjointes (six onglets côte à côte), 9 exclusions que le fichier
+# ne sait pas départager — `Visual_SelectedAmmo` nomme ses images AmmoA/B/C sans
+# aucun « Normal », c'est le jeu qui choisit la munition.
+static func couches() -> Dictionary:
+	if not _couches.is_empty():
+		return _couches
+	var chemin := ProjectSettings.globalize_path(AGENCEMENT + "icones_couches.txt")
+	if FileAccess.file_exists(chemin):
+		for ligne in FileAccess.get_file_as_string(chemin).split("\n"):
+			var bouts := ligne.split("\t")
+			if bouts.size() >= 6:
+				var cle := bouts[0].strip_edges()
+				if not _couches.has(cle):
+					_couches[cle] = []
+				(_couches[cle] as Array).append({
+					"fichier": bouts[2].strip_edges(),
+					"decalage": Vector2(float(bouts[4]), float(bouts[5]))})
+	return _couches
+
+
+# Bâtit l'empilement d'une classe, ou `null` si la table ne la connaît pas.
+#
+# Le nœud rendu a pour origine le coin haut-gauche de l'UNION des couches, et
+# chacune y est posée relativement. `batir()` ajoute ensuite le point de
+# placement, si bien que l'ensemble retombe exactement où les décalages le
+# veulent — et qu'un symbole à UNE couche rend le même pixel qu'avant.
+static func _pile(classe: String) -> Control:
+	var court := classe.get_slice(".", classe.get_slice_count(".") - 1)
+	var liste: Array = couches().get(court, [])
+	if liste.is_empty():
+		return null
+
+	var trouvees: Array = []
+	var coin := Vector2(INF, INF)
+	var bout := Vector2(-INF, -INF)
+	for c in liste:
+		var d: Dictionary = c
+		var tex := SkinPR3.texture(SKIN + str(d["fichier"]).replace(".png", ""))
+		if tex == null:
+			continue
+		var dec: Vector2 = d["decalage"]
+		trouvees.append([tex, dec])
+		coin = Vector2(minf(coin.x, dec.x), minf(coin.y, dec.y))
+		bout = Vector2(maxf(bout.x, dec.x + tex.get_width()),
+			maxf(bout.y, dec.y + tex.get_height()))
+	if trouvees.is_empty():
+		return null
+
+	var racine := Control.new()
+	racine.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	racine.position = coin
+	racine.size = bout - coin
+	for t in trouvees:
+		var paire: Array = t
+		var tex2: Texture2D = paire[0]
+		var dec2: Vector2 = paire[1]
+		var im := _image(tex2, tex2.get_size())
+		im.position = dec2 - coin
+		racine.add_child(im)
+	return racine
 
 
 # La table charId -> bitmap d'UN .swf, écrite par `outils/swf_caracteres.py`.
@@ -278,6 +350,9 @@ static func _noeud(el: Dictionary, repli: bool, swf: String) -> Control:
 		return vide
 
 	if classe.contains("IconButton") or classe.begins_with("icon"):
+		var empile_a := _pile(classe)
+		if empile_a != null:
+			return empile_a
 		var tex := _icone(classe)
 		if tex == null:
 			return _image(null, Vector2(24, 24))
@@ -286,6 +361,9 @@ static func _noeud(el: Dictionary, repli: bool, swf: String) -> Control:
 	# Beaucoup de `Visual_Button_*` sont en fait des icônes (le « i » d'info, les
 	# flèches…) : on les pose en image si la table en connaît une.
 	if classe.contains("Visual_Button") or classe.contains("Textbutton"):
+		var empile_b := _pile(classe)
+		if empile_b != null:
+			return empile_b
 		var ti := _icone(classe)
 		if ti != null:
 			return _pose(ti, _decalage_icone(classe))
@@ -310,6 +388,12 @@ static func _noeud(el: Dictionary, repli: bool, swf: String) -> Control:
 		var anonyme := _caractere(swf, classe)
 		if anonyme != null:
 			return _pose(anonyme, _decalage_caractere(swf, classe))
+
+		# Puis l'empilement : c'est par ici que passent les boutons RONDS, dont le
+		# nom ne contient pas « Visual_Button ».
+		var empile_c := _pile(classe)
+		if empile_c != null:
+			return empile_c
 
 		var reste := _icone(classe)
 		if reste != null:

@@ -101,6 +101,35 @@ def matrice(b):
     return tx, ty
 
 
+def saut_cxform(b):
+    """Avance au-dela d'une CXFORMWITHALPHA. On n'en garde rien : elle n'est la
+    que pour atteindre le NOM D'INSTANCE, qui la suit."""
+    ha = b.u(1)
+    hm = b.u(1)
+    n = b.u(4)
+    if hm:
+        b.sg(n); b.sg(n); b.sg(n); b.sg(n)
+    if ha:
+        b.sg(n); b.sg(n); b.sg(n); b.sg(n)
+    b.align()
+
+
+# Les marqueurs d'un etat qui n'est PAS le repos, dans un nom d'instance.
+# `mc_dis_normal` en porte deux : c'est le normal DESACTIVE, et `_dis` le fait
+# tomber, ce qui est voulu.
+ETATS_ACTIFS = ("_over", "_press", "_dis", "_check", "_focus")
+
+
+def au_repos(instance):
+    """Ce nom d'instance designe-t-il la couche visible au repos ?"""
+    if not instance:
+        return True
+    b = instance.lower()
+    if b in ("hitmask", "mc_mask"):
+        return False
+    return not any(m in b for m in ETATS_ACTIFS)
+
+
 def strz(d, o):
     e = d.index(b'\0', o)
     return d[o:e].decode('latin1'), e + 1
@@ -139,8 +168,9 @@ class Swf:
         self.d = charger(nom)
         self.names = {}     # charId -> nom de classe (SymbolClass)
         self.bmp = {}       # charId -> (largeur, hauteur)
-        self.sprites = {}   # charId -> [charId des enfants places]
+        self.sprites = {}   # charId -> [(charId, tx, ty) des enfants places]
         self.shapes = {}    # charId -> (code, offset, longueur)
+        self.corps = {}     # charId -> (offset, longueur) du DefineSprite
         self._parcourir()
 
     def _parcourir(self):
@@ -178,8 +208,9 @@ class Swf:
                     p += 4                      # longueur des donnees alpha
                 self.bmp[cid] = sof(bytes(d[p:body + ln]))
             elif code == 39:                    # DefineSprite
-                self.sprites[struct.unpack_from("<H", d, body)[0]] = \
-                    self._enfants(body, ln)
+                sid = struct.unpack_from("<H", d, body)[0]
+                self.sprites[sid] = self._enfants(body, ln)
+                self.corps[sid] = (body, ln)
             elif code in (2, 22, 32, 83):       # DefineShape*
                 self.shapes[struct.unpack_from("<H", d, body)[0]] = (code, body, ln)
             o += ln
@@ -343,6 +374,134 @@ class Swf:
             if r is not None:
                 return (tx + r[0], ty + r[1])
         return None
+
+    def etats(self, cid):
+        """Les IMAGES d'un sprite : [(etiquette, {profondeur: (cid, tx, ty)})].
+
+        Une timeline Flash est CUMULATIVE et elle RETIRE. Trois balises que le
+        parcours ignorait portent tout le sens :
+          * ShowFrame (1) separe les images ;
+          * FrameLabel (43) les NOMME -- « Init », « Normal », « Press »,
+            « NormalDisable »... C'est le jeu qui le dit, on ne devine plus ;
+          * RemoveObject2 (28) vide une profondeur. Sans elle, l'image 0 d'un
+            textbutton semble empiler Normal, Over ET Pressed : elle est en fait
+            etiquetee « Init » et l'image 1 « Normal » retire les deux en trop.
+        """
+        if cid not in self.corps:
+            return []
+        d = self.d
+        body, ln = self.corps[cid]
+        p = body + 4
+        dl = {}
+        etiqs = {}
+        img = 0
+        out = []
+        while p < body + ln - 1:
+            srh = struct.unpack_from("<H", d, p)[0]
+            hp = p
+            p += 2
+            sc = srh >> 6
+            sl = srh & 0x3f
+            longue = (sl == 0x3f)
+            if longue:
+                sl = struct.unpack_from("<I", d, p)[0]
+                p += 4
+            if sc == 0:
+                break
+            if sc == 1:                              # ShowFrame
+                out.append((etiqs.get(img, ""), dict(dl)))
+                img += 1
+            elif sc == 43:                           # FrameLabel
+                etiqs[img] = strz(d, p)[0]
+            elif sc == 28:                           # RemoveObject2
+                dl.pop(struct.unpack_from("<H", d, p)[0], None)
+            elif sc == 5:                            # RemoveObject
+                dl.pop(struct.unpack_from("<H", d, p + 2)[0], None)
+            elif sc in (26, 70):
+                f1 = d[p]
+                if sc == 26:
+                    prof = struct.unpack_from("<H", d, p + 1)[0]
+                    q = p + 3
+                else:
+                    f2 = d[p + 1]
+                    prof = struct.unpack_from("<H", d, p + 2)[0]
+                    q = p + 4
+                    if f2 & 0x08:
+                        _, q = strz(d, q)
+                c2 = None
+                if f1 & 0x02:
+                    c2 = struct.unpack_from("<H", d, q)[0]
+                    q += 2
+                # Il faut traverser matrice et transformation de couleur pour
+                # atteindre le NOM D'INSTANCE : c'est lui qui departage les etats
+                # d'un bouton MONTE (tout pose sur « Init », rien retire ensuite,
+                # la visibilite reglee au runtime par l'ActionScript).
+                bb = Bits(d, q)
+                tx = ty = 0.0
+                if f1 & 0x04:
+                    tx, ty = matrice(bb)
+                if f1 & 0x08:
+                    saut_cxform(bb)
+                q2 = bb.p
+                if f1 & 0x10:
+                    q2 += 2                      # ratio
+                inst = None
+                if f1 & 0x20:
+                    inst, q2 = strz(d, q2)
+                if c2 is not None:
+                    dl[prof] = (c2, tx, ty, inst)
+            p = hp + (6 if longue else 2) + sl
+        out.append((etiqs.get(img, ""), dict(dl)))
+        return out
+
+    def pile(self, cid, prof=0, seen=None):
+        """Les COUCHES de l'etat au repos : [(bitmap, dx, dy)], par profondeur.
+
+        Un bouton de PR3 n'est pas une image mais un empilement : un bezel de
+        42x42 et, par-dessus, son glyphe. Rendre « la plus petite feuille »
+        gardait le glyphe et jetait l'anneau -- et pire, prenait le glyphe de
+        l'image 0, qui pour un bouton rond est etiquetee « NormalDisable ».
+        On rend donc l'image nommee « Normal » quand elle existe, image 0 sinon
+        (les icones d'evenement, par exemple, nomment leurs images « drought »).
+        """
+        if seen is None:
+            seen = set()
+        if cid in seen or prof > 6:
+            return []
+        seen = seen | {cid}
+        if cid in self.bmp:
+            return [(cid, 0.0, 0.0)]
+        if cid in self.shapes:
+            b = self.meilleure(cid)
+            if b is None:
+                return []
+            o = self.origine(cid, b) or (0.0, 0.0)
+            return [(b, o[0], o[1])]
+        ims = self.etats(cid)
+        if not ims:
+            return []
+        idx = 0
+        for i, (etiq, _) in enumerate(ims):
+            if etiq.lower() == "normal":
+                idx = i
+                break
+        out = []
+        for p2 in sorted(ims[idx][1]):
+            c2, tx, ty, inst = ims[idx][1][p2]
+            court = self.names.get(c2, "").split('.')[-1]
+            if "Mask" in court or "Maske" in court:
+                continue
+            # Deux idiomes coexistent dans PR3. Les boutons RONDS jouent leur
+            # etat sur la TIMELINE (images etiquetees + RemoveObject), et
+            # l'image « Normal » suffit. Les chooser et textbuttons MONTENT tout
+            # sur « Init » et ne retirent rien : leurs images suivantes ne
+            # portent qu'une etiquette, la visibilite etant reglee au runtime.
+            # Pour ceux-la, seul le nom d'instance departage.
+            if not au_repos(inst):
+                continue
+            for b, dx, dy in self.pile(c2, prof + 1, seen):
+                out.append((b, tx + dx, ty + dy))
+        return out
 
     def meilleure(self, cid):
         """Le bitmap qui represente le mieux ce caractere, ou None.

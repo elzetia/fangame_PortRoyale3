@@ -42,3 +42,35 @@ dest = os.path.join(SORTIE, "agencement", "icones.txt")
 os.makedirs(os.path.dirname(dest), exist_ok=True)
 open(dest, "w", encoding="utf-8").write("\n".join(lignes) + "\n")
 print(f"{len(lignes)} entrees -> icones.txt")
+
+# --- la table en COUCHES, ecrite a cote ---------------------------------------
+#
+# Un bouton de PR3 n'est pas une image mais un empilement : un bezel de 42x42
+# et son glyphe par-dessus. Une feuille unique ne peut pas porter les deux.
+# On ecrit donc une seconde table, une ligne PAR COUCHE :
+#
+#     <classe>  <rang>  <fichier>  <LxH>  <dx>  <dy>
+#
+# Elle vit A COTE de `icones.txt` tant que le rendu ne l'a pas adoptee : migrer
+# la table et le rendu d'un seul coup laisserait le HUD a moitie converti, sans
+# moyen de dire lequel des deux est fautif.
+couches = []
+n_multi = 0
+for cid in sorted(s.names, key=lambda i: s.names[i].lower()):
+    if motif and motif not in s.names[cid].lower():
+        continue
+    pile = s.pile(cid)
+    if not pile:
+        continue
+    if len(pile) > 1:
+        n_multi += 1
+    nm = s.names[cid]
+    court = nm if nm.lower().endswith(".png") else nm.split('.')[-1]
+    for rang, (b, dx, dy) in enumerate(pile):
+        couches.append(f"{court}\t{rang}\t{b}.png"
+                       f"\t{s.bmp[b][0]}x{s.bmp[b][1]}\t{dx:.0f}\t{dy:.0f}")
+
+dest2 = os.path.join(SORTIE, "agencement", "icones_couches.txt")
+open(dest2, "w", encoding="utf-8").write("\n".join(couches) + "\n")
+print(f"{len(couches)} couches -> icones_couches.txt  "
+      f"({n_multi} symboles en portent plusieurs)")
