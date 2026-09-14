@@ -134,8 +134,9 @@ def ecrire_masque(masque, w, h):
         "--",
         "-- Encode par plages, une entree par ligne d'image : la premiere plage est",
         "-- de MER, et l'on alterne ensuite. Une cote est un contour simple, donc il",
-        "-- faut six plages par ligne en moyenne -- 6 075 nombres pour 1 267 200",
-        "-- cases. Le masque brut en pese 158 ko, ce fichier-ci en pese trente.",
+        "-- faut peu de plages par ligne -- %d nombres pour %d cases. Le masque"
+        % (sum(len(p) for p in lignes), w * h),
+        "-- brut en pese 158 ko, ce fichier-ci en pese trente.",
         "",
         "local Carte = {}",
         "",
