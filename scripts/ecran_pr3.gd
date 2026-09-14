@@ -371,6 +371,13 @@ static func batir(swf: String, scene: String, repli := false,
 		var d: Dictionary = el
 		if str(d.get("type", "")) == "texte":
 			continue
+		# Les IMAGES > 0 d'un sprite sont ses ÉTATS ALTERNATIFS — un bouton
+		# survolé, pressé, désactivé ; une planche de rechange. PR3 n'en montre
+		# qu'un à la fois, et l'image 0 est l'état par défaut. Les dessiner tous
+		# posait `char147`, opaque à 91 %, sur le bandeau de ville qu'elle
+		# devait remplacer et non recouvrir.
+		if int(d.get("img", 0)) > 0:
+			continue
 		var classe := str(d.get("classe", ""))
 		var n: Control
 		# Un CONTENEUR est une classe qui est elle-même une scène du même .swf.

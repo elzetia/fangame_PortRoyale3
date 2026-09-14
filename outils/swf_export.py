@@ -106,19 +106,29 @@ def edittext(d,body):
 
 def walk(d,start,end,sprites,items):
     o=start
+    # L'IMAGE courante du sprite : ShowFrame (balise 1) la fait avancer. Sans ce
+    # compte, toutes les images s'aplatissent en une seule et les ETATS
+    # ALTERNATIFS se dessinent les uns sur les autres -- un bouton montre a la
+    # fois son etat normal, survole, presse et desactive. C'est ce qui posait
+    # `char147`, la planche de l'image 4 de Hud_Scroll_Top_50, par-dessus le
+    # bandeau de ville de l'image 0, qu'elle recouvrait a 91 %.
+    img=0
     while o<end-1:
         rh=struct.unpack_from("<H",d,o)[0]; o+=2
         code=rh>>6; ln=rh&0x3f
         if ln==0x3f: ln=struct.unpack_from("<I",d,o)[0]; o+=4
         body=o; o2=o+ln
         if code==0: return
-        if code==39:
+        if code==1:
+            img+=1
+        elif code==39:
             sid=struct.unpack_from("<H",d,body)[0]
             kids=[]
             walk(d,body+4,o2,sprites,kids)
             sprites[sid]=kids
         elif code in (26,70):
-            try: items.append(place(d,body,code))
+            try:
+                it=place(d,body,code); it["img"]=img; items.append(it)
             except Exception: pass
         elif code==37:
             try: items.append(edittext(d,body))
@@ -202,6 +212,13 @@ for nom in sys.argv[1:]:
                     if abs(it["sx"]-1)>0.005 or abs(it["sy"]-1)>0.005:
                         e["sx"]=it["sx"]; e["sy"]=it["sy"]
                     e["cid"]=it["cid"]
+                    # La PROFONDEUR ordonne l'empilement, l'IMAGE dit l'etat.
+                    # On garde les deux sans rien jeter : les images > 0 sont
+                    # les etats alternatifs (survole, presse, desactive), que le
+                    # rendu ne doit pas empiler sur l'etat par defaut -- mais
+                    # qui serviront le jour ou les boutons reagiront.
+                    e["prof"]=it["d"]
+                    if it.get("img",0): e["img"]=it["img"]
                     enfants.append(e)
             if enfants: ecrans[nm]=enfants
         doc={"swf":court,"scene":[round(stage[1]),round(stage[3])],
