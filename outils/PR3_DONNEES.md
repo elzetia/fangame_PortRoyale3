@@ -447,7 +447,28 @@ vraisemblablement la **durée en jours** (10 pour la pinasse, 45 pour le vaissea
 de ligne), mais ce n'est pas démontré. Et les quatre denrées ne sont désignées
 nulle part : ni dans ces octets, qui sont des quantités, ni dans les textes —
 `ID_GUI_LEGEND_SHIPYARD_BUILD` ne dit que « Signer le contrat », l'interface
-remplissant ses icônes à l'exécution. Il faut le code qui les consomme.
+remplissant ses icônes à l'exécution.
+
+Les pistes déjà épuisées, pour ne pas les refaire :
+
+- **La localisation** : aucune chaîne ne liste les matériaux d'un navire.
+- **`tf_materials`** : la chaîne existe dans le SWF mais n'est référencée **nulle
+  part** dans l'exécutable. Ce champ est piloté depuis l'AS3 seul.
+- **L'AS3 du chantier** : ne contient que de la plomberie Flash
+  (`__setProp_good_0_Group_Build_Offer_Layer1_0`…), aucune donnée.
+- **Les trois lecteurs de `+0x1d`..`+0x21`** (`0x7ff6dc`, `0x809606`,
+  `0x810fa9`) sont des routines de **copie**, pas des consommateurs : l'une
+  recopie l'enregistrement à l'identique, l'autre l'agrandit d'un pas de `0xa4`,
+  la troisième le convertit en un enregistrement de `0x40` octets.
+- **Les cinq accesseurs** `0x4dae60`..`0x4daee0`, un par octet, sont des getters
+  génériques (`mov al, [eax+0x1d]`) ; leur appelant range l'octet dans une
+  structure de résumé sans jamais le rapprocher d'une denrée.
+
+Ce qui est acquis, en revanche : l'onglet bascule entre **trois** panneaux. En
+`0x58ccb6`, le code pousse `("elements", X)` avec X valant `materials`,
+`constructing` ou `offer` — matériaux manquants, construction en cours, ou le
+contrat proprement dit. Ce sont les quatre denrées du panneau `offer` qu'il
+reste à nommer.
 
 ### L'enregistrement navire en mémoire fait 164 octets
 
