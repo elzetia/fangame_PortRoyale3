@@ -105,6 +105,10 @@ const CADRE_EPAISSEUR := 1.0
 # Le tracé de route, lui aussi dessiné et non extrait. Plus pâle que la pastille
 # d'or du convoi : c'est son chemin, pas lui.
 const TRACE_ROUTE := Color(0.98, 0.86, 0.48, 0.70)
+# La route des AUTRES convois : le même ton, simplement plus effacé. C'est la
+# distinction que `poser_convois` fait déjà entre `OR_CHOISI` et `OR_CONVOI`,
+# reprise telle quelle plutôt qu'une teinte inventée pour l'occasion.
+const TRACE_ROUTE_AUTRE := Color(0.98, 0.86, 0.48, 0.30)
 const TRACE_EPAISSEUR := 1.0
 
 # La pièce d'or accolée au nombre (`ID_FORMATTER_ICON_GOLD`).
@@ -117,8 +121,9 @@ var _villes_posees := false
 # Les quatre bords du cadre de vue, gardés d'une image à l'autre : les recréer à
 # chaque rafraîchissement ferait soixante allocations par seconde pour rien.
 var _vue: Array[ColorRect] = []
-# Le tracé, gardé d'une image à l'autre comme les bords du cadre.
-var _trace: Line2D = null
+# Les tracés de route, gardés d'une image à l'autre comme les bords du cadre :
+# un par convoi en route, réutilisé plutôt que recréé.
+var _traces: Array[Line2D] = []
 
 var _plateau: Control
 var _or: Label
@@ -273,39 +278,60 @@ func poser_convois(convois: Array, proj: ProjectionCarte) -> void:
 		hote.add_child(r)
 
 
-# La route du convoi choisi : les points de passage qu'il suit RÉELLEMENT.
+# Les routes des convois : les points de passage qu'ils suivent RÉELLEMENT.
 #
 # Ils viennent de la simulation (`convois_joueur().route`, c'est-à-dire `m.route`
 # de `sim/marchands.lua`) et ne sont pas recalculés ici. La tentation était de
 # refaire le chemin avec `sim.route(position, destination)` : cela aurait donné
 # un tracé plausible, mais pas celui que le convoi navigue.
 #
-# `depart` est sa position courante, sans quoi le trait commencerait au prochain
-# point de passage et flotterait devant sa pastille.
-func poser_route(proj: ProjectionCarte, depart: Vector2, points: Array) -> void:
+# TOUS les convois, et non le seul convoi choisi. La planche posait déjà la
+# pastille de chacun tout en ne traçant qu'une route : un joueur qui arme trois
+# routes n'en voyait qu'une, et rien ne le lui disait. Le convoi choisi garde le
+# tracé franc, les autres le même ton en retrait.
+#
+# Chaque tracé part de la POSITION COURANTE de son convoi, sans quoi il
+# commencerait au prochain point de passage et flotterait devant sa pastille.
+func poser_routes(convois: Array, proj: ProjectionCarte) -> void:
 	if proj == null or not proj.valide:
 		return
 	var hote := EcranPR3.champ(_plateau, "minimap_route")
 	if hote == null:
 		return
-	if _trace == null:
-		_trace = Line2D.new()
-		_trace.width = TRACE_EPAISSEUR
-		_trace.default_color = TRACE_ROUTE
-		_trace.joint_mode = Line2D.LINE_JOINT_ROUND
-		_trace.begin_cap_mode = Line2D.LINE_CAP_ROUND
-		_trace.end_cap_mode = Line2D.LINE_CAP_ROUND
-		hote.add_child(_trace)
 
-	# Moins de deux points : `Line2D` ne dessine rien, ce qui est exactement ce
-	# qu'on veut d'un convoi à quai.
-	var pts := PackedVector2Array()
-	if not points.is_empty():
+	var pose := 0
+	for c in convois:
+		var d: Dictionary = c
+		var points: Array = d.get("route", [])
+		# Route vide = convoi à quai : rien à tracer, et pas de `Line2D` gâchée.
+		if points.is_empty():
+			continue
+		while _traces.size() <= pose:
+			var neuve := Line2D.new()
+			neuve.width = TRACE_EPAISSEUR
+			neuve.joint_mode = Line2D.LINE_JOINT_ROUND
+			neuve.begin_cap_mode = Line2D.LINE_CAP_ROUND
+			neuve.end_cap_mode = Line2D.LINE_CAP_ROUND
+			hote.add_child(neuve)
+			_traces.append(neuve)
+		var ligne := _traces[pose]
+		var depart: Vector2 = d.get("position", Vector2.ZERO)
+		var pts := PackedVector2Array()
 		pts.append(_vers_minimap(proj, depart.x, depart.y))
 		for p in points:
 			var w: Vector2 = p
 			pts.append(_vers_minimap(proj, w.x, w.y))
-	_trace.points = pts
+		ligne.points = pts
+		ligne.default_color = (TRACE_ROUTE if bool(d.get("selectionne", false))
+			else TRACE_ROUTE_AUTRE)
+		pose += 1
+
+	# Les tracés en trop sont VIDÉS, pas libérés : un convoi qui accoste laisse sa
+	# ligne prête pour le prochain qui appareille. `Line2D` ne dessine rien sous
+	# deux points, donc une ligne vidée disparaît vraiment.
+	while pose < _traces.size():
+		_traces[pose].points = PackedVector2Array()
+		pose += 1
 
 
 # Le cadre de vue : ce que la caméra montre, reporté sur la minimap. `vue` est

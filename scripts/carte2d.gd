@@ -2010,17 +2010,11 @@ func _maj_hud() -> void:
 		if not ports.is_empty():
 			_hud_droite.poser_villes(ports, proj)
 		_hud_droite.poser_convois(convois, proj)
-		# La route du convoi choisi, telle que la SIM la suit — `m.route`, pas un
-		# chemin recalculé pour l'occasion.
-		# `choisi` et non `sel` : `_maj_hud` déclare déjà un `sel` plus bas, pour
-		# la fiche du convoi, et les deux vivent dans la même portée.
-		var choisi := _convoi_par_indice(_convoi_selectionne)
-		if choisi.is_empty():
-			_hud_droite.poser_route(proj, Vector2.ZERO, [])
-		else:
-			var depart: Vector2 = choisi.get("position", Vector2.ZERO)
-			var trace: Array = choisi.get("route", [])
-			_hud_droite.poser_route(proj, depart, trace)
+		# Les routes de TOUS les convois, telles que la SIM les suit — `m.route`,
+		# pas un chemin recalculé pour l'occasion. La planche distingue elle-même
+		# le convoi choisi par son champ `selectionne`, exactement comme elle le
+		# fait déjà pour les pastilles : rien à trier ici.
+		_hud_droite.poser_routes(convois, proj)
 		# Le cadre de vue. On prend le centre VU (`get_screen_center_position`)
 		# et non `position` : les bornes de la caméra écartent les deux dès
 		# qu'on longe un bord de la carte.

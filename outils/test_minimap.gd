@@ -250,33 +250,55 @@ func _init() -> void:
 		print("\n=== clic : %d zones sensibles ===" % zones)
 		print("   la premiere rend la cle « %s »" % str(recu["cle"]))
 
-	# --- la ROUTE ------------------------------------------------------------
-	# Comme le cadre de vue, rien ne l'exerce : on lui donne trois points de
-	# passage CONNUS, pris autour du centre du monde, et on relit le trace.
+	# --- les ROUTES ----------------------------------------------------------
+	# Comme le cadre de vue, rien ne les exerce. On donne DEUX convois en route
+	# — dont un choisi — et un troisieme a quai : la planche doit poser DEUX
+	# traces, pas un. C'est tout l'objet du changement : elle posait la pastille
+	# de chaque convoi mais ne tracait qu'une route.
 	var depart := proj.centre
 	var etapes: Array = [
 		Vector2(proj.centre.x + 2000.0, proj.centre.y),
 		Vector2(proj.centre.x + 2000.0, proj.centre.y + 1500.0)]
-	planche.poser_route(proj, depart, etapes)
+	var faux_convois: Array = [
+		{"position": depart, "route": etapes,
+			"selectionne": true, "a_quai": false},
+		{"position": Vector2(proj.centre.x - 1500.0, proj.centre.y),
+			"route": [Vector2(proj.centre.x - 1500.0, proj.centre.y + 900.0)],
+			"selectionne": false, "a_quai": false},
+		{"position": depart, "route": [], "selectionne": false, "a_quai": true}]
+	planche.poser_routes(faux_convois, proj)
 	var route_hote := planche.get_node_or_null("Hud_Woodboard_Right_3/minimap_route")
 	if route_hote == null:
-		print("\n=== route : noeud `minimap_route` INTROUVABLE ===")
+		print("\n=== routes : noeud `minimap_route` INTROUVABLE ===")
 	else:
-		var ligne: Line2D = null
+		var lignes: Array[Line2D] = []
 		for e in route_hote.get_children():
 			var l2 := e as Line2D
-			if l2 != null:
-				ligne = l2
-		if ligne == null:
-			print("\n=== route : aucun trace pose ===")
-		else:
-			print("\n=== route : %d points traces (depart + 2 etapes) ===)"
-				% ligne.points.size())
-			for p in ligne.points:
-				print("   (%.1f, %.1f)" % [p.x, p.y])
-			# Et un convoi A QUAI, sans route : le trace doit se vider.
-			planche.poser_route(proj, depart, [])
-			print("   a quai (route vide) -> %d points" % ligne.points.size())
+			if l2 != null and l2.points.size() > 0:
+				lignes.append(l2)
+		print("\n=== routes : %d trace(s) pose(s), 2 attendus   %s ===" % [
+			lignes.size(), "OK" if lignes.size() == 2 else "*** ECART ***"])
+		for l in lignes:
+			print("   %d points, alpha %.2f" % [l.points.size(), l.default_color.a])
+		# Le convoi CHOISI doit avoir le trace le plus franc, sinon sa route se
+		# confondrait avec celles des autres.
+		if lignes.size() >= 2:
+			var alphas: Array = []
+			for l in lignes:
+				alphas.append(l.default_color.a)
+			print("   le choisi se distingue : %s"
+				% ["oui" if alphas.max() > alphas.min() else "*** NON ***"])
+		# Tous a quai : plus aucun trace visible. Les `Line2D` restent en place,
+		# videes, pour le prochain appareillage.
+		planche.poser_routes([{"position": depart, "route": [],
+			"selectionne": true, "a_quai": true}], proj)
+		var restants := 0
+		for e in route_hote.get_children():
+			var l3 := e as Line2D
+			if l3 != null and l3.points.size() > 0:
+				restants += 1
+		print("   tous a quai -> %d trace(s) visible(s)   %s"
+			% [restants, "OK" if restants == 0 else "*** ECART ***"])
 
 	# --- L'OR, tel que la capture du JEU le montre ---------------------------
 	# Rien n'exercait `nombre()`, ni le centrage, ni l'encre : trois changements
