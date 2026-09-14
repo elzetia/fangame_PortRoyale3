@@ -47,22 +47,17 @@ var _villes: Villes
 
 
 # HUD
-var _panneau_date: PanneauDate
+var _hud_planche: HudPR3
 var _lbl_statut: Label
 var _lbl_cargaison: Label
 var _lbl_message: Label
-var _barre_vitesse: BarreVitesse
 
-const ECHELLE_VITESSE := 0.36
-# Collée au bord droit : les feuilles de palmier qui débordent de la planche sont
-# dessinées pour mordre sur le cadre de l'écran, et une marge les laissait flotter
-# au milieu de la mer.
-const MARGE_VITESSE := Vector2(0, 6)
 const MARGE_FICHE := Vector2(12, 10)
-# Les deux planches du HUD sont decoratives : elles doivent se lire d'un coup
-# d'oeil sans disputer la carte, qui est ce qu'on est venu regarder.
-const ECHELLE_DATE := 0.25
-const MARGE_DATE := Vector2(6, 2)
+# La planche du HUD mesure 210x66 dans hud_pc.swf : à cette taille elle ne se lit
+# pas à l'écran. On la grossit EN BLOC, sans toucher à son agencement interne,
+# qui est celui de PR3 au pixel.
+const ECHELLE_HUD := 1.6
+const MARGE_HUD := Vector2(8, 6)
 
 var _glisse := false
 var _clic_depart := Vector2.ZERO
@@ -1874,13 +1869,17 @@ func _creer_hud() -> void:
 
 	var bois := Color(0.13, 0.09, 0.06, 0.93)
 
-	# Le cartouche du temps : une planche avec son horloge, dont l'aiguille tourne.
-	# Voir scripts/panneau_date.gd.
-	_panneau_date = PanneauDate.new()
-	_panneau_date.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	_panneau_date.size = Vector2(PanneauDate.TAILLE_SOURCE) * ECHELLE_DATE
-	_panneau_date.position = MARGE_DATE
-	couche.add_child(_panneau_date)
+	# La planche de gauche du HUD de PR3, rejouée depuis hud_pc.swf : la date,
+	# l'allure et ses deux boutons, la chronique. Voir scripts/hud_pr3.gd. Elle
+	# tient à elle seule ce que `PanneauDate` et `BarreVitesse` faisaient à deux
+	# avec un art peint à la main.
+	_hud_planche = HudPR3.new()
+	_hud_planche.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_hud_planche.scale = Vector2.ONE * ECHELLE_HUD
+	_hud_planche.position = MARGE_HUD
+	_hud_planche.vitesse_choisie.connect(func(i: int) -> void:
+		sim.definir_vitesse(i))
+	couche.add_child(_hud_planche)
 
 	# Le bouton « Bureau du port » : en haut à droite, il ouvre l'écran de ville
 	# tabulé (Convois/Navires/Villes/Routes) sans passer par le radial. On l'ouvre
@@ -1949,24 +1948,6 @@ func _creer_hud() -> void:
 	_lbl_cargaison.add_theme_color_override("font_color", Color(0.90, 0.86, 0.74))
 	infos.add_child(_lbl_cargaison)
 
-	# La barre du temps ne vit plus dans le bandeau du bas : elle a sa propre
-	# planche, posée par-dessus, dans le coin. Les feuilles de palmier qui la
-	# débordent n'auraient aucun sens alignées dans une rangée de boutons.
-	_barre_vitesse = BarreVitesse.new()
-	# Ancré au coin bas-droit, donc placé par ses MARGES et non par une position :
-	# avec des ancres à (1, 1), `position` s'entend en coordonnées du parent et la
-	# planche sortait de l'écran par le bas.
-	var taille := Vector2(BarreVitesse.TAILLE_SOURCE) * ECHELLE_VITESSE
-	_barre_vitesse.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_barre_vitesse.offset_left = -taille.x - MARGE_VITESSE.x
-	_barre_vitesse.offset_top = -taille.y - MARGE_VITESSE.y
-	_barre_vitesse.offset_right = -MARGE_VITESSE.x
-	_barre_vitesse.offset_bottom = -MARGE_VITESSE.y
-	_barre_vitesse.vitesse_choisie.connect(func(i: int) -> void:
-		sim.definir_vitesse(i))
-	_barre_vitesse.pause_demandee.connect(func() -> void: sim.basculer_pause())
-	couche.add_child(_barre_vitesse)
-
 
 func _style(couleur: Color) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
@@ -1983,9 +1964,6 @@ func _style(couleur: Color) -> StyleBoxFlat:
 
 func _maj_hud() -> void:
 	var etat := sim.etat_temps()
-	if _panneau_date != null:
-		_panneau_date.poser(String(etat["date"]),
-			float(etat.get("heure_num", 0.0)))
 
 	# La fiche montre le CONVOI SÉLECTIONNÉ (celui qu'on commande).
 	var sel := _convoi_par_indice(_convoi_selectionne)
@@ -2010,11 +1988,12 @@ func _maj_hud() -> void:
 			int(c.get("or_", 0)), int(c.get("charge", 0)),
 			int(c.get("capacite", 0)), cargo]
 
-	# La plaque de la barre affiche l'allure. Elle lit l'indice DU CALENDRIER
-	# plutôt que de retenir le dernier clic : la vitesse change aussi au clavier
-	# et, pendant un survol, sans qu'on ait touché aux boutons.
-	if _barre_vitesse != null:
-		_barre_vitesse.poser(int(etat["indice"]), bool(etat.get("survol", false)))
+	# La planche porte la date et l'allure. Elle lit l'indice DU CALENDRIER plutôt
+	# que de retenir le dernier clic : la vitesse change aussi au clavier et,
+	# pendant un survol, sans qu'on ait touché aux boutons.
+	if _hud_planche != null:
+		_hud_planche.poser(String(etat["date"]), int(etat["indice"]),
+			bool(etat.get("survol", false)))
 
 	var maintenant := Time.get_ticks_msec() / 1000.0
 	if _mode_edition:

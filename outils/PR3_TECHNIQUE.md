@@ -19,6 +19,7 @@ pour comparer ou prototyper, jamais les publier.
 | flux sérialisé | `ini/constdata.dat`, toutes les constantes | `outils/pr3_constdata.py` |
 | `.vbuf` / `.ibuf` | maillages | `outils/pr3_mesh.py` |
 | `.dds` | textures DXT1/DXT3/DXT5 | `outils/dds2png.py` |
+| `.swf` | écrans d'interface (Flash/Scaleform « Iggy ») | `outils/swf_export.py`, `swf_bitmaps.py`, `swf_icones.py` |
 
 **`constdata.dat`** est écrit par `Serialization::TypeLibrary` : les objets sont
 numérotés dans l'ordre et les champs se suivent sans alignement ni étiquette.
@@ -30,6 +31,24 @@ casse la numérotation de tout ce qui suit.
 l'octet 10 donne la taille des données. Le pas d'un sommet se déduit du plus
 grand indice : 16 octets (demi-flottants) pour le décor, 80 octets (flottants)
 pour les navires. Détail dans l'en-tête de `outils/pr3_mesh.py`.
+
+**Les `.swf` d'interface** cachent deux pièges de format, tous deux payés comptant.
+
+Le premier est `PlaceObject3` : le nom de classe n'est là QUE si le drapeau
+`HasClassName` (0x08) est levé. La spécification SWF ajoute « ou `HasImage` et
+`HasCharacter` », mais Scaleform n'émet alors aucune chaîne — la lire consomme
+des octets de bourrage, décale tout ce qui suit et fabrique de faux `charId`.
+C'est ce qui faisait résoudre 269 symboles sur une seule et même mauvaise image.
+
+Le second : **un `charId` placé dans un agencement désigne une FORME, pas un
+bitmap**, alors que les PNG extraits portent l'identifiant du BITMAP que cette
+forme remplit. Les deux numérotations sont disjointes — `hud_pc.swf` exporte 52
+PNG (1, 2, 3, 4, 5, 6, 12, 24…) et son agencement ne référence aucun d'eux (14,
+16, 20, 22, 30, 32…). Conclure à un export manquant est l'erreur naturelle, et
+elle a été commise ici : ce qui manque est la résolution forme → bitmap, celle
+que `swf_icones.py` sait déjà faire (`leaves()` / `shape_bmps()`) mais seulement
+pour les symboles NOMMÉS. Les caractères anonymes demandent la même passe, par
+SWF — c'est ce qui bloque aujourd'hui la minimap et le bandeau de ville du HUD.
 
 ## 2. La carte
 

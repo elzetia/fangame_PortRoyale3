@@ -129,7 +129,17 @@ static func _image(tex: Texture2D, taille: Vector2) -> TextureRect:
 
 
 # Bâtit UN élément selon sa classe de composant PR3, À SA TAILLE.
-static func _noeud(el: Dictionary) -> Control:
+#
+# `repli` ouvre le dernier recours à la table classe -> image (voir plus bas). Il
+# est FERMÉ par défaut, et c'est une MESURE qui l'a décidé : ouvert partout, il
+# fait dessiner 2109 éléments de plus — 13,3 % — dans 156 des 169 fichiers
+# d'écran. Beaucoup seraient faux, car la règle de plus-petite-surface de la
+# table est calibrée pour des ICÔNES : elle rend `Dialog_Tabbed` -> 714.png, le
+# carreau de fond de 16x16, là où le cadre est 801.png en 748x578, et pose une
+# plaque d'onglet de 138x34 sous les 395 `Visual_TextButton_Tab` d'écrans qui
+# dessinent déjà leurs onglets. Les écrans livrés gardent donc leur rendu ; seul
+# qui le demande obtient le repli.
+static func _noeud(el: Dictionary, repli := false) -> Control:
 	var classe := str(el.get("classe", ""))
 	var sx := float(el.get("sx", 1.0))
 	var sy := float(el.get("sy", 1.0))
@@ -183,6 +193,18 @@ static func _noeud(el: Dictionary) -> Control:
 		b.size = Vector2(110, 26)
 		return b
 
+	# Dernier recours, sur demande : la table classe -> image. Beaucoup de classes
+	# ne sont ni bouton ni champ — planches de fond, plaques, pavillons, boutons
+	# RONDS — et tombaient toutes dans le Control vide ci-dessous : elles ne
+	# dessinaient rien, table d'icônes réparée ou pas. Leur NOM ne dit pas
+	# qu'elles portent une image ; seule la table le sait. C'est ce qui privait le
+	# HUD de sa planche de bois et de ses boutons ronds, `Visual_RoundButton_*` ne
+	# contenant pas la chaîne « Visual_Button ».
+	if repli:
+		var reste := _icone(classe)
+		if reste != null:
+			return _image(reste, reste.get_size())
+
 	var c := Control.new()
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	c.size = Vector2(1, 1)
@@ -193,7 +215,10 @@ static func _noeud(el: Dictionary) -> Control:
 
 # Bâtit la page `scene` du fichier `swf` : rend un Control dont chaque enfant
 # porte le nom d'instance de PR3, posé à ses coordonnées d'origine.
-static func batir(swf: String, scene: String) -> Control:
+#
+# `repli` se transmet à `_noeud()` : à ouvrir pour un écran dont on a vérifié À
+# L'ŒIL que la table lui rend les bonnes images, jamais par défaut.
+static func batir(swf: String, scene: String, repli := false) -> Control:
 	var racine := Control.new()
 	racine.name = scene.get_slice(".", scene.get_slice_count(".") - 1)
 	racine.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -206,7 +231,7 @@ static func batir(swf: String, scene: String) -> Control:
 		var d: Dictionary = el
 		if str(d.get("type", "")) == "texte":
 			continue
-		var n := _noeud(d)
+		var n := _noeud(d, repli)
 		var nom := str(d.get("nom", ""))
 		if nom != "":
 			n.name = nom
