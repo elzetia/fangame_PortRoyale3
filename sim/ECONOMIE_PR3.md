@@ -271,7 +271,12 @@ les convois commerciaux qui approchent** » de la ville. Couper les convois d'un
 ville suffit donc à l'affamer — l'approvisionnement des villes IA passe
 matériellement par des convois, ce n'est pas un flux abstrait.
 
-Les convois militaires sont hors sujet ici, comme demandé.
+Les convois militaires ne sont pas un système à part : PR3 les fait tourner sur le
+même moteur, avec un autre propriétaire (`ACT_NATION_ADMIRAL`, `ACT_PIRATE_CLAN`)
+et un autre `aitype` (`AIINFO_PRIVATEER`, `AIINFO_CONQUEROR`, `AIINFO_FLEET`,
+`AIINFO_TREASUREFLEET`). Les énumérations complètes — acteurs, ordres, états et
+IA — sont dans `outils/PR3_TECHNIQUE.md`, section « Les convois de l'IA ».
+*La sim ne les modélise pas encore.*
 
 ## 9. L'argent des villes
 

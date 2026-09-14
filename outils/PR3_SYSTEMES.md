@@ -765,11 +765,22 @@ que le convoi suit réellement (`d.route`, posé par `sim/bridge.lua`). Elle dé
 convoi via `Marchands.ordonner` / `ordonner_position`, et applique le ratio 16:11 de
 PR3 sur les rayons de clic (`_convoi_sous_monde`).
 
-**Ce qui reste à porter** : le BROUILLARD DE GUERRE — `[SeaMapMovement]`
-`RangeOfVision1` 8 / `RangeOfVision2` 12 / `RangeOfVisionWatch` 12 — dont la sim n'a
-rien ; et les ÉTATS de convoi que PR3 nomme (Bataille navale, Réparations, Raid,
-Patrouille, « À l'ancre - oisif »), bloqués en amont faute de combat, de réparations
-et de piraterie dans la simulation.
+**La découverte du monde est portée** (`sim/exploration.lua`) : PR3 n'a pas de voile
+visuel — ce sont les villes, les ports et les convois qu'on ne voit pas tant qu'on
+ne s'en est pas approché. **Mais l'UNITÉ de `RangeOfVision1` 8 / `RangeOfVision2` 12
+/ `RangeOfVisionWatch` 12 reste inconnue**, et il ne faut pas se payer de mots à ce
+sujet : ces réglages voisinent `[Gui] SeaMapWidth` 1024 dans le même chargeur, ce
+qui SUGGÈRE la case de carte marine sans le prouver — ils sont dans une autre
+section. Le dépôt n'offre aucune conversion à laquelle s'adosser : `carte2d.gd`
+n'a repris de `SelectionRange` que le **rapport** 16/11, posé sur un rayon de clic
+choisi à la main (90 m). `Exploration.PORTEE` reste donc un CHOIX assumé, isolé
+dans une seule constante. Ce qui trancherait : le site de LECTURE du champ et ce à
+quoi la distance y est comparée.
+
+**Les ÉTATS de convoi sont désormais énumérés au complet** — `ConvoyOrder`,
+`ConvoyState`, `AiName` et `TraderType`, relevés dans `xsl/wac.xsl` : voir « Les
+convois de l'IA » dans `PR3_TECHNIQUE.md`. Leur mise en œuvre reste bloquée en
+amont, faute de combat, de réparations et de piraterie dans la simulation.
 
 ## État du rétro-engineering — le bilan complet
 

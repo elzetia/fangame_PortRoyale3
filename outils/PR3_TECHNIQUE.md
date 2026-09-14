@@ -443,6 +443,37 @@ commandes étant créées par numéro, un balayage de `call rel32` ne peut pas
 remonter plus haut. Les sauvegardes n'aident pas davantage : leur corps est à
 8,000 bits/octet d'entropie (0,41 % d'octets nuls), donc comprimé ou chiffré.
 
+**Les acteurs, ordres, états et IA — les énumérations complètes.** Elles ne sont
+pas déduites : elles sont écrites en toutes lettres dans `xsl/wac.xsl`, la feuille
+de style du vidage de débogage du jeu, sous forme de gabarits nommés.
+
+`TraderType` — **qui** possède des convois :
+
+| 0 | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|
+| `ACT_TRADER_STATIC` | `ACT_NATION_ADMIRAL` | `ACT_PIRATE_CLAN` | `ACT_PIRATE_PLAYER` | `ACT_PLAYER` |
+
+Le marchand d'une ville est un `ACT_TRADER_STATIC`. **L'amiral d'une nation est un
+*Trader* de la même classe** : les convois militaires ne sont pas un sous-système,
+c'est le même moteur avec un autre propriétaire.
+
+`ConvoyOrder` — ce qu'un convoi **fait** : `ORDER_NONE`, `ORDER_AI_TRADE`,
+`ORDER_TRADEROUTE`, `ORDER_PROTECT_TOWN`, `ORDER_RAID`, `ORDER_WATCH`,
+`ORDER_EXPORT`, `ORDER_FLEET` (0 à 7).
+
+`ConvoyState` — où il en **est** : `STATE_STORING`, `STATE_SELLING`,
+`STATE_REPAIRING`, `STATE_LOADING`, `STATE_BUYING`, `STATE_IDLE`,
+`STATE_SEAMAP_MOVE`, `STATE_SEAMAP_EMERGENCY`, `STATE_BATTLE` (0 à 8).
+
+`AiName` (`aitype`) — **comment** il se conduit : `AIINFO_FOLLOW`, `AIINFO_WATCH`,
+`AIINFO_PIRATE`, `AIINFO_PRIVATEER`, `AIINFO_CONQUEROR`, `AIINFO_FLEET`,
+`AIINFO_SLIDER`, `AIINFO_ATTACK`, `AIINFO_TREASUREFLEET` (0 à 8).
+
+`PRIVATEER`, `CONQUEROR`, `FLEET` et `TREASUREFLEET` sont donc des **`aitype`
+attachés à un convoi**, et non des types d'acteur ni des catégories de convoi —
+ce document les a longtemps mal classés. `NationType` complète le tableau :
+0 Espagne, 1 Angleterre, 2 France, 3 Hollande, **4 Pirates**, au-delà le joueur.
+
 **La composition d'un convoi** (`0x79D6B0`) :
 - le jeu dresse la liste des types de navires marchands, 8 au plus ;
 - il en **tire un au hasard**, arme le navire et retranche sa cale de la taille
