@@ -698,14 +698,65 @@ régions valent 0 à 3 dans le fichier ; les valeurs 11 à 14 sont les indices d
 **cultures coloniales**, qui se trouvent répondre une pour une aux régions (voir
 plus bas), d'où la confusion.
 
+### L'enregistrement de ville en mémoire fait 64 octets
+
+Relevé dans une partie en cours, et **ancré sans la moindre incertitude** : les
+soixante cases lues en mémoire concordent avec celles du fichier, 60 sur 60. Le
+pas est exactement **64 octets**, ce qui confirme de façon indépendante le
+`sar ecx, 6` de la boucle `[Stadt%u]`.
+
+L'enregistrement commence **quatre octets avant la position monde**, qui sert
+d'amer commode puisqu'elle est unique par ville.
+
+| décalage | champ |
+|---|---|
+| +0x00 | la case, deux `u16` |
+| +0x04 | la position monde, un **vecteur4** : x, y, z, puis 1.0 |
+| +0x14 | la case, **redoublée** |
+| +0x18 | les **cinq denrées**, cinq octets |
+| +0x1d | `taille` (le `+49` du fichier) |
+| +0x1e | `nation` (le `+50`) |
+| +0x28 | `Region`, `u32` (le `+69`) |
+| +0x2c | `SoundRegion`, `u32` (le `+73`) |
+| +0x30 | le champ inexpliqué, `u32` (le `+96`) |
+
+La disposition n'est donc **pas** celle du fichier : chercher en mémoire une
+tranche de l'enregistrement sur disque ne donne rien, et c'est normal.
+
 ### Le dernier octet, `+96`, reste inexpliqué
 
 Il prend **huit** valeurs, de 0 à 7, réparties 11/1/17/6/6/2/9/8 sur les soixante
-villes. Il ne détermine ni la taille, ni la nation, ni la région, ni la région
-sonore. Ce n'est pas non plus un compte d'emplacements de repères : toutes les
-villes en ont exactement huit. Bélize est seule à porter 1, Santiago et les Iles
-Turques seules à porter 5 — une répartition trop inégale pour un simple index de
-variante, trop fine pour un drapeau. Laissé ouvert plutôt que deviné.
+villes, et il survit jusqu'en mémoire, en `u32`, **rangé juste après `Region` et
+`SoundRegion`**. Trois classificateurs consécutifs : c'est l'indice le plus fort
+dont on dispose sur sa nature.
+
+Ce qu'il **n'est pas**, chaque point ayant été testé sur les soixante villes :
+
+- ni `taille`, ni `nation`, ni `Region`, ni `SoundRegion` — il n'en détermine
+  aucune ;
+- ni le `Type` de ville : le chargeur borne `Type` à moins de 5, celui-ci monte
+  à 7 ;
+- ni un drapeau de bâtiments : les soixante villes ont leurs **huit** repères
+  occupés, sans exception, donc aucun bit ne peut décrire une présence ;
+- ni un style de décor : la matrice de fond donne **58 variantes pour 60
+  villes**, une par ville, sans aucun regroupement.
+
+Deux tests supplémentaires ont été menés puis **écartés comme vides de sens** —
+on les consigne pour que personne ne les refasse en croyant qu'ils concluent :
+
+- les fichiers `terrain/NN` ont tous **la même taille** (1 048 704 octets pour
+  `foliage.dds` comme pour `streetnetwork.dds`), donc les comparer ne compare
+  rien ;
+- les tailles de bloc de plan sont **toutes distinctes** (60 valeurs pour 60
+  villes, de 12 400 à 42 356), si bien que « aucune taille ne correspond à deux
+  `+96` » est vrai par construction. Le seul signal exploitable est que les
+  plages se chevauchent largement d'un groupe à l'autre : aucun regroupement.
+
+Reste aussi sans effet l'orientation de grille, constante à 3,1416 partout — ce
+qui invalide au passage une observation antérieure, où une « constante par
+valeur » n'était que l'effet d'une constante tout court.
+
+Dix hypothèses éliminées, donc. Laissé ouvert plutôt que deviné.
 
 Le nom français n'est pas une translittération : 1 *Nouvelle Orléans*, 25 *La
 Havane*, 34 *Saint-Domingue*, 46 *Iles Caïmans*, 48 *Carthagène*.
