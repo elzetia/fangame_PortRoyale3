@@ -152,14 +152,14 @@ func onglet() -> String:
 # et sur le résultat de bataille navale. Un champ vide dit la vérité ; un nombre
 # inventé mentirait.
 func poser_details(fiche: Dictionary) -> void:
-	_poser("tf_cargo", "%d/%d" % [int(fiche.get("charge", 0)),
+	_poser("convoy", "tf_cargo", "%d/%d" % [int(fiche.get("charge", 0)),
 			int(fiche.get("capacite", 0))])
-	_poser("tf_ships", str(int(fiche.get("navires", 0))))
-	_poser("tf_knot", str(int(fiche.get("noeuds", 0))))
-	_poser("tf_cannon", str(int(fiche.get("canons", 0))))
-	_poser("tf_crew", str(int(fiche.get("equipage", 0))))
-	_poser("tf_health", "")
-	_poser("tf_strength", "")
+	_poser("convoy", "tf_ships", str(int(fiche.get("navires", 0))))
+	_poser("convoy", "tf_knot", str(int(fiche.get("noeuds", 0))))
+	_poser("convoy", "tf_cannon", str(int(fiche.get("canons", 0))))
+	_poser("convoy", "tf_crew", str(int(fiche.get("equipage", 0))))
+	_poser("convoy", "tf_health", "")
+	_poser("convoy", "tf_strength", "")
 
 
 # L'onglet « route ». Le TYPE de route porte le nom que PR3 lui donne : la sim
@@ -169,12 +169,12 @@ func poser_details(fiche: Dictionary) -> void:
 # `tf_time`, `tf_profit` et l'état actif restent vides : la sim ne mesure pas
 # encore les rotations.
 func poser_route(fiche: Dictionary) -> void:
-	_poser("tf_name", str(fiche.get("nom", "")))
-	_poser("tf_towns", str(int(fiche.get("villes", 0))))
-	_poser("tf_tour", _nom_strategie(str(fiche.get("strategie", ""))))
-	_poser("tf_time", "")
-	_poser("tf_profit", "")
-	_poser("tf_state", "")
+	_poser("route", "tf_name", str(fiche.get("nom", "")))
+	_poser("route", "tf_towns", str(int(fiche.get("villes", 0))))
+	_poser("route", "tf_tour", _nom_strategie(str(fiche.get("strategie", ""))))
+	_poser("route", "tf_time", "")
+	_poser("route", "tf_profit", "")
+	_poser("route", "tf_state", "")
 
 
 func _nom_strategie(cle: String) -> String:
@@ -281,8 +281,22 @@ func tourner(pas: int) -> void:
 	_rafraichir_cargaison()
 
 
-func _poser(nom: String, valeur: String) -> void:
-	var l := champ(nom)
+# LE CHAMP D'UN PANNEAU DONNÉ, et c'est indispensable : PLUSIEURS PANNEAUX
+# DÉCLARENT LES MÊMES NOMS. `tf_cannon`, `tf_crew` et `tf_strength` existent dans
+# l'onglet loupe ET dans l'onglet escorte ; `tf_name` dans la route ET le
+# capitaine. Une recherche sur toute la carte tombe alors sur le champ d'un
+# onglet CACHÉ, et la plaque visible reste blanche — ce qui se voyait à l'écran
+# comme une vignette à moitié vide, les seuls champs remplis étant ceux dont le
+# nom est unique (`tf_cargo`, `tf_ships`, `tf_knot`).
+func champ_de(panneau: String, nom: String) -> Label:
+	var p: Control = _panneaux.get(panneau)
+	if p == null:
+		return null
+	return p.find_child(nom, true, false) as Label
+
+
+func _poser(panneau: String, nom: String, valeur: String) -> void:
+	var l := champ_de(panneau, nom)
 	if l != null:
 		l.text = valeur
 
@@ -294,9 +308,16 @@ func _poser(nom: String, valeur: String) -> void:
 # réparation ou sur une route — et PR3 formate ce dernier cas
 # (`ID_GUI_CONVOY_ON_ROUTE_NUM`, « %1 (%2) »).
 func poser_entete(nom: String, situation: String) -> void:
-	var etiquette := champ("mctext")
-	if etiquette != null:
-		etiquette.text = situation
+	# MÊME PIÈGE QUE LES CHAMPS DES ONGLETS : `mctext` est déclaré DEUX FOIS dans
+	# l'en-tête — une fois dans l'icône de tâche (`Visual_Convoy_Task_46`), une
+	# fois dans le bouton du nom (`Buttonset_Text_Convoyname_48`). Une recherche
+	# globale écrirait le message de situation dans le mauvais, et l'un des deux
+	# resterait blanc. On descend donc par le nœud qui les distingue.
+	var tache := _trouver("task")
+	if tache != null:
+		var s := tache.find_child("mctext", true, false) as Label
+		if s != null:
+			s.text = situation
 	var bouton := _trouver("bu_name")
 	if bouton != null:
 		var t := bouton.find_child("mctext", true, false) as Label

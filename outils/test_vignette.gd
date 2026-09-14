@@ -141,10 +141,16 @@ func _init() -> void:
 	print("\n=== le remplissage ===")
 	v.poser_details({"charge": 24, "capacite": 200, "navires": 3, "noeuds": 40,
 			"canons": 28, "equipage": 140})
+	# PAR PANNEAU, et c'est le coeur de l'affaire. Plusieurs onglets declarent
+	# les MEMES noms -- `tf_cannon`, `tf_crew` et `tf_strength` sont dans la
+	# loupe ET dans l'escorte. Ce test cherchait GLOBALEMENT, exactement comme le
+	# code qu'il verifiait : il partageait donc son angle mort, et restait vert
+	# pendant qu'a l'ecran la moitie des plaques etaient blanches. Un test qui se
+	# trompe de la meme facon que le code ne prouve rien.
 	var attendus := {"tf_cargo": "24/200", "tf_ships": "3", "tf_knot": "40",
 			"tf_cannon": "28", "tf_crew": "140"}
 	for nom in attendus:
-		var l := v.champ(str(nom))
+		var l := v.champ_de("convoy", str(nom))
 		var vu := l.text if l != null else "<absent>"
 		print("   %-12s « %s »   attendu « %s »   %s"
 				% [nom, vu, attendus[nom], "OK" if vu == attendus[nom] else "*** ECART ***"])
@@ -153,14 +159,14 @@ func _init() -> void:
 
 	# Ce qui doit rester VIDE : la sim ne suit ni les degats ni la puissance.
 	for nom in ["tf_health", "tf_strength"]:
-		var l2 := v.champ(str(nom))
+		var l2 := v.champ_de("convoy", str(nom))
 		if l2 != null and l2.text != "":
 			_rater("%s devrait rester vide, il affiche « %s »" % [nom, l2.text])
 	print("   tf_health et tf_strength laisses vides (aucune source) : ok")
 
 	# La route : le TYPE doit porter le nom DU JEU, pas une cle ni ma traduction.
 	v.poser_route({"nom": "Tourbillon", "villes": 6, "strategie": "wealth"})
-	var tour := v.champ("tf_tour")
+	var tour := v.champ_de("route", "tf_tour")
 	var vu_tour := tour.text if tour != null else "<absent>"
 	print("   tf_tour      « %s »   attendu « Prospérité »   %s"
 			% [vu_tour, "OK" if vu_tour == "Prospérité" else "*** ECART ***"])
@@ -168,7 +174,7 @@ func _init() -> void:
 		_rater("le type de route affiche « %s »" % vu_tour)
 	if vu_tour.begins_with("ID_"):
 		_rater("le type de route laisse fuir sa cle")
-	var villes := v.champ("tf_towns")
+	var villes := v.champ_de("route", "tf_towns")
 	if villes != null and villes.text != "6":
 		_rater("tf_towns affiche « %s » au lieu de 6" % villes.text)
 
