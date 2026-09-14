@@ -1689,6 +1689,28 @@ func _unhandled_input(e: InputEvent) -> void:
 			KEY_S:
 				if e.ctrl_pressed and _mode_edition:
 					_enregistrer_ports()
+			# Sauver et reprendre. F5/F9 est la convention des jeux de stratégie, et
+			# les deux touches étaient libres — `S` sert déjà à la caméra.
+			#
+			# Une seule case, nommée « partie » : c'est une sauvegarde rapide, pas
+			# encore un écran de gestion. Le fichier est du JSON dans le dossier
+			# utilisateur, donc lisible et modifiable à la main.
+			KEY_F5:
+				var res_s: Dictionary = sim.sauver("partie")
+				if bool(res_s.get("ok", false)):
+					_noter("Partie enregistrée.")
+				else:
+					_noter("Enregistrement impossible : " + String(res_s.get("message", "")))
+			KEY_F9:
+				var res_c: Dictionary = sim.charger("partie")
+				if bool(res_c.get("ok", false)):
+					# La carte gardait en mémoire le convoi commandé ; après un
+					# rechargement il peut ne plus exister. On reprend celui que la
+					# simulation vient de restaurer, sinon on piloterait un fantôme.
+					_convoi_selectionne = int(sim.etat_compagnie().get("selection", 1))
+					_noter("Partie reprise.")
+				else:
+					_noter("Reprise impossible : " + String(res_c.get("message", "")))
 			KEY_ESCAPE: get_tree().quit()
 
 
