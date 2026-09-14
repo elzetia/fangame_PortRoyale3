@@ -170,6 +170,14 @@ func besoins_villes() -> Dictionary:
 	return r if r is Dictionary else {}
 
 
+# L'état de toutes les villes d'un coup — fléau, famine, pénurie, prospérité.
+# En bloc parce que la carte les redessine toutes : soixante allers-retours par
+# trame à travers le pont coûteraient plus cher que le calcul lui-même.
+func etats_villes() -> Dictionary:
+	var r = _appel("etats_villes", [])
+	return r if r is Dictionary else {}
+
+
 func diag_marchands() -> Array:
 	var r = _appel("diag_marchands", [])
 	return r if r is Array else []

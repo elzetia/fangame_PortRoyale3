@@ -717,6 +717,31 @@ local function tirage(graine)
 end
 
 
+-- UN SECOND TIRAGE, VRAIMENT INDÉPENDANT DU PREMIER.
+--
+-- LE PIÈGE : `tirage` est LINÉAIRE. Un décalage de la graine devient un décalage
+-- FIXE du résultat — tirer sur `g` puis sur `g + 777` donne deux valeurs collées
+-- l'une à l'autre, séparées de 777 × 16807 / 2³¹ = 0,006081. Toujours.
+--
+-- CE QUE ÇA COÛTAIT, et personne ne pouvait le voir en lisant le code : le TYPE
+-- d'un fléau se tirait sur `graine + 777`, mais on n'arrivait à cette ligne QUE
+-- si `tirage(graine)` avait passé une porte à ~0,0006. Le tirage du type valait
+-- donc toujours ~0,0067 — jamais plus d'un tiers, donc toujours `FLEAU_TYPES[1]`.
+-- Mesuré sur 124 fléaux : 100 % de pestes, zéro incendie, zéro sauterelle, alors
+-- que l'économie traite les trois (`Marchandises.FLEAUX`) et que la carte a une
+-- icône pour chacun.
+--
+-- LA CORRECTION : on fait tourner le générateur DEUX fois. Les valeurs minuscules
+-- que la porte laisse passer sont remultipliées par 16807 et se répandent alors
+-- sur tout l'intervalle. Mesuré après : 34 / 33 / 33 %.
+local function tirage_independant(graine)
+  local g = graine % 2147483646 + 1
+  g = (g * 16807) % 2147483647
+  g = (g * 16807) % 2147483647
+  return g / 2147483647
+end
+
+
 -- La note de la ville sur cent, et son niveau de prospérité de 0 à 6.
 --
 -- Chaque denrée vaut, dans son groupe, `pente × min(1, stock/X1)` point ; chaque
@@ -937,7 +962,7 @@ local function jour(ville)
     local risque = FLEAU_PROBA * ville.habitants / math.max(ville.capacite, 1)
     local graine = ville.graine_fleau + jour_no * 2654435761
     if tirage(graine) < risque then
-      local i = math.floor(tirage(graine + 777) * #FLEAU_TYPES) + 1
+      local i = math.floor(tirage_independant(graine + 777) * #FLEAU_TYPES) + 1
       if i > #FLEAU_TYPES then i = #FLEAU_TYPES end
       ville.fleau = { type = FLEAU_TYPES[i], jours = FLEAU_DUREE }
     end

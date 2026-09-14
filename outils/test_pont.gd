@@ -199,6 +199,41 @@ func _init() -> void:
 	else:
 		print("  cles : ", ", ".join(PackedStringArray(etat.keys())))
 
+	# --- etats des villes : ce que la CARTE DU MONDE consomme -----------------
+	#
+	# La carte dessine sous chaque nom de port les fleaux du jeu, avec les icones
+	# de PR3. Elle lit `etats_villes` par paquet, une fois toutes les 1,5 s.
+	#
+	# CE QUE SEUL CE TEST PEUT ATTRAPER : le VOCABULAIRE. La carte ne dessine une
+	# icone que pour « peste », « sauterelles » et « feu » ; si la sim renommait un
+	# fleau, la carte n'afficherait plus rien -- en silence, et seulement les jours
+	# ou un fleau frappe, donc invisible a la relecture comme au test de compilation.
+	const FLEAUX_CONNUS := ["", "peste", "sauterelles", "feu"]
+	var etats: Dictionary = sim.etats_villes()
+	print("etats_villes : %d ville(s) sur %d port(s)" % [etats.size(), ports.size()])
+	if etats.size() != ports.size():
+		_rater("etats_villes rend %d fiches pour %d ports" % [etats.size(), ports.size()])
+	var avec_fleau := 0
+	var affames := 0
+	for cle in etats:
+		var e: Dictionary = etats[cle]
+		for champ in ["fleau", "jours_fleau", "niveau", "tendance", "faim", "knapp"]:
+			if not e.has(champ):
+				_rater("etat de %s : champ manquant %s" % [cle, champ])
+		var f := String(e.get("fleau", ""))
+		if not FLEAUX_CONNUS.has(f):
+			_rater("%s : fleau « %s » inconnu de la carte" % [cle, f])
+		if f != "":
+			avec_fleau += 1
+			# Un fleau en cours dure forcement encore un jour au moins : la sim le
+			# retire des que son compteur tombe a zero.
+			if int(e.get("jours_fleau", 0)) <= 0:
+				_rater("%s : fleau « %s » mais %s jour(s) restant(s)"
+						% [cle, f, e.get("jours_fleau")])
+		if int(e.get("faim", -3)) > 0:
+			affames += 1
+	print("  %d ville(s) sous un fleau, %d affamee(s) au demarrage" % [avec_fleau, affames])
+
 	print()
 	if _ecarts > 0:
 		print(_ecarts, " ecart(s).")

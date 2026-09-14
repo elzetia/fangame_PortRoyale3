@@ -386,6 +386,33 @@ function Bridge.besoins_villes()
 end
 
 
+-- L'ÉTAT de chaque ville, en bloc : ce que la carte du monde montre au-dessus
+-- d'elles — fléau en cours, famine, pénurie, prospérité et sa tendance.
+--
+-- En bloc, et pas ville par ville : la carte redessine soixante villes à chaque
+-- image, et `etat_ville` fait un calcul de démographie à chaque appel. Le moteur
+-- rafraîchit celui-ci par intervalle, comme il le fait déjà pour les besoins.
+function Bridge.etats_villes()
+  local sortie = Dictionary()
+  for _, port in ipairs(Archipel.ports) do
+    local v = Economie.ville(port.cle)
+    local d = Dictionary()
+    -- Le type du fléau tel que la simulation le nomme : « peste »,
+    -- « sauterelles » ou « feu ». Vide quand la ville va bien.
+    d.fleau       = (v and v.fleau and v.fleau.type) or ""
+    d.jours_fleau = (v and v.fleau and v.fleau.jours) or 0
+    d.niveau      = (v and v.niveau) or 5
+    d.tendance    = (v and v.tendance) or 0
+    d.faim        = (v and v.faim) or -3
+    -- La série « pénurie » : le marché entier de la ville est passé au barème de
+    -- rareté. C'est un état visible, au même titre qu'un fléau.
+    d.knapp       = (v and v.knapp) and true or false
+    sortie[port.cle] = d
+  end
+  return sortie
+end
+
+
 function Bridge.diag_marchands()
   local sortie = Array()
   for _, d in ipairs(Marchands.diagnostic()) do

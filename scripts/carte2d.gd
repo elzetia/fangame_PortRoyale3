@@ -32,6 +32,46 @@ const MARGE_CLIC := 8.0              # en pixels de carte, autour du dessin
 # `reference_pr3/`, ignoré par git, et s'extrait de ta copie du jeu.
 const ANNEAU_SELECTION := "res://reference_pr3/assets/selectioncircle0.png"
 
+# LES ICÔNES D'ÉTAT DE VILLE, prises dans le jeu.
+#
+# Ce que la carte montrait avant sous le nom d'un port — la marchandise qui lui
+# manque le plus — était une INVENTION du projet. Port Royale 3 y affiche les
+# états de la ville : les fléaux qui la frappent.
+#
+# Relevé dans la table d'icônes du jeu (`reference_pr3/ui/agencement/icones.txt`),
+# et les deux images ont été regardées, pas seulement leur nom :
+#   Visual_IconButton_Plague  1743  34x34   la peste
+#   Visual_IconButton_Fire    1838  42x42   l'incendie
+#
+# PRUDENCE ACQUISE : une piste voisine, `icon_InTownEvent_01..19`, ressemblait à
+# une numérotation des catastrophes. Elle n'en est pas une — 1852 est un tas de
+# rondins, 1849 un badge « 100 % ». Seules les entrées NOMMÉES sont fiables.
+#
+# DEUX TROUS, et je les comble avec des génériques du jeu plutôt que de faire
+# passer une icône pour ce qu'elle n'est pas — la table ne contient ni criquets
+# ni famine :
+#   sauterelles -> Visual_IconButton_Events (1456), le parchemin d'événement ;
+#   famine      -> Visual_IconButton_Attention_Red (1917), le badge « ! ».
+# Ce sont des CHOIX, pas des relevés. `Drought_Protection` (1866) existe mais
+# c'est la PROTECTION contre la sécheresse, et notre simulation n'a pas ce
+# fléau : on ne le détourne pas.
+const ICONES_ETAT := {
+	"peste": "skinlib_pr3/1743",
+	"feu": "skinlib_pr3/1838",
+	"sauterelles": "skinlib_pr3/1456",
+	"famine": "skinlib_pr3/1917",
+}
+
+# Le repli dessiné, quand `reference_pr3/` n'est pas là — dépôt public, autre
+# poste. Le LOOK dépend de l'art, jamais ce que le joueur peut savoir : une pastille
+# de couleur dit encore « cette ville va mal », et laquelle.
+const COULEURS_ETAT := {
+	"peste": Color(0.62, 0.78, 0.35),
+	"feu": Color(0.95, 0.55, 0.16),
+	"sauterelles": Color(0.72, 0.60, 0.30),
+	"famine": Color(0.86, 0.22, 0.20),
+}
+
 var sim: Sim
 var proj: ProjectionCarte
 var navire := NavireEtat.new()
@@ -51,12 +91,11 @@ var _vitesse_cam := Vector2.ZERO
 var _port_survole: Dictionary = {}
 var _police: Font
 var _plaque: StyleBoxFlat
-# Ce dont chaque ville manque le plus, et les vignettes de marchandises.
-# Le manque se recalcule par intervalle, pas par image : il demande vingt
-# lignes de marche par ville, et il ne change pas d'une trame a l'autre.
-var _besoins: Dictionary = {}
-var _besoins_delai := 0.0
-var _icones: Dictionary = {}
+# L'état de chaque ville — fléau en cours, famine. Rafraîchi PAR INTERVALLE et
+# non par image : le pont fait le tour des soixante ports et chacun coûte un
+# calcul de démographie, alors que l'état ne bouge pas d'une trame à l'autre.
+var _etats: Dictionary = {}
+var _etats_delai := 0.0
 # Largeur de plaque par taille de police : le nom le plus long de la carte.
 var _largeurs: Dictionary = {}
 # Une ville est un objet posé sur le terrain : elle grandit avec le zoom, à la
@@ -748,10 +787,10 @@ func _draw() -> void:
 	#
 	# Et EN TROIS PASSES, pas en une par ville : sur une côte serrée les
 	# cartouches se chevauchent, et l'ordre de recouvrement doit être le même
-	# partout. Une seule passe laisserait la marchandise d'un port voisin
+	# partout. Une seule passe laisserait l'icône d'état d'un port voisin
 	# recouvrir un nom, ce qui est exactement l'inverse de ce qu'on veut lire.
 	for port in ports:
-		_dessiner_besoin(port)
+		_dessiner_etats(port)
 	for port in ports:
 		_dessiner_nom(port)
 	for port in ports:
@@ -929,25 +968,60 @@ func _geometrie_cartouche(port: Dictionary) -> Dictionary:
 						rect_nom.position.y + ht + 2.0 * u, cote, cote),
 	}
 
-# Passe 1 : ce dont la ville manque le plus. C'est l'information qu'un marchand
-# cherche en survolant la carte, et Port Royale 3 la pose là, sous le nom. Elle
-# passe EN DESSOUS des étiquettes : deux ports voisins se chevauchent souvent,
-# et c'est alors le nom qu'il faut pouvoir lire, pas la marchandise du voisin.
-func _dessiner_besoin(port: Dictionary) -> void:
+# Ce dont la ville souffre, sous son nom — les fléaux de Port Royale 3, avec les
+# icônes du jeu (voir ICONES_ETAT).
+#
+# Passe 1, donc EN DESSOUS des étiquettes : deux ports voisins se chevauchent
+# souvent, et c'est alors le nom qu'il faut pouvoir lire, pas l'état du voisin.
+func _etats_affiches(cle: String) -> Array:
+	var d = _etats.get(cle, null)
+	if not (d is Dictionary):
+		return []
+	var fiche: Dictionary = d
+	var sortie: Array = []
+	# Un seul fléau à la fois : c'est la règle de la simulation, qui décompte
+	# celui qui court avant d'en tirer un autre.
+	var fleau := String(fiche.get("fleau", ""))
+	if fleau != "" and ICONES_ETAT.has(fleau):
+		sortie.append(fleau)
+	# `faim` part à -3 et monte d'un cran par vivre manquant : au-dessus de zéro,
+	# la ville ne mange plus à sa faim.
+	if int(fiche.get("faim", -3)) > 0:
+		sortie.append("famine")
+	return sortie
+
+
+func _dessiner_etats(port: Dictionary) -> void:
 	if not _ville_vue(port):
 		return
-	var cle_besoin := str(_besoins.get(port["cle"], ""))
-	if cle_besoin == "":
-		return
-	var icone := _icone(cle_besoin)
-	if icone == null:
+	var etats := _etats_affiches(String(port.get("cle", "")))
+	if etats.is_empty():
 		return
 	var g := _geometrie_cartouche(port)
 	var cadre: Rect2 = g["icone"]
+	var plaque: Rect2 = g["nom"]
 	var u := _par_unite()
-	draw_rect(cadre.grow(1.5 * u), Color(0.03, 0.03, 0.04, 0.66))
-	draw_rect(cadre.grow(1.5 * u), Color(0.86, 0.84, 0.78, 0.55), false, 1.1 * u)
-	draw_texture_rect(icone, cadre, false)
+	var cote := cadre.size.x
+	var ecart := cote * 0.22
+	# CENTRÉES sous la plaque : une seule icône tombe sous le milieu du nom, deux
+	# se partagent la largeur. Calées à gauche, elles pendaient hors du cartouche.
+	var large := cote * etats.size() + ecart * maxi(etats.size() - 1, 0)
+	var x := plaque.position.x + plaque.size.x * 0.5 - large * 0.5
+	for i in etats.size():
+		var e := String(etats[i])
+		var cell := Rect2(Vector2(x + i * (cote + ecart), cadre.position.y),
+						Vector2(cote, cote))
+		var tex := SkinPR3.texture(String(ICONES_ETAT.get(e, "")))
+		if tex != null:
+			# Les icônes du jeu portent déjà leur fond peint : aucun cadre sombre
+			# par-dessus, il ferait double bordure.
+			draw_texture_rect(tex, cell, false)
+		else:
+			var c: Color = COULEURS_ETAT.get(e, Color(0.86, 0.22, 0.20))
+			var centre := cell.position + cell.size * 0.5
+			var ray := cote * 0.42
+			draw_circle(centre, ray + 1.2 * u, Color(0.03, 0.03, 0.04, 0.8))
+			draw_circle(centre, ray, c)
 
 
 # Passe 2 : la plaque et le nom.
@@ -1099,16 +1173,6 @@ func _plaque_carte(r: Rect2, alpha: float, bord: Color, ep_bord: float) -> void:
 		draw_polygon(PackedVector2Array([
 			Vector2(xb, y), Vector2(x1, y), Vector2(x1, y + ep_bord), Vector2(xb, y + ep_bord)]),
 			PackedColorArray([bord, b0, b0, bord]))
-
-
-# La vignette de la marchandise qui manque le plus, chargée à la demande.
-func _icone(cle: String) -> Texture2D:
-	if _icones.has(cle):
-		return _icones[cle]
-	var chemin := "res://sprites/marchandises/%s.png" % cle
-	var tex: Texture2D = load(chemin) if ResourceLoader.exists(chemin) else null
-	_icones[cle] = tex
-	return tex
 
 
 # Un chemin en pointillés, en pixels de carte. Écrit une fois : la route du
@@ -1470,10 +1534,10 @@ func _process(delta: float) -> void:
 		_finir_survol()
 		_espace_tenu = -1.0
 
-	_besoins_delai -= delta
-	if _besoins_delai <= 0.0:
-		_besoins_delai = 1.5
-		_besoins = sim.besoins_villes()
+	_etats_delai -= delta
+	if _etats_delai <= 0.0:
+		_etats_delai = 1.5
+		_etats = sim.etats_villes()
 	# La nappe indexe la taille de ses paillettes sur le zoom : sans ça elles
 	# disparaissent au dézoom, au moment où l'on voit le plus de mer. On le pousse
 	# ICI et pas dans `_zoomer` : le zoom change aussi au cadrage initial et par
