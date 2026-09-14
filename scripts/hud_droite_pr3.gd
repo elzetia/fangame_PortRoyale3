@@ -75,15 +75,23 @@ const MINIMAP := Vector2(196, 156)
 # Le cadrage de 12.png par rapport à la grande carte. MESURÉ, pas deviné, par
 # `outils/test_minimap.gd` : on projette les soixante ports et on regarde à
 # quelle distance du littoral ils tombent.
-#   sans cadrage : 22 ports à 1 px ou moins, 19 au-delà de 4 px, 1 hors cadre
-#   avec         : 50 à 1 px ou moins, AUCUN au-delà de 4, aucun hors cadre
-#   au hasard    : 27 % des points sont à 2 px ou moins
-# La moyenne passe de 3,1 px à 0,7 px. Les échecs sans cadrage étaient groupés —
-# toute la côte du Golfe, puis la façade atlantique — donc systématiques.
-const CADRAGE_KU := 1.070
+#   sans cadrage : 32 ports à 1 px ou moins, 16 au-delà de 4 px, aucun hors cadre
+#   avec         : 47 à 1 px ou moins, AUCUN au-delà de 4, aucun hors cadre
+# La moyenne passe de 3,0 px à 0,7 px. Les échecs sans cadrage sont groupés —
+# le golfe du Mexique, puis tout l'arc des Petites Antilles — donc systématiques.
+#
+# CES QUATRE NOMBRES DÉPENDENT DE LA PROJECTION DE LA GRANDE CARTE, et ils ont
+# été refaits le jour où le décor est passé de l'illustration à la carte de Port
+# Royale 3 : `vue_taille` a changé (17280 x 11940 au lieu de 15840 x 10392),
+# donc un même port ne tombe plus au même endroit relatif. Les anciennes valeurs
+# (1,070 / 0,020 / 0,930 / 0,025) faisaient alors remonter la moyenne à 2,1 px
+# et rejetaient onze ports au-delà de 4. Si la fiche de projection rebouge, il
+# faut relire ce que `outils/test_minimap.gd` propose sous « MEILLEUR
+# ajustement » et réécrire ces quatre lignes — le test les cherche pour ça.
+const CADRAGE_KU := 1.170
 const CADRAGE_DU := 0.020
-const CADRAGE_KV := 0.930
-const CADRAGE_DV := 0.025
+const CADRAGE_KV := 1.090
+const CADRAGE_DV := 0.030
 
 # Les marqueurs de PR3, tous en 8x8 centrés sur leur point.
 const PASTILLE := Vector2(8, 8)

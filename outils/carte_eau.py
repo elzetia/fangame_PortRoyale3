@@ -67,16 +67,54 @@ def lire_masque():
     return mw, mh, terre
 
 
-def couleur_du_large(ipx, iw, ih, mw, mh, terre, prof):
+# L'IMAGE NE COUVRE PLUS EXACTEMENT L'EMPRISE DU MASQUE, et c'est tout l'objet
+# de ce qui suit. Tant que la carte etait une illustration dont la fiche etait
+# tiree d'elle, `x * mw // iw` suffisait : un pixel de bord tombait sur une case
+# de bord. La carte de Port Royale 3 porte un CADRE DE BOIS hors de la zone
+# jouable, donc elle couvre un monde plus large (17280 x 11940) que le masque
+# (1320 x 960 cases a 12 unites, soit 15840 x 11520). Garder la proportion
+# decalerait tout le ressac de la largeur du cadre -- 128 px a cette resolution.
+#
+# On passe donc par le MONDE, comme le moteur : pixel -> monde par la fiche,
+# monde -> case par l'echelle de `sim/archipel.lua`.
+ECHELLE_CASE = 12.0
+
+
+def lire_vue():
+    """(vue_x, vue_y) de `carte_cuite.json`. Le centre y est a [0, 0]."""
+    fiche = json.load(io.open(os.path.join(RACINE, "carte_cuite.json"),
+                              encoding="utf-8"))
+    v = fiche["vue_taille"]
+    c = fiche.get("centre", [0.0, 0.0])
+    if abs(c[0]) > 0.5 or abs(c[1]) > 0.5:
+        raise SystemExit("centre non nul : ce script suppose [0, 0]")
+    return float(v[0]), float(v[1])
+
+
+def case_de_pixel(x, y, iw, ih, mw, mh, vue):
+    cx = (x / float(iw) - 0.5) * (vue[0] / ECHELLE_CASE) + mw / 2.0
+    cz = (y / float(ih) - 0.5) * (vue[1] / ECHELLE_CASE) + mh / 2.0
+    return int(cx), int(cz)
+
+
+def pixel_de_case(cx, cz, iw, ih, mw, mh, vue):
+    x = iw * (0.5 + (cx + 0.5 - mw / 2.0) * ECHELLE_CASE / vue[0])
+    y = ih * (0.5 + (cz + 0.5 - mh / 2.0) * ECHELLE_CASE / vue[1])
+    return int(x), int(y)
+
+
+def couleur_du_large(ipx, iw, ih, mw, mh, terre, prof, vue):
     """La couleur de l'eau a plus de TRANSPARENT_DES cases de toute cote."""
     r = v = b = n = 0
     for cz in range(mh):
-        iy = min(ih - 1, (cz * 2 + 1) * ih // (mh * 2))
         for cx in range(mw):
             i = cz * mw + cx
             if terre[i] or prof[i] // 5 < TRANSPARENT_DES:
                 continue
-            s = (iy * iw + min(iw - 1, (cx * 2 + 1) * iw // (mw * 2))) * 4
+            ix, iy = pixel_de_case(cx, cz, iw, ih, mw, mh, vue)
+            if not (0 <= ix < iw and 0 <= iy < ih):
+                continue
+            s = (iy * iw + ix) * 4
             r += ipx[s]; v += ipx[s + 1]; b += ipx[s + 2]; n += 1
     if n == 0:
         raise SystemExit("aucune eau du large trouvee : seuils a revoir")
@@ -88,9 +126,11 @@ def main():
     iw, ih, ipx = ci.lire_png(os.path.join(RACINE, "carte_cuite.png"))
     print("illustration %d x %d, masque %d x %d" % (iw, ih, mw, mh))
 
+    vue = lire_vue()
+    print("vue_taille %s : le monde couvert par l'image" % (vue,))
     mer = [not terre[i] for i in range(mw * mh)]
     prof = ci.chanfrein(mer, mw, mh)          # le chanfrein compte 5 par case
-    fond, n_large = couleur_du_large(ipx, iw, ih, mw, mh, terre, prof)
+    fond, n_large = couleur_du_large(ipx, iw, ih, mw, mh, terre, prof, vue)
     print("couleur du large : %s  (sur %d cases)" % (fond, n_large))
 
     # Alpha par CASE du masque, puis lu par pixel : le masque est la seule
@@ -112,11 +152,18 @@ def main():
     sortie = bytearray(iw * ih * 4)
     recifs = 0
     for y in range(ih):
-        cz = min(mh - 1, y * mh // ih)
+        _, cz = case_de_pixel(0, y, iw, ih, mw, mh, vue)
+        dehors_y = not (0 <= cz < mh)
         for x in range(iw):
             s = (y * iw + x) * 4
             d = (y * iw + x) * 4
-            cx = min(mw - 1, x * mw // iw)
+            cx, _ = case_de_pixel(x, 0, iw, ih, mw, mh, vue)
+            # Hors du monde jouable (le cadre de bois) : on garde l'image telle
+            # quelle, la nappe animee ne va pas jusque-la.
+            if dehors_y or not (0 <= cx < mw):
+                sortie[d] = ipx[s]; sortie[d + 1] = ipx[s + 1]
+                sortie[d + 2] = ipx[s + 2]; sortie[d + 3] = 255
+                continue
             a = alpha[cz * mw + cx]
             r, v, b = ipx[s], ipx[s + 1], ipx[s + 2]
             if a < 255:

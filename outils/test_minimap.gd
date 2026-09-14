@@ -30,8 +30,15 @@ const SEAMAP := "res://reference_pr3/ui/hud_pc/12.png"
 const LOIN := 99            # distance sentinelle
 # Le cadrage que `HudDroitePR3` applique, recopie ici pour formuler une ATTENTE
 # independante : si les deux se mettent a diverger, le test doit le dire.
-const CADRAGE_ATTENDU_U := 1.070
-const CADRAGE_ATTENDU_V := 0.930
+#
+# LA COPIE EST VOULUE, ne pas la remplacer par une lecture de `HudDroitePR3` :
+# une attente qui lit la valeur qu'elle verifie ne verifie plus rien.
+#
+# Refait le jour ou le decor est passe de l'illustration a la carte de Port
+# Royale 3 : `vue_taille` ayant change, les quatre constantes de la planche ont
+# ete reajustees (1,070/0,930 -> 1,170/1,090) et cette attente-ci les suit.
+const CADRAGE_ATTENDU_U := 1.170
+const CADRAGE_ATTENDU_V := 1.090
 # La taille de la carte des mers, pour formuler l'attente sans relire l'image.
 const MINIMAP_L := 196.0
 const MINIMAP_H := 156.0
@@ -205,7 +212,7 @@ func _init() -> void:
 			var y0 := bords[0].position.y
 			var y1 := bords[1].position.y + bords[1].size.y
 			# La vue couvre la moitie de la carte : apres cadrage le rectangle
-			# doit faire ~196/2*1,07 sur ~156/2*0,93, centre sur la minimap.
+			# doit faire ~196/2*1,170 sur ~156/2*1,090, centre sur la minimap.
 			print("   x %.1f..%.1f   y %.1f..%.1f   (minimap 196 x 156)"
 				% [x0, x1, y0, y1])
 			print("   taille %.1f x %.1f   attendu ~%.0f x %.0f"
