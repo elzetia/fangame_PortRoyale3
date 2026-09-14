@@ -59,7 +59,14 @@ def collecter():
         for ins in md.disasm(exe[TF + (a - TV):TF + (a - TV) + 64], a):
             if ins.address >= TV + i:
                 break
-            if ins.mnemonic == "push":
+            if ins.mnemonic == "call":
+                # Coupure : tout ce qui précède appartient à l'appel précédent.
+                # Sans elle, un appel dont la section est construite à l'exécution
+                # emprunte la clé de son voisin et la fait passer pour une
+                # section — d'où les fausses paires `[Gauge] Masts` et
+                # `[DailyCosts] Gauge` des premières versions de la carte.
+                pousses.clear()
+            elif ins.mnemonic == "push":
                 m = re.match(r"0x([0-9a-f]+)$", ins.op_str)
                 if m:
                     s = chaine(int(m.group(1), 16))
@@ -69,6 +76,12 @@ def collecter():
             # Ordre poussé : défaut, clé, section — donc section = -1, clé = -2.
             section, cle = pousses[-1], pousses[-2]
             pairs.setdefault(section, {}).setdefault(cle, READERS[cible])
+        elif pousses:
+            # Une seule chaîne : la section est formatée dans un tampon de pile
+            # (`[Ship%02u]`, `[Town%02u]`…) et n'existe pas comme constante. La
+            # clé est sûre, la section non : on ne l'invente pas.
+            pairs.setdefault("(section calculée)", {}).setdefault(
+                pousses[-1], READERS[cible])
     return pairs
 
 

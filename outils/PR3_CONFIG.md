@@ -12,36 +12,145 @@ Lecture :
 - `i[]` / `f[]` sans valeur : **tableaux** dont les valeurs vivent dans les TABLES
   BINAIRES de `constdata.dat` (navires, munitions, prix des canons, coûts
   d'agrandissement…), à parser table par table (voir `PR3_SYSTEMES.md`).
+- `[(section calculee)]` : la section est **formatée à l'exécution** (`[Ship%02u]`,
+  `[Town%02u]`…) et n'existe nulle part comme chaîne constante. La clé est sûre,
+  la section non — on ne l'invente pas.
 
-C'est la « bible » des réglages : 146 sections, 421 clés. Tout ce qui suit est
+Une version antérieure appariait chaque clé avec la chaîne poussée juste avant,
+sans couper aux frontières d'appel : une clé dont la section était calculée
+empruntait alors celle de son voisin, d'où des sections fantômes comme
+`[Gauge] Masts`, `[DailyCosts] Gauge` ou `[AccelerationMax] AccelerationMin`.
+La carte en comptait 146 ; il y en a 81.
+
+C'est la « bible » des réglages : 81 sections, 438 clés. Tout ce qui suit est
 tiré des fichiers, rien d'inventé.
 
-== 146 sections, 421 cles (avec defaut quand lisible)
+== 81 sections, 438 cles (avec defaut quand lisible)
 
+[(section calculee)]
+   Sound : int
+   Worker : flt
+   Customers : flt
+   Villagers : flt
+   Residents : flt
+   MarketVisitsMin : int
+   MarketVisitsMax : int
+   BeggarsMax : int
+   Roads : str
+   Video : str
+   Colors : f[]
+   Shipyard : f[]
+   Asset : str
+   Speed : flt
+   Delta : flt
+   Female : i[]
+   MinimapPos : i[]
+   Goods : i[]
+   Pos : i[]
+   StadtSymbolPos : f[]
+   Nations : i[]
+   Region : int
+   SoundRegion : int
+   GuildPrivilege : f[]
+   StandardPaymentValue : i[]
+   Weather : i[]
+   Advisor : int
+   Singleplayer : i[]
+   Multiplayer : int
+   Name : str
+   Logic : str
+   Setup : str
+   Text : str
+   Category : str
+   DisplayDuration : int
+   MissionDuration : int
+   MaxCount : int
+   MinRank : int
+   Buildings : str
+   Delay : flt
+   FadeIn : flt
+   FadeOut : flt
+   EventGroup : str
+   EventCount : int
+   Seabattle : str
+   Residential : i[]
+   Deco : f[]
+   TownType : int
+   Sails : str
+   Grasshopper : i[]
+   Grundbedarf : int
+   Baukosten Betriebe : i[]
+   Hausbau Kosten : i[]
+   Hausbau Waren : i[]
+   TownDeco : i[]
+   Rohstoffbedarf : i[]
+   Warenverbrauch : flt
+   Bauquotient_Mod : flt
+   Minimalmengen : int
+   Hitpoints : int
+   HitpointsSail : int
+   Value : int
+   minRankMil : int
+   maxRankMil : int
+   minRankPir : int
+   BattleAsset : str
+   SeaMapAsset : str
+   HullLength : f[]
+   HullWidth : f[]
+   HullHeight : flt
+   SailOffset : f[]
+   SailLength : f[]
+   SailHeight : flt
+   SailType : i[]
+   Masts : int
+   Gauge : int
+   DailyCosts : int
+   Construct : i[]
+   Standardpreise : int
+   Preisfaktoren : f[]
+   Fortress : f[]
+   Rank : i[]
+   Position : f[]
+   Target : f[]
+   MoveSpeed : flt
+   ZoomSpeed : flt
+   ZoomStep : flt
+   ZoomScale : flt
+   MinDist : flt
+   MaxDist : flt
+   NearDist : flt
+   FarDist : flt
+   Fov : flt
+   RotXMin : flt
+   RotXMax : flt
+   AccelerationMin : flt
+   AccelerationMax : flt
+   AccelerationTime : flt
+   AllowTilt : int
+   TiltAtZoom : flt
+   TiltYOffset : flt
+   MinHeight : flt
+   FastFactor : flt
+   MinPos : f[]
+   MaxPos : f[]
+   Axis : f[]
+   MinPos1 : f[]
+   MaxPos1 : f[]
+   AmmoData : flt
+   HullDamage : flt
+   SailDamage : flt
+   Datum : i[]
+   Aktion : int
+   Info : int
+   Kampagne : i[]
 [Abwanderung]
    Arbeiter : f[]
    Pesttote : f[]
-[AccelerationMax]
-   AccelerationMin : flt = 0
-[AccelerationMin]
-   RotXMax : flt = 0
-[AccelerationTime]
-   AccelerationMax : flt = 0
 [Advisor]
    HintTown : int
    HintConvoy : int
-   hint%u : int
    Notification : str
    HintShip : str
-   HintTown%02u : str
-   Tip%02d : str
-[Aktion]
-   Text : int = 11768912
-[AllowTilt]
-   AccelerationTime : int
-[AmmoData]
-   Vmax_%d : flt = -1
-   DmgHull_%d : int
 [AmmoTrajectory]
    Gravity : flt = 10
    Amax : flt = 30
@@ -63,8 +172,6 @@ tiré des fichiers, rien d'inventé.
    Upgrade_Shipyard : i[]
 [Autosave]
    Timer : int
-[BattleAsset]
-   Wendig : str
 [BattleShip]
    Acceleration : flt = 0.25
    Speed : flt = 8
@@ -80,15 +187,10 @@ tiré des fichiers, rien d'inventé.
    TurnSpeedFactor : flt = 0.3
    SinkSpeed : flt = -0.01
    SpeedFactor : flt = 1
-[Baukosten Betriebe]
-   Bauplatzkosten : i[]
 [Bauplatzfaktor]
    Faktor : f[]
 [Bauquotient_Mod]
-   Ware%u_MOD : flt = 1
    Neubauwert : i[]
-[BeggarsMax]
-   MarketVisitsMax : int
 [Boarding]
    Prepare : flt = 7
    Start : flt = 3.5
@@ -120,10 +222,6 @@ tiré des fichiers, rien d'inventé.
    Boarding : f[]
 [Colors]
    MinimapTown : f[]
-[Construct]
-   DailyCosts : i[]
-[DailyCosts]
-   Gauge : int = 0
 [Data]
    towns : int = 0
    production_per_town : int = 0
@@ -141,12 +239,6 @@ tiré des fichiers, rien d'inventé.
    Faktor : flt = 1
    Lagermiete : f[]
    BasicCapacity : int = 1000
-[Datum]
-   entry%u : i[]
-[Delay]
-   vector<T> too long : flt = 0
-[Delta]
-   Speed : flt = 0
 [Difficulty]
    RepFactor : f[]
    Create : f[]
@@ -165,23 +257,11 @@ tiré des fichiers, rien d'inventé.
 [Equipment]
    PriceStandard : i[]
    PricePirates : i[]
-[EventCount]
-   FadeOut : int
-[EventGroup]
-   FadeOut : str
 [Export]
    ExportYMin : int = 0
    ExportYMax : int = 700
    ExportXMin : int = 650
    ExportXMax : int = 1200
-[FadeIn]
-   Delay : flt = 0
-[FadeOut]
-   FadeIn : flt = 0
-[FarDist]
-   NearDist : flt = 20
-[FastFactor]
-   MinHeight : flt = 4
 [Flags]
    Nations : i[]
 [Flotsam]
@@ -192,10 +272,6 @@ tiré des fichiers, rien d'inventé.
    Range : flt = 100
    ReloadTime : flt = 0
    Hit : i[]
-   Data_%u : f[]
-   Gun_%u_%02u : f[]
-[Fov]
-   FarDist : flt = 90
 [Game]
    LockCamera : int
    Tooltips : int
@@ -216,22 +292,16 @@ tiré des fichiers, rien d'inventé.
    Year : i[]
    Month : i[]
    Day : i[]
-[Gauge]
-   Masts : int = 0
 [Global]
    StepsPerSec : int = 10
    Geschwindigkeit : flt = 2
    WaterPlaneOffset : flt = 63.5
-[Goods]
-   Town%u : i[]
 [Grasshopper]
    Months : i[]
    SpeedMin : flt = 25
    SpeedMax : flt = 35
    Radius : int = 47
    Asset : str
-[Grundbedarf]
-   Ware%02u_GB : int
 [Gui]
    SpeedFactor : flt = 0.25
    SeaMapWidth : int = 1024
@@ -240,21 +310,6 @@ tiré des fichiers, rien d'inventé.
    SeaMapOffsetZ : int = 0
    SelectionRange : flt = 16
    SelectionRangeTown : flt = 11
-[GuildPrivilege]
-   priv%u : f[]
-[Hausbau Waren]
-   Hausbau Kosten : i[]
-[HitpointsSail]
-   Hitpoints : int = 0
-[HullDamage]
-   Condition_%d : flt = -1
-   SpeedFactor_%d : flt = 1
-[HullHeight]
-   HullWidth : flt = 0
-[HullWidth]
-   HullLength : f[]
-[Info]
-   Aktion : int = 255
 [Init]
    ActivateSound : str
    Project : str
@@ -267,8 +322,6 @@ tiré des fichiers, rien d'inventé.
    Konvois : int = 3
    Offset : flt = 75
    FormationZ : flt = 20
-[Kampagne]
-   Video : i[]
 [Language]
    Language : str
 [Lebensqualitaet]
@@ -282,18 +335,7 @@ tiré des fichiers, rien d'inventé.
    maxConvoys : int = 100
    maxConvoyMembers : int = 50
    maxShips : int = 50
-[MarketVisitsMax]
-   MarketVisitsMin : int
-[MaxCount]
-   IdleTime : int = 1
-[MaxDist]
-   MinDist : flt = 20
-[MinDist]
-   ZoomScale : flt = 10
-[MinHeight]
-   TiltYOffset : flt = 20
 [MinRank]
-   MaxCount : int = 1
    Hospital : int = 10
    ShipYard : int = 12
 [Mine]
@@ -303,29 +345,12 @@ tiré des fichiers, rien d'inventé.
    DetectorDist : flt = 5
    DamageDist : flt = 50
    DamageFactor : flt = 0.3
-[Minimalmengen]
-   Ware%u : int
-[MinimapPos]
-   Stadt%u : i[]
-[MissionDuration]
-   DisplayDuration : int = 1
 [Multiplayer]
-   StartGold%d : int
-   StartShips%d : i[]
-   GoalWealth%d : int
-   GoalShips%d : int
-   GoalTime%d : int
-   GoalHomeTown%d : int
-   GoalBuildings%d : int
-   GoalDepots%d : int
-   GoalOwnTowns%d : int
    PvPBattleStartTimer : int = 8
    PvPBattleDecisionTimer : int = 10
    PvPBattleResultTimer : int = 5
 [NationReputation]
    Annexed : int = 200
-[NearDist]
-   MaxDist : flt = 10
 [Network]
    Username : str
    PublicGame : int = 0
@@ -358,8 +383,6 @@ tiré des fichiers, rien d'inventé.
    Gold : int = 10000
    Home : int = 47
    ShipType : int = 0
-[Preisfaktoren]
-   X%u : f[]
 [Repairs]
    Zeit : flt = 30
    Kosten : int = 50
@@ -372,26 +395,8 @@ tiré des fichiers, rien d'inventé.
    Renter : int = 100
    FillRate : int = 65
    Unterhalt : int = 50
-   Wohlstand%u : i[]
 [Roads]
    TownRoadWidthScale : flt = 8
-[Rohstoffbedarf]
-   Ware%02u_Bedarf : i[]
-   Rohstoffbedarf : f[]
-[RotXMax]
-   RotXMin : flt = 89
-[RotXMin]
-   Fov : flt = 1
-[SailDamage]
-   SpeedFactor_%d : flt = 1
-[SailHeight]
-   SailLength : flt = 0
-[SailLength]
-   SailOffset : f[]
-[SailOffset]
-   HullHeight : f[]
-[SailType]
-   SailHeight : i[]
 [Sailor]
    Asset : str
    CorpseAsset : str
@@ -402,7 +407,6 @@ tiré des fichiers, rien d'inventé.
 [Sails]
    maxAngles : f[]
    minAngles : f[]
-   Transform%u : str
    SetSailsTime : flt = 6
 [Schatzflotte]
    Bettlerfaktor : flt = 1.4
@@ -411,8 +415,6 @@ tiré des fichiers, rien d'inventé.
    RangeOfVision1 : int = 8
    RangeOfVision2 : int = 12
    RangeOfVisionWatch : int = 12
-[Seabattle]
-   Situation%02u : str
 [Settings]
    MinNumBirdCritterSwarms : int = 0
    MaxNumBirdCritterSwarms : int = 0
@@ -433,7 +435,6 @@ tiré des fichiers, rien d'inventé.
 [Singleplayer]
    BattleStartTimer : flt = 8
    BattleIdleTimer : flt = 3
-   StartCapital%d : i[]
 [Soldier]
    MovementFactor : flt = 1
    EvadeSpeed : flt = 2
@@ -454,19 +455,11 @@ tiré des fichiers, rien d'inventé.
    VoiceVBR : int
    VoiceQuality : int
    MicrophoneGain : int
-[SoundRegion]
-   Region : int = 0
 [SpecialEdition]
    OfficeAsset : str
    OfficeAssetSp : str
-[Speed]
-   Asset : flt = 1
 [Stadtliste]
    initial : int = 10
-[StandardPaymentValue]
-   spv%u : i[]
-[Standardpreise]
-   Ware%02u_SWP : int
 [Storm]
    Speed : flt = 30
    SpeedRotation : flt = 0.2
@@ -489,10 +482,6 @@ tiré des fichiers, rien d'inventé.
    Background : str
    BackgroundTfm : f[]
    GridOrientation : flt = 0
-[TiltAtZoom]
-   AllowTilt : flt = 0
-[TiltYOffset]
-   TiltAtZoom : flt = 0
 [Time]
    Verkaufszeit : int = 64
    Einkaufszeit : int = 64
@@ -507,10 +496,7 @@ tiré des fichiers, rien d'inventé.
    SoldierLeave : int = 5
    ShipLeave : int = 15
 [TownDeco]
-   Variant%d_%d : i[]
    RemovalDist : flt = 1
-[TownType]
-   MinRank : int = 12
 [TownView]
    Grass : int
    Shadow : int
@@ -532,8 +518,6 @@ tiré des fichiers, rien d'inventé.
    minPosY2 : int = 77
    maxPosY1 : int = 914
    maxPosY2 : int = 886
-[Value]
-   HitpointsSail : int = 0
 [Verbrauch]
    Pest : int = 100
    Heuschrecken : int = 100
@@ -558,30 +542,7 @@ tiré des fichiers, rien d'inventé.
    Aspect : str
    Credits : str
    Publisher : str
-   Event%02d_%02d : str
-   Mission%02d : str
-   Tutorial%02d : str
-   Event%02d : str
-   Advisor%02d : str
-   Viceroy%02u_%02d : str
-   Admin%02u_%02u : str
    Intro : str
    Boot : str
-   Info : int = 0
-[Warenverbrauch]
-   Ware%02u_Verbrauch : flt = 0
 [Weather]
-   Region%uRain : i[]
    CloudLayer : str
-[ZoomScale]
-   ZoomStep : flt = 0.1
-[ZoomSpeed]
-   TurnSpeed : flt = 4
-[ZoomStep]
-   ZoomSpeed : flt = 0.1
-[maxRankMil]
-   minRankMil : int = 0
-[minRankMil]
-   Value : int = 10000
-[minRankPir]
-   maxRankMil : int = 255

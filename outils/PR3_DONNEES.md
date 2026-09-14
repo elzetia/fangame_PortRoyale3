@@ -342,14 +342,47 @@ canon, sans rien devoir au voisin. Il vaut `Nations=2`, `Masts=4`, `Gauge=2` :
 quatre mâts et le tirant le plus fort, ce qu'on attend du plus gros navire du
 jeu. **Les seize sont lus.**
 
-### Ce qui n'est toujours PAS établi
+### L'enregistrement est entièrement cartographié
 
-- **Les colonnes flottantes** (+52, +64, +68, +84, +100, +108) : huit navires y
-  partagent exactement les mêmes valeurs (5.5, 2.75, 7.0, 15.0, 16.0). Valeurs
-  par défaut partagées ou mauvaise lecture — indécidable par inspection seule.
+Il n'y a plus de « colonnes flottantes » inexpliquées : ce n'étaient pas des
+colonnes. L'enregistrement est une **chaîne de tableaux à compte devant**, et le
+chargeur (`0x85f8a7`–`0x85fe81`, section `[Ship%02u]`) en donne l'ordre exact —
+ses 21 lectures, désassemblées, se posent sur la structure sans jeu :
 
-Le schéma du chargeur, lui, est certain (`0x85f8a7`–`0x85fe81`) : `minRankMil`,
-`maxRankMil` (255), `minRankPir`, `Vmin` (20), `Vmax` (28), `Wendig` (60),
-`BattleAsset`, `SeaMapAsset`, `HullLength/Width/Height`, `SailOffset/Length/
-Height/Type`, `GunPos%02u`, `Nations`, `Masts`, `Gauge`, `DailyCosts`,
-`Construct` — section `[Ship%02u]`.
+| # | clé | type | ce qu'on lit pour le sloop |
+|---:|---|---|---|
+| 1–3 | `minRankMil`, `maxRankMil`, `minRankPir` | int | 255, 0, 0 |
+| 4–6 | `Vmin`, `Vmax`, `Wendig` | int | 24, 44, 100 |
+| 7–8 | `BattleAsset`, `SeaMapAsset` | str | `sloop`, `sloop_wm` |
+| 9 | `HullLength` | f[3] | −12.1, 4.5, 11.5 |
+| 10 | `HullWidth` | f[2] | 2.9, 3.8 |
+| 11 | `HullHeight` | flt | 2.8 |
+| 12 | `SailOffset` | f[3] | 0, 17, 0 |
+| 13 | `SailLength` | f[3] | 14, 26, 0 |
+| 14 | `SailHeight` | flt | 25 |
+| 15 | `SailType` | i[3] | 0, 1, 255 |
+| 16 | `GunPos%02u` | f[] | 7 positions |
+| 17–19 | `Nations`, `Masts`, `Gauge` | i[8], int, int | 143, 1, 0 |
+| 20–21 | `DailyCosts`, `Construct` | int, i[6] | 110, coûts |
+
+Deux clés n'apparaissent pas comme chaînes dans l'exécutable — `GunPos%02u` et la
+section `[Ship%02u]` elle-même : elles sont **formatées à l'exécution** dans un
+tampon de pile. C'est ce qui trompait la carte des réglages (voir `PR3_CONFIG.md`).
+
+`SailType` explique au passage le dernier octet qu'on n'arrivait pas à placer : le
+`ff` que portent quinze navires — et le `01` de la flûte — est le troisième
+élément de ce tableau, pas un rang.
+
+### Huit navires n'ont pas de géométrie propre
+
+Les valeurs partagées qu'on avait relevées (5.5, 2.75, 7.0, 15.0, 16.0) sont
+bien réelles, et la question est tranchée : les blocs de **pinasse, barque
+pirate, flûte commerciale, corvette combat, frégate combat, caraque, caravelle et
+vaisseau de ligne** sont identiques **octet pour octet**.
+
+Ce n'est pas une mauvaise lecture, et ce n'est pas non plus une structure
+recyclée d'une itération à l'autre : la barque pirate copie la **pinasse**, pas sa
+voisine la barque. Ces huit navires n'ont simplement aucune entrée de géométrie
+dans les données, et retombent tous sur les mêmes valeurs par défaut. C'est une
+lacune de PR3, pas du décodage — elle ne touche que la coque et la voilure
+affichées au combat, jamais les chiffres de commerce.

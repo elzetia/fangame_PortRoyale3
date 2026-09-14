@@ -25,7 +25,14 @@ for i in range(len(text)-5):
     for ins in md.disasm(rd(a,72), a):
         if ins.address>=TV+i: break
         op=ins.op_str
-        if ins.mnemonic=="push":
+        if ins.mnemonic=="call":
+            # Coupure : tout ce qui precede appartient a l'appel precedent. Sans
+            # elle, un appel dont la SECTION est formatee a l'execution
+            # (`[Ship%02u]`, jamais presente comme constante) emprunte la cle de
+            # son voisin et la fait passer pour une section — d'ou les fausses
+            # paires `[Gauge] Masts` ou `[AccelerationMax] AccelerationMin`.
+            strs.clear(); imms.clear(); fconst=None
+        elif ins.mnemonic=="push":
             m=re.match(r"0x([0-9a-f]+)$",op)
             if m:
                 v=int(m.group(1),16); s=chaine(v)
@@ -42,7 +49,10 @@ for i in range(len(text)-5):
                 if fv is not None: fconst=fv
         elif ins.mnemonic=="fld1": fconst=1.0
         elif ins.mnemonic=="fldz": fconst=0.0
-    if len(strs)<2: continue
+    if len(strs)<2:
+        # Une seule chaine : la cle est sure, la section non — on ne l'invente pas.
+        if strs: rows.append(("(section calculee)",strs[-1][1],READERS[t],""))
+        continue
     sec=strs[-1][1]; key=strs[-2][1]; typ=READERS[t]
     dft=""
     if typ=="int":
