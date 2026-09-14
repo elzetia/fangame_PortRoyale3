@@ -307,6 +307,61 @@ func _init() -> void:
 				"claire, lisible sur le bois" if claire
 				else "*** SOMBRE : le fichier declare du noir, mais le jeu teinte ***"])
 
+	# --- les INFOBULLES, avec les mots du JEU -------------------------------
+	# Rien ne lisait un `tooltip_text`. Or les six libelles viennent desormais de
+	# `LocaPR3.propre()` : une cle mal epelee retomberait EN SILENCE sur mon
+	# ancien francais, tous compteurs au vert. Et « Convois &amp; villes » teste
+	# d'un coup la resolution de la cle ET le desechappement du HTML.
+	var bulles_droite: Array[String] = []
+	for e in planche.get_node("Hud_Woodboard_Right_3").get_children():
+		var bt := e as Button
+		if bt != null and bt.tooltip_text != "":
+			bulles_droite.append(bt.tooltip_text)
+
+	var gauche := HudPR3.new()
+	get_root().add_child(gauche)
+	await process_frame
+	var bulles_gauche: Array[String] = []
+	for e in gauche.get_node("Hud_Woodboard_Left_PC_68").get_children():
+		var bt2 := e as Button
+		if bt2 != null and bt2.tooltip_text != "":
+			bulles_gauche.append(bt2.tooltip_text)
+
+	print("\n=== les infobulles ===")
+	print("   planche droite : %s" % ", ".join(bulles_droite))
+	print("   planche gauche : %s" % ", ".join(bulles_gauche))
+	var attendues := {
+		"Convois & villes": bulles_droite,
+		"Journal": bulles_droite,
+		"Augmenter la vitesse du jeu": bulles_gauche,
+		"Baisser la vitesse du jeu": bulles_gauche,
+	}
+	# On compare APRES NORMALISATION : la table du jeu porte des espaces
+	# INSECABLES (U+00A0), typographie francaise courante, qui s'impriment comme
+	# une espace ordinaire mais ne comparent pas egal. Une premiere version de ce
+	# test annoncait « 0 / 4 ABSENTE » alors que les six infobulles etaient
+	# justes a l'ecran -- le compteur mentait, pas le rendu.
+	var bon := 0
+	for mot in attendues:
+		var liste: Array = attendues[mot]
+		var vise := _normalise(str(mot))
+		var trouve := false
+		for b in liste:
+			if _normalise(str(b)) == vise:
+				trouve = true
+				break
+		bon += int(trouve)
+		print("   %-30s %s" % [mot, "OK" if trouve else "*** ABSENTE ***"])
+		if not trouve:
+			# Le diagnostic : quels points de code separent les deux chaines ?
+			for b in liste:
+				if str(b).length() == str(mot).length():
+					print("      candidat « %s »" % b)
+					print("        attendu : %s" % _codes(str(mot)))
+					print("        obtenu  : %s" % _codes(str(b)))
+	print("   -> %d / %d  (les mots viennent de la table du jeu, pas de moi)"
+		% [bon, attendues.size()])
+
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		var sortie := FileAccess.open(args[0], FileAccess.WRITE)
@@ -321,6 +376,23 @@ func _init() -> void:
 
 
 # Distance de chaque pixel au trait de cote, par propagation en largeur.
+# Espaces INSECABLES ramenees a des espaces ordinaires, et bords rognes.
+# La table du jeu porte de la typographie francaise : ces caracteres
+# s'impriment comme une espace mais ne comparent pas egal.
+func _normalise(s: String) -> String:
+	return s.replace(String.chr(0x00A0), " ").replace(
+		String.chr(0x202F), " ").strip_edges()
+
+
+# Les points de code d'une chaine, pour voir ce qui separe deux textes
+# visuellement identiques.
+func _codes(s: String) -> String:
+	var out: Array[String] = []
+	for i in s.length():
+		out.append("%d" % s.unicode_at(i))
+	return ", ".join(out)
+
+
 func _champ_de_distance() -> void:
 	_dist = PackedInt32Array()
 	_dist.resize(_l * _h)

@@ -88,11 +88,21 @@ func _ready() -> void:
 	# coordonnées ci-dessus) montre deux carrés d'or NUS — c'est ce que verrait le
 	# joueur sans ces libellés. `Visual_Textbutton_Standard_Tiny` porte bien son
 	# nom : dans PR3 le glyphe est du TEXTE posé sur la plaque.
-	_armer("bu_minus", "−", "Ralentir", func() -> void: _changer(-1))
-	_armer("bu_plus", "+", "Accélérer", func() -> void: _changer(1))
+	# Les infobulles sont celles DU JEU, pas les miennes. Leurs clés vivent dans
+	# le bytecode des .swf, un gisement que `pr3_loca.py` ne fouillait pas : je
+	# les avais donc écrites à la main (« Accélérer », « Ralentir »), faute de
+	# pouvoir les lire. PR3 dit « Augmenter la vitesse du jeu ».
+	_armer("bu_minus", "−",
+		LocaPR3.propre("ID_GUI_TT_HUD_BTN_GAMESPEED_DECREASE", "Ralentir"),
+		func() -> void: _changer(-1))
+	_armer("bu_plus", "+",
+		LocaPR3.propre("ID_GUI_TT_HUD_BTN_GAMESPEED_INCREASE", "Accélérer"),
+		func() -> void: _changer(1))
 	# La chronique, elle, a son glyphe peint dans l'image (un sablier) : pas de
 	# libellé à ajouter.
-	_armer("bu_chronic", "", "Chronique", func() -> void: chronique_demandee.emit())
+	_armer("bu_chronic", "",
+		LocaPR3.propre("ID_GUI_TT_VISUAL_ROUNDBUTTON_CHRONIK", "Chronique"),
+		func() -> void: chronique_demandee.emit())
 
 
 # Recentre l'image d'un bouton sur son point — voir l'en-tête —, puis pose

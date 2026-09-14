@@ -40,6 +40,14 @@ static func texte(cle: String, defaut := "") -> String:
 	return str(_table.get(cle, defaut if defaut != "" else cle))
 
 
+# Le texte de PR3, DÉSÉCHAPPÉ. La table porte du HTML : « Convois &amp; villes »
+# s'affiche tel quel dans une infobulle si on ne le décode pas.
+static func propre(cle: String, defaut := "") -> String:
+	var s := texte(cle, defaut)
+	return (s.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+		.replace("&quot;", "\"").replace("&apos;", "'").replace("&nbsp;", " "))
+
+
 # Comme `texte`, mais remplace les jetons %1, %2… de PR3 par les arguments.
 static func format(cle: String, args: Array, defaut := "") -> String:
 	var s := texte(cle, defaut)

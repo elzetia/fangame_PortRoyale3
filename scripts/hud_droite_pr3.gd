@@ -43,10 +43,17 @@ const PROFONDEUR := 4
 # Le cadre (char172) commence à -207 et la planche descend jusqu'à 273.
 const TAILLE := Vector2(207, 275)
 
-# L'encre de l'or et du rang, RELEVÉE SUR UNE CAPTURE DU JEU et non sur le
-# fichier : PR3 déclare ses 25 champs texte en NOIR (#000000), mais les teinte au
-# runtime en ActionScript. Le noir déclaré rendrait l'or invisible sur le bois.
-const ENCRE := Color(0.96, 0.94, 0.89)
+# L'encre de l'or et du rang. PR3 déclare ses 25 champs texte en NOIR
+# (#000000) et les teinte au runtime : la couleur visible n'est pas dans le
+# champ mais dans une CONSTANTE NOMMÉE, `ID_GUI_DEF_COLOR_DARK_BG` — « le texte
+# posé sur fond sombre » —, qui vaut 0xFFFFFF. Du blanc pur.
+#
+# Je l'avais d'abord relevée à l'œil sur une capture (0,96 / 0,94 / 0,89) faute
+# de savoir la lire ; la constante du jeu prime sur mon estimation.
+const ENCRE := Color(1.0, 1.0, 1.0)
+# L'or pâle des titres et sous-titres, si jamais l'or de la bourse s'en sert :
+# `ID_GUI_DEF_COLOR_TITLE` = 0xFFE59E.
+const OR_TITRE := Color(1.0, 0.898, 0.62)
 
 # PR3 sépare les milliers par un POINT : « 1.480.445 ». On affichait une espace.
 const SEPARATEUR := "."
@@ -132,8 +139,15 @@ func _ready() -> void:
 			# ailleurs ; ceci est une exception constatée, pas un abandon.
 			clair.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
-	_armer("bu_liste", "Convois", func() -> void: liste_demandee.emit())
-	_armer("bu_logbook", "Journal de bord", func() -> void: journal_demande.emit())
+	# Les infobulles DU JEU. Leurs clés ne vivent que dans le bytecode des .swf,
+	# que la table de localisation ne fouillait pas : d'où mes libellés écrits à
+	# la main jusqu'ici. PR3 dit « Convois & villes » et « Journal ».
+	_armer("bu_liste",
+		LocaPR3.propre("ID_GUI_TT_VISUAL_ROUNDBUTTON_CONVOILIST", "Convois"),
+		func() -> void: liste_demandee.emit())
+	_armer("bu_logbook", LocaPR3.propre("ID_GUI_TT_ICON_LOG", "Journal"),
+		func() -> void: journal_demande.emit())
+	# `bu_switch` n'a pas d'infobulle dans le bytecode : on garde la nôtre.
 	_armer("bu_switch", "Changer de carte", func() -> void: carte_basculee.emit())
 	# `bu_anchor` et `bu_on_sea` filtrent la liste des convois dans PR3. Sans
 	# écran de liste, les brancher ne ferait rien : on les laisse inertes plutôt
