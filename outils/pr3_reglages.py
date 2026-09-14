@@ -158,37 +158,50 @@ def analyser(img, site, type_lecteur, fins):
         return None                                  # realignement rate : on s'abstient
 
     # Les `push` qui precedent, du plus proche au plus lointain.
+    # PIEGE : borner au `call` PRECEDENT. Sans cette borne, quand la section n'est
+    # pas poussee a portee (registre reutilise, ou poussee une seule fois hors
+    # d'une boucle), le scan arriere deborde sur le reglage d'avant et prend sa
+    # CLE pour une SECTION. Ca se lisait en clair dans la sortie, en chaines :
+    # `MaxIdleTime;MinIdleTime`, `MinWalkTime;MaxIdleTime`, `MaxWalkTime;MinWalkTime`.
     pousses = []
     for ins in reversed(ctx[:-1]):
+        if ins.mnemonic == "call":
+            break
         if ins.mnemonic == "push":
             pousses.append(ins)
         if len(pousses) >= 6:
             break
 
-    section = cle = None
-    defaut = None
-    textes = []
-    for ins in pousses:
-        # PIEGE : capstone rend les petits immediats en DECIMAL (`push 3`) et les
-        # grands en hexa (`push 0x1e00`). Tester `startswith("0x")` rate donc tous
-        # les petits defauts et fait remonter le scan jusqu'au reglage PRECEDENT —
-        # c'est ainsi que `Konvois` (defaut 3) est sorti a 7680, la valeur de
-        # `KiUpdateConvoySize`. `int(s, 0)` accepte les deux ecritures.
+    # On lit des POSITIONS, pas « les deux premieres chaines rencontrees ».
+    # La convention cdecl empile a l'envers : le DERNIER `push` avant l'appel est
+    # le 1er argument (la SECTION), l'avant-dernier la CLE, le suivant le DEFAUT.
+    # L'heuristique des chaines se trompait des que la section arrivait par un
+    # REGISTRE : il ne restait qu'une chaine a portee, c'etait la CLE, et le code
+    # la publiait comme section — d'ou les fausses lignes `Scale;...`, `Max;...`,
+    # `MarketVisitsMax;...`. Une position qui ne se resout pas vaut « ? », pas une
+    # supposition.
+    def pousse(k):
+        """(valeur, texte) du k-ieme argument, ou (None, None) si calcule."""
+        if k >= len(pousses):
+            return None, None
         try:
-            v = int(ins.op_str, 0)
+            # PIEGE : capstone rend les petits immediats en DECIMAL (`push 3`) et
+            # les grands en hexa (`push 0x1e00`) ; `int(s, 0)` accepte les deux.
+            v = int(pousses[k].op_str, 0)
         except ValueError:
-            continue                                 # `push ecx`, `push eax`...
-        s = img.chaine(v) if v > 0x400000 else None
-        if s is not None:
-            textes.append(s)
-        elif defaut is None and v <= 0xFFFFFF:
-            defaut = v
-    if textes:
-        section = textes[0]                          # pousse en dernier => 1er argument
-    if len(textes) >= 2:
-        cle = textes[1]
-    elif section is not None:
-        cle = "<calculee>"                           # cle fabriquee par sprintf
+            return None, None                        # `push ecx` : valeur calculee
+        return v, (img.chaine(v) if v > 0x400000 else None)
+
+    _, section = pousse(0)
+    _, cle = pousse(1)
+    section = section or "?"
+    cle = cle or "?"
+
+    defaut = None
+    if type_lecteur == "entier":
+        v2, s2 = pousse(2)
+        if s2 is None and v2 is not None and v2 <= 0xFFFFFF:
+            defaut = v2
 
     if type_lecteur in ("flottant", "tableau flt") and defaut is None:
         defaut = defaut_flottant(img, ctx[:-1])
