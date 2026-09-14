@@ -43,7 +43,13 @@ const PROFONDEUR := 4
 # Le cadre (char172) commence à -207 et la planche descend jusqu'à 273.
 const TAILLE := Vector2(207, 275)
 
-const ENCRE := Color(0.93, 0.88, 0.76)
+# L'encre de l'or et du rang, RELEVÉE SUR UNE CAPTURE DU JEU et non sur le
+# fichier : PR3 déclare ses 25 champs texte en NOIR (#000000), mais les teinte au
+# runtime en ActionScript. Le noir déclaré rendrait l'or invisible sur le bois.
+const ENCRE := Color(0.96, 0.94, 0.89)
+
+# PR3 sépare les milliers par un POINT : « 1.480.445 ». On affichait une espace.
+const SEPARATEUR := "."
 
 # --- la minimap ---------------------------------------------------------------
 #
@@ -117,6 +123,14 @@ func _ready() -> void:
 	for clair in [_or, _rang]:
 		if clair != null:
 			clair.add_theme_color_override("font_color", ENCRE)
+			# CENTRÉS, contre ce que le fichier déclare. `EcranPR3` applique
+			# l'alignement du `DefineEditText`, qui dit « gauche » — mais la
+			# capture du jeu montre « 1.480.445 » et « Matelot », de longueurs
+			# différentes, partageant leur AXE et non leur bord gauche. PR3
+			# surcharge donc l'alignement au runtime pour ces deux champs, comme
+			# il surcharge la couleur. La valeur déclarée reste la règle
+			# ailleurs ; ceci est une exception constatée, pas un abandon.
+			clair.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 	_armer("bu_liste", "Convois", func() -> void: liste_demandee.emit())
 	_armer("bu_logbook", "Journal de bord", func() -> void: journal_demande.emit())
@@ -132,7 +146,7 @@ func _armer(nom: String, infobulle: String, geste: Callable) -> void:
 		zone.pressed.connect(geste)
 
 
-# Sépare les milliers : « 12 480 » se lit, « 12480 » se compte.
+# Sépare les milliers comme PR3 : « 1.480.445 », au POINT. On mettait une espace.
 static func nombre(n: int) -> String:
 	var s := str(absi(n))
 	var out := ""
@@ -141,7 +155,7 @@ static func nombre(n: int) -> String:
 		out = s[i] + out
 		c += 1
 		if c % 3 == 0 and i > 0:
-			out = " " + out
+			out = SEPARATEUR + out
 	return ("-" if n < 0 else "") + out
 
 

@@ -278,6 +278,35 @@ func _init() -> void:
 			planche.poser_route(proj, depart, [])
 			print("   a quai (route vide) -> %d points" % ligne.points.size())
 
+	# --- L'OR, tel que la capture du JEU le montre ---------------------------
+	# Rien n'exercait `nombre()`, ni le centrage, ni l'encre : trois changements
+	# qu'aucun test ne touchait. L'attente ci-dessous ne vient pas de mon code
+	# mais de Port Royale 3 lui-meme, ou la planche affiche « 1.480.445 ».
+	print("\n=== l'or ===")
+	var attendu := "1.480.445"
+	var rendu := HudDroitePR3.nombre(1480445)
+	print("   nombre(1480445) = « %s »   attendu « %s »   %s"
+		% [rendu, attendu, "OK" if rendu == attendu else "*** ECART ***"])
+
+	var champ_or := planche.get_node_or_null(
+		"Hud_Woodboard_Right_3/tf_gold") as Label
+	if champ_or == null:
+		print("   tf_gold INTROUVABLE")
+	else:
+		# La capture montre « 1.480.445 » et « Matelot », de longueurs
+		# differentes, partageant leur AXE : donc centres, alors que le fichier
+		# declare « gauche ». PR3 surcharge au runtime, comme pour la couleur.
+		# `est_centre` et non `centre` : un `centre` existe deja plus haut dans
+		# `_init`, pour le cadre de vue, et GDScript les met en meme portee.
+		var est_centre := champ_or.horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER
+		print("   tf_gold centre : %s" % ("oui" if est_centre else "*** NON ***"))
+		var encre := champ_or.get_theme_color("font_color")
+		var claire := encre.get_luminance() > 0.5
+		print("   encre %s, luminance %.2f -> %s"
+			% [encre, encre.get_luminance(),
+				"claire, lisible sur le bois" if claire
+				else "*** SOMBRE : le fichier declare du noir, mais le jeu teinte ***"])
+
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		var sortie := FileAccess.open(args[0], FileAccess.WRITE)
