@@ -47,7 +47,13 @@ def main():
         if str(best) not in presents:
             orphelins += 1
             continue
-        lignes.append(f"{cid}\t{best}.png\t{s.bmp[best][0]}x{s.bmp[best][1]}")
+        # Le DECALAGE : ou poser l'art par rapport au point de placement. 26 des
+        # 36 formes resolues de hud_pc en ont un, et sans lui la planche du
+        # bandeau de ville (char147, origine -219) se dessinait a 400 px des
+        # icones qu'elle doit porter.
+        dx, dy = s.origine(cid, best) or (0.0, 0.0)
+        lignes.append(f"{cid}\t{best}.png\t{s.bmp[best][0]}x{s.bmp[best][1]}"
+                      f"\t{dx:.0f}\t{dy:.0f}")
 
     os.makedirs(dossier, exist_ok=True)
     dest = os.path.join(dossier, "caracteres.txt")

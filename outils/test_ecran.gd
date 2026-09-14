@@ -46,6 +46,25 @@ func _init() -> void:
 	print("HUD planche gauche -> %d noeuds, %d avec image : %s"
 		% [h.get_child_count(), avec_image, ", ".join(nommes)])
 
+	# Ce test comptait des nœuds sans jamais regarder OÙ ils tombent. C'est par
+	# ce trou qu'une régression a déplacé TOUS les boutons de +taille/2 en
+	# passant « au vert » : la table des décalages n'était plus lue alors que le
+	# recentrage à la main venait d'être retiré. On épingle donc des points
+	# connus, mesurés dans le .swf.
+	#   bu_minus : 453.png fait 28x28, origine (-14,-14), placé en (96,36)
+	#   bu_plus  : même image, placé en (167,36)
+	#   tf_date  : un champ, sans décalage, placé en (65,5)
+	print("--- positions attendues (décalage mesuré + point de placement) ---")
+	var attendus := {"bu_minus": Vector2(82, 22), "bu_plus": Vector2(153, 22),
+		"tf_date": Vector2(65, 5)}
+	for nom in attendus:
+		var e := EcranPR3.champ(h, str(nom))
+		var vise: Vector2 = attendus[nom]
+		var bon := e != null and e.position.is_equal_approx(vise)
+		print("   %-10s %-14s attendu %-14s %s" % [nom,
+			str(e.position) if e != null else "ABSENT", str(vise),
+			"OK" if bon else "*** ECART ***"])
+
 	# La planche DROITE vit de conteneurs imbriqués — son fond, la minimap, la
 	# barre d'XP. Sans profondeur, `batir` les rendait en Control 1x1 : on doit
 	# donc voir beaucoup plus de nœuds avec profondeur qu'à plat.

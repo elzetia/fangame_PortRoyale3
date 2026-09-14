@@ -87,6 +87,20 @@ def rect(b):
     return a
 
 
+def matrice(b):
+    """La TRANSLATION d'une MATRIX de SWF, en pixels. L'echelle et la rotation
+    sont lues pour avancer, puis jetees : seul le point d'ancrage nous occupe."""
+    if b.u(1):
+        n = b.u(5); b.sg(n); b.sg(n)        # echelle
+    if b.u(1):
+        n = b.u(5); b.sg(n); b.sg(n)        # rotation
+    n = b.u(5)
+    tx = b.sg(n) / 20.0
+    ty = b.sg(n) / 20.0
+    b.align()
+    return tx, ty
+
+
 def strz(d, o):
     e = d.index(b'\0', o)
     return d[o:e].decode('latin1'), e + 1
@@ -171,7 +185,12 @@ class Swf:
             o += ln
 
     def _enfants(self, body, ln):
-        """Les charId places dans un sprite, via PlaceObject2 (26) et 3 (70)."""
+        """Les enfants places dans un sprite : (charId, tx, ty).
+
+        La TRANSLATION compte autant que le charId. L'art d'un symbole n'est pas
+        forcement pose sur son point de placement : `char124` de hud_pc porte le
+        sien a +363 px, et sans cette translation l'icone sortait a 500 px de la
+        planche a laquelle elle appartient."""
         d = self.d
         p = body + 4
         kids = []
@@ -188,18 +207,29 @@ class Swf:
                 p += 4
             if sc == 0:
                 break
-            if sc == 26:
-                if d[p] & 2:
-                    kids.append(struct.unpack_from("<H", d, p + 3)[0])
-            elif sc == 70:
+            if sc in (26, 70):
                 f1 = d[p]
-                f2 = d[p + 1]
-                q = p + 4
-                # Nom de classe seulement si HasClassName (voir l'en-tete).
-                if f2 & 0x08:
-                    _, q = strz(d, q)
-                if f1 & 0x02:
-                    kids.append(struct.unpack_from("<H", d, q)[0])
+                cid = None
+                q = None
+                if sc == 26:
+                    q = p + 3
+                    if f1 & 0x02:
+                        cid = struct.unpack_from("<H", d, q)[0]
+                        q += 2
+                else:
+                    f2 = d[p + 1]
+                    q = p + 4
+                    # Nom de classe seulement si HasClassName (voir l'en-tete).
+                    if f2 & 0x08:
+                        _, q = strz(d, q)
+                    if f1 & 0x02:
+                        cid = struct.unpack_from("<H", d, q)[0]
+                        q += 2
+                tx = ty = 0.0
+                if cid is not None and (f1 & 0x04):
+                    tx, ty = matrice(Bits(d, q))
+                if cid is not None:
+                    kids.append((cid, tx, ty))
             p = hp + (6 if longue else 2) + sl
         return kids
 
@@ -267,11 +297,52 @@ class Swf:
                 r += self.shape_bmps(cid)
             except Exception:
                 pass
-        for k in self.sprites.get(cid, []):
+        for k, _tx, _ty in self.sprites.get(cid, []):
             for x in self.leaves(k, seen, prof + 1):
                 if x not in r:
                     r.append(x)
         return r
+
+    def origine(self, cid, cible, prof=0, seen=None):
+        """Ou poser l'art de `cid` par rapport a son point de placement.
+
+        Un charId designe une FORME ou un SPRITE, jamais directement un bitmap,
+        et rien ne dit que cet art commence au point de placement :
+          * une forme porte ses bornes dans son RECT -- `char147` de hud_pc va
+            de -219 a +209, donc sa planche se pose 219 px a GAUCHE du point ;
+          * un sprite pose son contenu par une MATRIX, qu'il faut cumuler
+            jusqu'au bitmap.
+
+        Mesure sur skinlib_pr3 : les boutons rendent exactement -taille/2 et les
+        plaques (0,0). C'est la preuve que la regle « boutons par le centre,
+        plaques par le coin », d'abord DEDUITE de la mise en page, n'etait qu'un
+        reflet de cette origine -- mais l'origine, elle, couvre aussi ce que la
+        regle ne voyait pas (-219, ou (-99,-11) pour char126).
+
+        Rend (dx, dy) en pixels, ou None si `cible` n'est pas atteint.
+        """
+        if seen is None:
+            seen = set()
+        if cid in seen or prof > 8:
+            return None
+        seen = seen | {cid}
+        if cid == cible:
+            return (0.0, 0.0)
+        if cid in self.shapes:
+            code, body, ln = self.shapes[cid]
+            bb = Bits(self.d, body + 2)
+            a = rect(bb)          # xmin, xmax, ymin, ymax, en twips
+            try:
+                if cible in self.shape_bmps(cid):
+                    return (a[0] / 20.0, a[2] / 20.0)
+            except Exception:
+                pass
+            return None
+        for k, tx, ty in self.sprites.get(cid, []):
+            r = self.origine(k, cible, prof + 1, seen)
+            if r is not None:
+                return (tx + r[0], ty + r[1])
+        return None
 
     def meilleure(self, cid):
         """Le bitmap qui represente le mieux ce caractere, ou None.

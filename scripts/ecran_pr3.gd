@@ -49,6 +49,10 @@ const LARGEUR_TEXTE := 82.0
 static var _json: Dictionary = {}
 static var _icones: Dictionary = {}
 static var _caracteres: Dictionary = {}
+# Les DÉCALAGES, 4e et 5e colonnes des deux tables : où poser l'art par rapport
+# au point de placement. Voir `_pose()`.
+static var _decalages: Dictionary = {}
+static var _caracteres_dec: Dictionary = {}
 
 
 # --- lecture des données décodées --------------------------------------------
@@ -74,7 +78,15 @@ static func icones() -> Dictionary:
 		for ligne in FileAccess.get_file_as_string(chemin).split("\n"):
 			var bouts := ligne.split("\t")
 			if bouts.size() >= 2:
-				_icones[bouts[0].strip_edges()] = bouts[1].strip_edges()
+				var cle := bouts[0].strip_edges()
+				_icones[cle] = bouts[1].strip_edges()
+				# 4e et 5e colonnes : le DÉCALAGE mesuré dans le .swf. 454 des
+				# 969 entrées en ont un. Sans cette lecture, et `bouton()` ne
+				# recentrant plus à la main, tous les boutons partaient de
+				# +taille/2 — sans que le test le voie, faute de regarder leur
+				# position.
+				if bouts.size() >= 5:
+					_decalages[cle] = Vector2(float(bouts[3]), float(bouts[4]))
 	return _icones
 
 
@@ -91,14 +103,19 @@ static func caracteres(swf: String) -> Dictionary:
 	if _caracteres.has(swf):
 		return _caracteres[swf]
 	var table := {}
+	var decalages := {}
 	var chemin := ProjectSettings.globalize_path(
 		SkinPR3.RACINE + swf + "/caracteres.txt")
 	if FileAccess.file_exists(chemin):
 		for ligne in FileAccess.get_file_as_string(chemin).split("\n"):
 			var bouts := ligne.split("\t")
 			if bouts.size() >= 2:
-				table[bouts[0].strip_edges()] = bouts[1].strip_edges()
+				var cle := bouts[0].strip_edges()
+				table[cle] = bouts[1].strip_edges()
+				if bouts.size() >= 5:
+					decalages[cle] = Vector2(float(bouts[3]), float(bouts[4]))
 	_caracteres[swf] = table
+	_caracteres_dec[swf] = decalages
 	return table
 
 
@@ -157,6 +174,37 @@ static func _icone(classe: String) -> Texture2D:
 	if fichier == "":
 		return null
 	return SkinPR3.texture(SKIN + fichier.replace(".png", ""))
+
+
+# Le décalage d'un symbole NOMMÉ, et celui d'un caractère anonyme.
+static func _decalage_icone(classe: String) -> Vector2:
+	icones()
+	return _decalages.get(classe.get_slice(".", classe.get_slice_count(".") - 1),
+		Vector2.ZERO)
+
+
+static func _decalage_caractere(swf: String, classe: String) -> Vector2:
+	caracteres(swf)
+	var table: Dictionary = _caracteres_dec.get(swf, {})
+	return table.get(classe.substr(4), Vector2.ZERO)
+
+
+# Pose une image À SON DÉCALAGE, mesuré dans le .swf et non deviné.
+#
+# L'art d'un symbole ne commence pas forcément à son point de placement : une
+# forme porte ses bornes dans son RECT, un sprite pose son contenu par une
+# matrice. Mesure sur skinlib_pr3 : les boutons rendent exactement -taille/2,
+# les plaques (0,0). La règle « boutons par le centre, plaques par le coin »,
+# d'abord DÉDUITE de la mise en page de la planche gauche, n'était donc qu'un
+# reflet de cette origine — juste, mais aveugle à tout le reste : la planche du
+# bandeau de ville a pour origine -219, et `char126` (-99,-11).
+#
+# 454 des 969 entrées de la table d'icônes ont un décalage non nul, et 65 des
+# 139 caractères de hud_pc.
+static func _pose(tex: Texture2D, decalage: Vector2) -> Control:
+	var n := _image(tex, tex.get_size())
+	n.position = decalage
+	return n
 
 
 static func _image(tex: Texture2D, taille: Vector2) -> TextureRect:
@@ -231,14 +279,16 @@ static func _noeud(el: Dictionary, repli: bool, swf: String) -> Control:
 
 	if classe.contains("IconButton") or classe.begins_with("icon"):
 		var tex := _icone(classe)
-		return _image(tex, tex.get_size() if tex != null else Vector2(24, 24))
+		if tex == null:
+			return _image(null, Vector2(24, 24))
+		return _pose(tex, _decalage_icone(classe))
 
 	# Beaucoup de `Visual_Button_*` sont en fait des icônes (le « i » d'info, les
 	# flèches…) : on les pose en image si la table en connaît une.
 	if classe.contains("Visual_Button") or classe.contains("Textbutton"):
 		var ti := _icone(classe)
 		if ti != null:
-			return _image(ti, ti.get_size())
+			return _pose(ti, _decalage_icone(classe))
 		var b := Button.new()
 		b.focus_mode = Control.FOCUS_NONE
 		b.add_theme_font_size_override("font_size", 13)
@@ -259,11 +309,11 @@ static func _noeud(el: Dictionary, repli: bool, swf: String) -> Control:
 		# de ville tiennent presque entièrement à eux.
 		var anonyme := _caractere(swf, classe)
 		if anonyme != null:
-			return _image(anonyme, anonyme.get_size())
+			return _pose(anonyme, _decalage_caractere(swf, classe))
 
 		var reste := _icone(classe)
 		if reste != null:
-			return _image(reste, reste.get_size())
+			return _pose(reste, _decalage_icone(classe))
 
 	var c := Control.new()
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -333,7 +383,9 @@ static func batir(swf: String, scene: String, repli := false,
 		var nom := str(d.get("nom", ""))
 		if nom != "":
 			n.name = nom
-		n.position = Vector2(float(d.get("x", 0.0)), float(d.get("y", 0.0)))
+		# `+=` et non `=` : `_noeud()` a déjà posé le DÉCALAGE de l'art, qu'on
+		# décale ici du point de placement.
+		n.position += Vector2(float(d.get("x", 0.0)), float(d.get("y", 0.0)))
 		racine.add_child(n)
 	return racine
 
@@ -398,7 +450,11 @@ static func bouton(racine: Control, nom: String, libelle := "",
 	if image == null:
 		return null
 	var taille := image.size
-	image.position -= taille * 0.5
+	# PLUS de recentrage à la main ici : le décalage vient désormais de la table,
+	# MESURÉ dans le .swf. Le recentrer en plus l'appliquerait deux fois. Le
+	# résultat est identique au pixel pour les boutons — leur origine mesurée
+	# vaut exactement -taille/2 — mais il vaut maintenant aussi pour tout ce que
+	# cette règle ne voyait pas.
 
 	var zone := Button.new()
 	zone.flat = true

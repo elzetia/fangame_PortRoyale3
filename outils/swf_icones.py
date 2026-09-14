@@ -29,8 +29,14 @@ for cid in sorted(s.names, key=lambda i: s.names[i].lower()):
     # seule cle. Sinon, le dernier segment pointe : components.button.Visual_X.
     nm = s.names[cid]
     court = nm if nm.lower().endswith(".png") else nm.split('.')[-1]
+    # Le DECALAGE, en 4e et 5e colonnes : ou poser l'art par rapport au point de
+    # placement. Mesure et non devine -- les boutons rendent -taille/2, les
+    # plaques (0,0). Les trois premieres colonnes ne bougent pas, les lecteurs
+    # qui n'en veulent pas les ignorent.
+    dx, dy = s.origine(cid, best) or (0.0, 0.0)
     # TABULATEURS : c'est ainsi que `EcranPR3.icones()` decoupe le fichier.
-    lignes.append(f"{court}\t{best}.png\t{s.bmp[best][0]}x{s.bmp[best][1]}")
+    lignes.append(f"{court}\t{best}.png\t{s.bmp[best][0]}x{s.bmp[best][1]}"
+                  f"\t{dx:.0f}\t{dy:.0f}")
 
 dest = os.path.join(SORTIE, "agencement", "icones.txt")
 os.makedirs(os.path.dirname(dest), exist_ok=True)
