@@ -84,14 +84,14 @@ Marchandises.liste = {
   { cle = "mais",      nom = "Maïs",        prix =  50, categorie = "vivres",       verbrauch = 220 },
   { cle = "sucre",     nom = "Sucre",       prix =  50, categorie = "coloniales",   verbrauch = 220 },
   { cle = "chanvre",   nom = "Chanvre",     prix =  50, categorie = "matieres",     verbrauch = 220 },
-  { cle = "tissu",     nom = "Tissu",       prix = 150, categorie = "manufactures", verbrauch = 110,
+  { cle = "tissu",     nom = "Textiles",       prix = 150, categorie = "manufactures", verbrauch = 110,
     recette = { { "coton", 1 } } },
   -- Le métal se fond au bois : c'est ce qui fait du bois la matière première la
   -- plus sollicitée de la carte, bien au-delà de ce que les habitants brûlent.
   { cle = "metal",     nom = "Métal",       prix =  83, categorie = "matieres",     verbrauch = 110,
     recette = { { "bois", 0.5 } } },
   { cle = "coton",     nom = "Coton",       prix =  50, categorie = "matieres",     verbrauch = 220 },
-  { cle = "outils",    nom = "Outils",      prix = 200, categorie = "manufactures", verbrauch = 110,
+  { cle = "outils",    nom = "Objets métal",      prix = 200, categorie = "manufactures", verbrauch = 110,
     recette = { { "bois", 0.5 }, { "metal", 1 } } },
   -- TEINTURE, pas épice. Je l'avais nommée "Épices" parce que la vignette de
   -- PR3 s'appelle `spices.png`, et le tableau de consommation de l'utilisateur
@@ -111,7 +111,7 @@ Marchandises.liste = {
     recette = { { "mais", 2 } } },
   { cle = "vetements", nom = "Vêtements",   prix = 450, categorie = "manufactures", verbrauch = 110,
     recette = { { "tissu", 1 }, { "teinture", 1 } } },
-  { cle = "cordage",   nom = "Cordage",     prix = 150, categorie = "manufactures", verbrauch = 220,
+  { cle = "cordage",   nom = "Cordes",     prix = 150, categorie = "manufactures", verbrauch = 220,
     recette = { { "chanvre", 1 } } },
   { cle = "rhum",      nom = "Rhum",        prix = 267, categorie = "manufactures", verbrauch = 110,
     recette = { { "bois", 0.5 }, { "sucre", 1 } } },
