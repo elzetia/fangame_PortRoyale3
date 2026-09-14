@@ -638,6 +638,29 @@ function Bridge.convois_joueur()
     d.selectionne = (i == Compagnie.selection)
     local tete = m.navires and m.navires[1]
     d.modele      = tete and tete.modele or ""
+    -- Ce que la VIGNETTE DE CONVOI de PR3 affiche dans son onglet « loupe »
+    -- (`tf_cargo`, `tf_ships`, `tf_knot`, `tf_cannon`, `tf_crew`) et dans son
+    -- onglet « route » (`tf_name`, son type, `tf_towns`).
+    local flotte = m.navires or {}
+    local charge = 0
+    for _, q in pairs(m.cale or {}) do charge = charge + q end
+    d.capacite  = m.capacite or 0
+    d.charge    = math.floor(charge + 0.5)
+    d.canons    = Navires.canons(flotte)
+    d.equipage  = Navires.equipage(flotte)
+    -- Les NŒUDS du convoi : l'allure du plus lent, comme `vitesse_jour`.
+    local noeuds = 0
+    for _, n in ipairs(flotte) do
+      if noeuds == 0 or n.vmax < noeuds then noeuds = n.vmax end
+    end
+    d.noeuds    = noeuds
+    d.strategie = m.strategie or ""
+    d.villes    = #(m.circuit or {})
+    -- CE QU'ON NE FOURNIT PAS, ET POURQUOI. L'état de coque en %, la PUISSANCE
+    -- du convoi, la durée d'une rotation, le gain de la dernière et l'état
+    -- actif/inactif de la route : la sim ne suit ni les dégâts ni les rotations,
+    -- et la formule de puissance de PR3 n'est établie nulle part. On laisse ces
+    -- champs vides plutôt que d'inventer des nombres.
     -- Les points de passage QUE LE CONVOI SUIT REELLEMENT : `m.route`, posé par
     -- `tracer_route` et consommé point par point par le déplacement. On les
     -- expose plutôt que de les recalculer côté moteur — recalculer avec

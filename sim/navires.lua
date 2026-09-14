@@ -119,4 +119,35 @@ function Navires.entretien(navires)
 end
 
 
+-- Les agrégats que la VIGNETTE DE CONVOI de PR3 affiche dans son onglet
+-- « loupe » : le nombre de canons, l'équipage et la coque du convoi entier.
+-- Ce sont de simples sommes — une fiche de navire porte déjà `canons`,
+-- `equipage` et `coque`.
+--
+-- CE QU'ON NE CALCULE PAS, ET POURQUOI. PR3 montre aussi une PUISSANCE
+-- (`tf_strength`, avec son `tf_strength_max`), qu'on retrouve sur l'écran
+-- d'organisation et sur le résultat de bataille navale. Sa formule n'est
+-- établie nulle part dans ce projet : on ne connaît que le nom du champ. On la
+-- laisse donc vide plutôt que d'inventer un nombre — comme les seuils de rang.
+function Navires.canons(navires)
+  local c = 0
+  for _, n in ipairs(navires) do c = c + (n.canons or 0) end
+  return c
+end
+
+
+function Navires.equipage(navires)
+  local c = 0
+  for _, n in ipairs(navires) do c = c + (n.equipage or 0) end
+  return c
+end
+
+
+function Navires.coque(navires)
+  local c = 0
+  for _, n in ipairs(navires) do c = c + (n.coque or 0) end
+  return c
+end
+
+
 return Navires

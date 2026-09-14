@@ -134,6 +134,44 @@ func _init() -> void:
 	if vu_nom != "Tourbillon":
 		_rater("le nom du convoi ne s'affiche pas (« %s »)" % vu_nom)
 
+	# --- le REMPLISSAGE ------------------------------------------------------
+	# Les valeurs sont celles d'une fiche connue : on verifie qu'elles
+	# ARRIVENT A L'ECRAN, et pas seulement qu'aucune erreur ne s'affiche. Un
+	# champ muet est le defaut le plus facile a ne pas voir.
+	print("\n=== le remplissage ===")
+	v.poser_details({"charge": 24, "capacite": 200, "navires": 3, "noeuds": 40,
+			"canons": 28, "equipage": 140})
+	var attendus := {"tf_cargo": "24/200", "tf_ships": "3", "tf_knot": "40",
+			"tf_cannon": "28", "tf_crew": "140"}
+	for nom in attendus:
+		var l := v.champ(str(nom))
+		var vu := l.text if l != null else "<absent>"
+		print("   %-12s « %s »   attendu « %s »   %s"
+				% [nom, vu, attendus[nom], "OK" if vu == attendus[nom] else "*** ECART ***"])
+		if vu != attendus[nom]:
+			_rater("%s affiche « %s »" % [nom, vu])
+
+	# Ce qui doit rester VIDE : la sim ne suit ni les degats ni la puissance.
+	for nom in ["tf_health", "tf_strength"]:
+		var l2 := v.champ(str(nom))
+		if l2 != null and l2.text != "":
+			_rater("%s devrait rester vide, il affiche « %s »" % [nom, l2.text])
+	print("   tf_health et tf_strength laisses vides (aucune source) : ok")
+
+	# La route : le TYPE doit porter le nom DU JEU, pas une cle ni ma traduction.
+	v.poser_route({"nom": "Tourbillon", "villes": 6, "strategie": "wealth"})
+	var tour := v.champ("tf_tour")
+	var vu_tour := tour.text if tour != null else "<absent>"
+	print("   tf_tour      « %s »   attendu « Prospérité »   %s"
+			% [vu_tour, "OK" if vu_tour == "Prospérité" else "*** ECART ***"])
+	if vu_tour != "Prospérité":
+		_rater("le type de route affiche « %s »" % vu_tour)
+	if vu_tour.begins_with("ID_"):
+		_rater("le type de route laisse fuir sa cle")
+	var villes := v.champ("tf_towns")
+	if villes != null and villes.text != "6":
+		_rater("tf_towns affiche « %s » au lieu de 6" % villes.text)
+
 	# --- les infobulles ------------------------------------------------------
 	print("\n=== les infobulles ===")
 	var fuites := 0

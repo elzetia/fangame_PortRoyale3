@@ -129,6 +129,56 @@ func onglet() -> String:
 	return _actif
 
 
+# L'onglet « loupe », depuis une fiche de convoi du pont.
+#
+# CE QUI RESTE VIDE, ET POURQUOI. `tf_health` (l'état de coque en %) et
+# `tf_strength` (la puissance) n'ont pas de source : la simulation ne modélise
+# pas encore les dégâts, et la formule de puissance de PR3 n'est établie nulle
+# part — on ne connaît que le nom du champ, vu aussi sur l'écran d'organisation
+# et sur le résultat de bataille navale. Un champ vide dit la vérité ; un nombre
+# inventé mentirait.
+func poser_details(fiche: Dictionary) -> void:
+	_poser("tf_cargo", "%d/%d" % [int(fiche.get("charge", 0)),
+			int(fiche.get("capacite", 0))])
+	_poser("tf_ships", str(int(fiche.get("navires", 0))))
+	_poser("tf_knot", str(int(fiche.get("noeuds", 0))))
+	_poser("tf_cannon", str(int(fiche.get("canons", 0))))
+	_poser("tf_crew", str(int(fiche.get("equipage", 0))))
+	_poser("tf_health", "")
+	_poser("tf_strength", "")
+
+
+# L'onglet « route ». Le TYPE de route porte le nom que PR3 lui donne : la sim
+# garde une clé (`profit`, `wealth`, `construct`…), le nom vient de la table du
+# jeu (`ID_STRATEGY_*_NAME`), jamais d'une traduction de mon cru.
+#
+# `tf_time`, `tf_profit` et l'état actif restent vides : la sim ne mesure pas
+# encore les rotations.
+func poser_route(fiche: Dictionary) -> void:
+	_poser("tf_name", str(fiche.get("nom", "")))
+	_poser("tf_towns", str(int(fiche.get("villes", 0))))
+	_poser("tf_tour", _nom_strategie(str(fiche.get("strategie", ""))))
+	_poser("tf_time", "")
+	_poser("tf_profit", "")
+	_poser("tf_state", "")
+
+
+func _nom_strategie(cle: String) -> String:
+	if cle == "":
+		return ""
+	var k := "ID_STRATEGY_%s_NAME" % cle.to_upper()
+	var nom := LocaPR3.propre(k, "")
+	# `LocaPR3` RÉÉMET LA CLÉ quand la table manque : sans ce test, la vignette
+	# afficherait « ID_STRATEGY_PROFIT_NAME » en toutes lettres.
+	return "" if nom == k else nom
+
+
+func _poser(nom: String, valeur: String) -> void:
+	var l := champ(nom)
+	if l != null:
+		l.text = valeur
+
+
 # L'en-tête : le nom du convoi, et son message de situation.
 #
 # `situation` est déjà un texte : c'est à l'appelant de le composer avec les clés

@@ -85,9 +85,32 @@ func _init() -> void:
 		_rater("aucun convoi : la minimap n'aurait rien a tracer")
 	else:
 		var c0: Dictionary = convois[0]
-		for champ in ["position", "a_quai", "selectionne", "route"]:
+		# Les quatre premiers servent a la MINIMAP ; les suivants a la VIGNETTE
+		# de convoi. Sans eux la vignette resterait muette, et le test qui la
+		# couvre ne le verrait pas : il lui passe un dictionnaire fabrique a la
+		# main, pas la sortie du pont.
+		for champ in ["position", "a_quai", "selectionne", "route",
+				"capacite", "charge", "canons", "equipage", "noeuds",
+				"strategie", "villes"]:
 			if not c0.has(champ):
 				_rater("convoi : champ manquant %s" % champ)
+		# Et les valeurs doivent avoir un SENS : un convoi qui porte des navires
+		# a forcement une cale, des canons, un equipage et une allure. Un champ
+		# present mais a zero serait un agregat qui ne somme rien.
+		print("  agregats : cale %s/%s  canons %s  equipage %s  noeuds %s  strategie « %s »  villes %s"
+				% [c0.get("charge"), c0.get("capacite"), c0.get("canons"),
+					c0.get("equipage"), c0.get("noeuds"), c0.get("strategie"),
+					c0.get("villes")])
+		if int(c0.get("navires", 0)) > 0:
+			for champ in ["capacite", "canons", "equipage", "noeuds"]:
+				if int(c0.get(champ, 0)) <= 0:
+					_rater("convoi : %s vaut %s alors qu'il a %s navire(s)"
+							% [champ, c0.get(champ), c0.get("navires")])
+		if int(c0.get("charge", -1)) < 0:
+			_rater("convoi : charge negative")
+		if int(c0.get("charge", 0)) > int(c0.get("capacite", 0)):
+			_rater("convoi : charge %s au-dela de la cale %s"
+					% [c0.get("charge"), c0.get("capacite")])
 		var trace: Array = c0.get("route", [])
 		print("  premier convoi : %s  a_quai %s  %d point(s) de route" % [
 				c0.get("nom", "?"), c0.get("a_quai"), trace.size()])
