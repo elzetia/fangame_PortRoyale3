@@ -339,6 +339,11 @@ static func _noeud(el: Dictionary, repli: bool, swf: String) -> Control:
 			classe.get_slice(".", classe.get_slice_count(".") - 1), {})
 		l.add_theme_font_size_override("font_size",
 			int(fiche.get("hauteur", _taille_police(classe))))
+		# La police du JEU, quand elle a été extraite sur cette machine. C'est ici
+		# qu'elle se pose et nulle part ailleurs : tous les écrans fabriquent
+		# leurs champs par ce chemin, le HUD comme les dialogues. Absente, Godot
+		# garde la sienne et l'écran reste lisible — voir `FontePR3`.
+		FontePR3.poser(l)
 		l.add_theme_color_override("font_color", Color(0.19, 0.13, 0.07))
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		# L'alignement DÉCLARÉ, lu dans la table, et non plus un test sur le nom.
@@ -596,6 +601,10 @@ static func bouton(racine: Control, nom: String, libelle := "",
 	zone.text = libelle
 	zone.tooltip_text = infobulle
 	zone.add_theme_font_size_override("font_size", 18)
+	# La graisse ORDINAIRE, pas la grasse : les `DefineEditText` de PR3 nomment
+	# tous `$RegularFont1`. Rien ne m'autorise à mettre du gras ici tant que je
+	# n'ai pas relevé une classe qui déclare l'autre.
+	FontePR3.poser(zone)
 	zone.add_theme_color_override("font_color", ENCRE_BOUTON)
 	zone.add_theme_color_override("font_hover_color", ENCRE_BOUTON_SURVOL)
 	zone.add_theme_color_override("font_pressed_color", ENCRE_BOUTON_SURVOL)
