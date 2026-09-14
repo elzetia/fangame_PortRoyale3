@@ -37,6 +37,9 @@ signal onglet_change(nom: String)
 
 const SWF := "hud_pc"
 const PLANCHE := "Hud_pc_fla.Hud_Scroll_Right_Elemente_33"
+# La planche de fond : bandeau de bois et corps de toile. Voir `_ready()`.
+const FOND := "75"
+const FOND_TAILLE := Vector2(204, 360)
 # Assez pour descendre conteneur > panneau > sous-panneau > plaques.
 const PROFONDEUR := 5
 
@@ -65,6 +68,31 @@ func _ready() -> void:
 	# `repli` ouvert : la vignette est faite pour l'essentiel de classes qui ne
 	# portent leur image que par la table — plaques de texte, boutons ronds,
 	# pictogrammes. Les 128 couches qu'elle en tire ont été regardées au rendu.
+	# LE PARCHEMIN, D'ABORD : il se dessine DERRIÈRE tout le reste, donc il entre
+	# dans l'arbre avant le plateau.
+	#
+	# Sans lui la vignette flottait sur la carte, plaques et boutons sans support
+	# — « complètement rincée ». PR3 le pose dans `Scene_Hud` sous le nom
+	# `scroll_r`, mais par un `char106` que la table fait pointer sur `98.png`,
+	# un crayon de 32x32 : la numérotation des FORMES et celle des BITMAPS sont
+	# disjointes, et le piège est documenté dans `swf_lecture.py`. On adresse
+	# donc le bitmap directement.
+	#
+	# `hud_pc/75` fait 204 x 360 là où le contenu de la carte mesure 203 x 326 :
+	# un bandeau de bois en haut, puis un corps de toile borde de cordelette
+	# doree. C'est bien la planche des captures du jeu — verifiee a l'oeil, pas
+	# deduite de ses dimensions : deux fois deja sur ce projet un bitmap de la
+	# bonne taille s'est revele etre autre chose.
+	var fond := SkinPR3.texture("hud_pc/" + FOND)
+	if fond != null:
+		var tr := TextureRect.new()
+		tr.name = "parchemin"
+		tr.texture = fond
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.size = FOND_TAILLE
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(tr)
+
 	_plateau = EcranPR3.batir(SWF, PLANCHE, true, PROFONDEUR)
 	add_child(_plateau)
 

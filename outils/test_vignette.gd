@@ -57,6 +57,33 @@ func _init() -> void:
 		quit(1)
 		return
 
+	# --- LA PLANCHE DE FOND --------------------------------------------------
+	# Sans elle la vignette flotte sur la carte, plaques et boutons sans support.
+	# Ce test passait AUSSI BIEN AVANT QU'APRES son ajout : il ne savait pas
+	# faire la difference. Le meme angle mort que celui des champs dupliques,
+	# qu'on ne laisse pas se reinstaller.
+	#
+	# On verifie aussi qu'elle est DERRIERE : un fond dessine par-dessus
+	# masquerait tout, et la vignette paraitrait vide au lieu de rincee.
+	print("\n=== la planche de fond ===")
+	var parchemin := v.get_node_or_null("parchemin") as TextureRect
+	if parchemin == null:
+		_rater("pas de planche de fond : la vignette flotterait sur la carte")
+	else:
+		var t := parchemin.texture
+		print("   parchemin %s, image %s, rang %d sur %d enfants"
+				% [parchemin.size, "absente" if t == null
+					else "%dx%d" % [t.get_width(), t.get_height()],
+					parchemin.get_index(), v.get_child_count()])
+		if t == null:
+			_rater("la planche de fond n'a pas d'image")
+		elif Vector2(t.get_width(), t.get_height()) != v.FOND_TAILLE:
+			_rater("image %dx%d, attendu %s"
+					% [t.get_width(), t.get_height(), v.FOND_TAILLE])
+		if parchemin.get_index() != 0:
+			_rater("la planche de fond est au rang %d : elle couvrirait le reste"
+					% parchemin.get_index())
+
 	# --- les cinq onglets ----------------------------------------------------
 	print("\n=== les onglets ===")
 	for paire in ConvoiVignettePR3.ONGLETS:
