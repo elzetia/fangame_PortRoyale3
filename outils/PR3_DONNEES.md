@@ -581,7 +581,46 @@ entrées, aucune ajoutée ni retirée, aucune de taille changée.
 Détail qui compte pour qui veut ajouter des ports : PR3 embarque d'origine
 **72 dossiers `terrain/NN`**, de 0 à 71, pour soixante villes seulement.
 `terrain/60` existait donc avant le mod, qui l'a écrasé et non créé. Le jeu
-semble prévoir de la place au-delà de ses soixante ports.
+prévoit bien de la place au-delà de ses soixante ports.
+
+### Le chargeur de villes : `[Stadt%u]` puis `[Town%u]`
+
+La section ne s'appelle pas `Town%02u` — cette chaîne existe dans l'exécutable
+mais **n'est référencée nulle part**. Le chargeur en utilise deux autres, toutes
+deux formatées à l'exécution comme `[Ship%02u]` :
+
+- **`Stadt%u`** (`0x8282f4`), première boucle : lit `MinimapPos`, puis trois clés
+  tenues dans un tableau de pile — `InfoPosName`, `InfoPosGoodsEvents`,
+  `InfoPosDock`. Leurs valeurs sont des chaînes comparées à `"top"`, `"bottom"`,
+  `"left"` et `"right"`, converties en 0, 1, 2, 3. Ce sont des **ancrages du
+  panneau d'info de ville**, pas des données de ville. L'objet en mémoire y fait
+  **64 octets** (`sar ecx, 6`).
+- **`Town%u`** (`0x8286a6`), seconde boucle : le véritable enregistrement.
+
+**Le nombre de villes n'est pas câblé.** En `0x8285de`, le jeu lit
+`[Data] towns` et range la valeur dans `[ebp-0xc]` ; la boucle des villes se
+termine sur `cmp eax, [ebp-0xc]` / `jl`. C'est donc cette clé, et elle seule, qui
+décide combien de ports existent — le levier pour en ajouter. `production_per_town`
+est lu dans la foulée.
+
+Les lectures de `[Town%u]`, dans l'ordre, avec ce que le code en fait :
+
+| clé | type | traitement |
+|---|---|---|
+| `Goods` | i[] | chaque valeur **< 20** est gardée, rangée en octets consécutifs |
+| `Pos` | i[] | deux mots (la case), plus un octet |
+| `Type` | i[] | valeur **< 5**, en octet ; sinon 0 |
+| `StadtSymbolPos` | f[] | flottants, mis à l'échelle avant usage |
+| `Nations` | i[] | valeur **< 4**, en octet ; **sinon 4** |
+| `Region` | int | rangé **incrémenté de 1** |
+| `SoundRegion` | int | rangé **incrémenté de 1** |
+
+Deux de ces détails expliquent des chiffres qu'on avait pris tels quels :
+
+- le **4** par défaut de `Nations` est la valeur « pirates » de l'énumération
+  `@nation` — une ville sans nation valide tombe donc chez les pirates ;
+- `Region` est stocké **+1**, ce qui est la raison pour laquelle les régions se
+  lisent 11 à 14 dans les données plutôt que 10 à 13.
 
 Le nom français n'est pas une translittération : 1 *Nouvelle Orléans*, 25 *La
 Havane*, 34 *Saint-Domingue*, 46 *Iles Caïmans*, 48 *Carthagène*.
