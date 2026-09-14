@@ -732,8 +732,9 @@ Décodé du système de carte (`SeaMapComponent` `0x6fc200`, registre d'entités
 **Sélection.** On clique un convoi ; il est pris s'il est dans un rayon de
 `[Gui] SelectionRange` = **16** (unités carte) du clic — un marqueur `SelectionConvoyMap`
 s'affiche dessus (`SelectionConvoyTown` pour une ville, rayon `SelectionRangeTown`
-= **11**). PR3 sélectionne **un convoi à la fois** sur la carte. (La sim ajoute, à la
-demande, une sélection au rectangle multi-convois — un plus, pas du PR3.)
+= **11**). PR3 sélectionne **un convoi à la fois** sur la carte, et la sim fait de
+même. (Elle a porté un temps une sélection au rectangle multi-convois, ajoutée à la
+demande ; elle a été retirée — le clone prime sur la préférence.)
 
 **Ordre de déplacement.** Clic droit sur la destination : « Cliquez avec le bouton
 droit sur votre destination pour faire partir votre convoi. » Une **ligne de cible**
@@ -751,11 +752,19 @@ de défilement de la vue).
 `SelectionConvoyMap` / `SelectionConvoyTown` (le marqueur de sélection), `ConvoyTargetLine`
 (la ligne d'ordre), `ConvoyRoute` (le tracé de route), `SeaMapView` (la vue).
 
-**Alignement de la sim.** `scripts/carte2d.gd` fait déjà : clic gauche = sélection,
-clic droit = destination (port OU point de mer), anneau d'or = marqueur de sélection,
-sceau sur la ville = convoi à quai. La sim déplace le convoi via `Marchands.ordonner`
-/ `ordonner_position`. Écarts assumés : sélection au rectangle (ajout joueur), et les
-rayons de clic en unités-monde de la sim (à mettre au ratio 16:11 de PR3 si l'on veut).
+**Alignement de la sim.** `scripts/carte2d.gd` fait : clic gauche = sélection d'UN
+convoi, clic droit = destination (port OU point de mer), anneau d'or = marqueur de
+sélection, sceau sur la ville = convoi à quai, et le tracé en pointillés de la route
+du convoi sélectionné (`ConvoyTargetLine` / `ConvoyRoute`), alimenté par les points
+que le convoi suit réellement (`d.route`, posé par `sim/bridge.lua`). Elle déplace le
+convoi via `Marchands.ordonner` / `ordonner_position`, et applique le ratio 16:11 de
+PR3 sur les rayons de clic (`_convoi_sous_monde`).
+
+**Ce qui reste à porter** : le BROUILLARD DE GUERRE — `[SeaMapMovement]`
+`RangeOfVision1` 8 / `RangeOfVision2` 12 / `RangeOfVisionWatch` 12 — dont la sim n'a
+rien ; et les ÉTATS de convoi que PR3 nomme (Bataille navale, Réparations, Raid,
+Patrouille, « À l'ancre - oisif »), bloqués en amont faute de combat, de réparations
+et de piraterie dans la simulation.
 
 ## État du rétro-engineering — le bilan complet
 

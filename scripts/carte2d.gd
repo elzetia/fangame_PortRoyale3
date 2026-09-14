@@ -67,10 +67,7 @@ const MARGE_HUD := Vector2(8, 6)
 var _glisse := false
 var _clic_depart := Vector2.ZERO
 var _a_glisse := false
-var _glisse_bouton := 0        # quel bouton mène le glissé (gauche = boîte, milieu = pano)
-var _boite_active := false     # une boîte de sélection est en cours de tracé
-var _boite_a := Vector2.ZERO   # coin de départ de la boîte, en coordonnées monde-carte
-var _boite_b := Vector2.ZERO   # coin courant
+var _glisse_bouton := 0        # quel bouton mène le glissé (seul le milieu panoramique)
 
 # La barre d'espace a deux sens selon la durée : un appui bref bascule la pause,
 # un appui tenu passe en x10 le temps qu'on le tient. On ne peut donc pas
@@ -110,7 +107,9 @@ var _marchands: Array = []
 # un (clic gauche), et on l'envoie à un port (clic droit) s'il est manuel.
 var _convois_joueur: Array = []
 var _convoi_selectionne := 1      # convoi PRIMAIRE (fiche, comptoir, caméra)
-var _convois_selectionnes: Array = [1]  # tous les convois sélectionnés (mouvement)
+# PR3 NE SÉLECTIONNE QU'UN CONVOI À LA FOIS sur la carte maritime (`SeaMapComponent`,
+# marqueur `SelectionConvoyMap`). Il n'y a donc pas d'ensemble sélectionné : le
+# convoi commandé est `_convoi_selectionne`, et lui seul.
 var _sel_a_quai_prec := true      # le convoi primaire était-il à quai à l'image d'avant
 
 
@@ -718,6 +717,9 @@ func _draw() -> void:
 	if _mode_edition:
 		_dessiner_reperes_edition()
 	_dessiner_marchands()
+	# La ligne d'ordre du convoi sélectionné passe SOUS les navires : c'est le
+	# `ConvoyTargetLine` de PR3, qui va du convoi à sa destination.
+	_dessiner_route_convoi()
 	_dessiner_convois_joueur()
 	# Les cartouches passent EN DERNIER, donc au-dessus des navires. Un convoi
 	# qui passe devant l'étiquette de son port la rend illisible juste au moment
@@ -736,17 +738,6 @@ func _draw() -> void:
 		_dessiner_pavillon(port)
 	for port in ports:
 		_dessiner_marque_convoi(port)
-	_dessiner_boite_selection()
-
-
-# La boîte de sélection au glissé gauche : un rectangle d'or translucide.
-func _dessiner_boite_selection() -> void:
-	if not _boite_active:
-		return
-	var e := 1.0 / _zoom
-	var r := Rect2(_boite_a, Vector2.ZERO).expand(_boite_b)
-	draw_rect(r, Color(0.95, 0.83, 0.4, 0.12), true)
-	draw_rect(r, Color(0.95, 0.83, 0.4, 0.9), false, 1.5 * e)
 
 
 func _dessiner_port(port: Dictionary) -> void:
@@ -1064,14 +1055,11 @@ func _icone(cle: String) -> Texture2D:
 	return tex
 
 
-func _dessiner_route() -> void:
-	if navire.route.is_empty():
-		return
+# Un chemin en pointillés, en pixels de carte. Écrit une fois : la route du
+# navire personnel et celle du convoi sélectionné se dessinent pareil, et deux
+# copies finiraient par diverger.
+func _trait_pointille(pts: Array[Vector2]) -> void:
 	var e := 1.0 / _zoom
-	var pts: Array[Vector2] = [proj.vers_carte(navire.position.x, navire.position.y)]
-	for wp in navire.route:
-		pts.append(proj.vers_carte(wp.x, wp.y))
-
 	var tiret := 14.0 * e
 	var trou := 10.0 * e
 	for i in range(pts.size() - 1):
@@ -1086,6 +1074,35 @@ func _dessiner_route() -> void:
 			var t2: float = minf(t + tiret, lon)
 			draw_line(a + u * t, a + u * t2, Color(1, 0.93, 0.72, 0.8), 1.6 * e)
 			t = t2 + trou
+
+
+func _dessiner_route() -> void:
+	if navire.route.is_empty():
+		return
+	var pts: Array[Vector2] = [proj.vers_carte(navire.position.x, navire.position.y)]
+	for wp in navire.route:
+		pts.append(proj.vers_carte(wp.x, wp.y))
+	_trait_pointille(pts)
+
+
+# LA ROUTE DU CONVOI SÉLECTIONNÉ — le `ConvoyTargetLine` / `ConvoyRoute` de PR3.
+#
+# Les points viennent du pont (`d.route`) et sont ceux que le convoi SUIT
+# réellement : `sim/bridge.lua` prend soin de les exposer tels quels plutôt que
+# de laisser le moteur recalculer un chemin seulement plausible. La liste se vide
+# à l'accostage, donc le tracé disparaît de lui-même quand le convoi arrive.
+func _dessiner_route_convoi() -> void:
+	var m := _convoi_par_indice(_convoi_selectionne)
+	if m.is_empty():
+		return
+	var chemin: Array = m.get("route", [])
+	if chemin.is_empty():
+		return
+	var pos: Vector2 = m["position"]
+	var pts: Array[Vector2] = [proj.vers_carte(pos.x, pos.y)]
+	for wp in chemin:
+		pts.append(proj.vers_carte(wp.x, wp.y))
+	_trait_pointille(pts)
 
 
 # Les navires marchands des nations. Même coque que celle du joueur, mais aux
@@ -1163,7 +1180,7 @@ func _dessiner_convois_joueur() -> void:
 		var quai := bool(m.get("a_quai", false))
 		if not quai:
 			_dessiner_sillage(p, a, u)
-		if int(m.get("indice", -1)) in _convois_selectionnes:
+		if int(m.get("indice", -1)) == _convoi_selectionne:
 			draw_arc(p, NAV_TAILLE * 0.5 * u, 0.0, TAU, 32, Color(0.95, 0.83, 0.4, 0.95), 2.5 * u)
 		draw_circle(p, NAV_TAILLE * 0.20 * u, Color(0, 0, 0, 0.22))
 		_poser_navire(p, a, NAV_TAILLE * 0.9 * u, Color(1, 1, 1, 1),
@@ -1202,26 +1219,13 @@ func _detecter_arrivee_convoi() -> void:
 	_sel_a_quai_prec = quai
 
 
-# Fixe l'ensemble sélectionné (et le primaire, pour la fiche/le comptoir/la caméra).
-func _selectionner(indices: Array) -> void:
-	_convois_selectionnes = indices.duplicate()
-	if _convois_selectionnes.is_empty():
+# Fixe le convoi commandé. UN SEUL, comme PR3 : la sélection au rectangle
+# multi-convois qui vivait ici a été retirée — c'était un ajout, pas du jeu.
+func _selectionner(indice: int) -> void:
+	if indice < 0:
 		return
-	_convoi_selectionne = int(_convois_selectionnes[0])
+	_convoi_selectionne = indice
 	sim.selectionner_convoi(_convoi_selectionne)
-
-
-# Termine une boîte de sélection : prend tous les convois du joueur dont la vignette
-# tombe dans le rectangle.
-func _finir_boite() -> void:
-	var r := Rect2(_boite_a, Vector2.ZERO).expand(_boite_b)
-	var pris: Array = []
-	for m in _convois_joueur:
-		var pos: Vector2 = m["position"]
-		if r.has_point(proj.vers_carte(pos.x, pos.y)):
-			pris.append(int(m.get("indice", -1)))
-	if not pris.is_empty():
-		_selectionner(pris)
 
 
 # L'indice du convoi du joueur sous un point du monde, ou -1. Sert à en sélectionner
@@ -1518,18 +1522,15 @@ func _unhandled_input(e: InputEvent) -> void:
 					_a_glisse = false
 					_glisse = true
 					_glisse_bouton = MOUSE_BUTTON_LEFT
-					_boite_a = get_global_mouse_position()
-					_boite_active = false
 				else:
 					if not _port_saisi.is_empty():
 						_port_saisi = {}
 						return
 					_glisse = false
-					if _a_glisse and _boite_active:
-						_finir_boite()      # glissé gauche = sélection au rectangle
-					elif not _a_glisse:
-						_clic_gauche()       # simple clic = désigner
-					_boite_active = false
+					# Un simple clic DÉSIGNE ; un glissé gauche ne fait rien. PR3
+					# n'a pas de sélection au rectangle, et on ne lui en prête pas.
+					if not _a_glisse:
+						_clic_gauche()
 					queue_redraw()
 			# Le clic DROIT commande le navire, comme dans Port Royale 3 :
 			# « Cliquez avec le bouton droit sur votre destination pour faire
@@ -1584,14 +1585,10 @@ func _unhandled_input(e: InputEvent) -> void:
 	elif e is InputEventMouseMotion and _glisse:
 		if e.position.distance_to(_clic_depart) > 5.0:
 			_a_glisse = true
-		if _a_glisse:
-			if _glisse_bouton == MOUSE_BUTTON_LEFT:
-				# Glissé gauche : on trace une boîte de sélection (pas de pano).
-				_boite_b = get_global_mouse_position()
-				_boite_active = true
-				queue_redraw()
-			else:
-				_cam.position -= e.relative / _zoom
+		# Seul le bouton du MILIEU panoramique. Le glissé gauche ne trace plus de
+		# boîte de sélection : PR3 n'en a pas.
+		if _a_glisse and _glisse_bouton != MOUSE_BUTTON_LEFT:
+			_cam.position -= e.relative / _zoom
 	elif e is InputEventKey and e.pressed and not e.echo:
 		match e.keycode:
 			KEY_SPACE: pass   # tout se joue au relâchement, voir _input_espace
@@ -1715,7 +1712,7 @@ func _clic_gauche() -> void:
 	# commandé, pour le comptoir comme pour le clic droit.
 	var ic := _convoi_sous_monde(monde)
 	if ic != -1:
-		_selectionner([ic])
+		_selectionner(ic)
 
 
 # Le joueur a-t-il un convoi à quai dans ce port ? Tout est convoi désormais.
@@ -1740,35 +1737,33 @@ func _selectionner_convoi_au_port(port: Dictionary) -> void:
 	var cle := String(port.get("cle", ""))
 	for m in _convois_joueur:
 		if bool(m.get("a_quai", false)) and String(m.get("ville", "")) == cle:
-			_selectionner([int(m.get("indice", _convoi_selectionne))])
+			_selectionner(int(m.get("indice", _convoi_selectionne)))
 			return
 
 
-# Clic droit : on COMMANDE. Si un convoi du joueur est sélectionné, on l'envoie au
-# port visé. Sinon, le navire met le cap sur la mer cliquée, ou sur la rade du port.
+# Clic droit : on COMMANDE. Le convoi sélectionné part vers le port visé, ou vers
+# le point de mer cliqué — « Cliquez avec le bouton droit sur votre destination
+# pour faire partir votre convoi. » UN SEUL convoi part, comme dans PR3.
 func _clic_droit() -> void:
-	# Des convois sélectionnés : le clic droit les envoie TOUS à la destination —
-	# un port si on en vise un, sinon le point de MER cliqué (comme dans PR3).
-	if not _convois_selectionnes.is_empty():
+	if not _convoi_par_indice(_convoi_selectionne).is_empty():
 		var monde0 := proj.vers_monde(get_global_mouse_position())
 		var port0 := _port_survole
 		if port0.is_empty():
 			port0 = _port_proche(monde0, RAYON_CLIC_PORT)
 		var refus := ""
 		if not port0.is_empty():
-			var cle := String(port0.get("cle", ""))
-			for ic in _convois_selectionnes:
-				var res := sim.ordonner_convoi(int(ic), cle)
-				if not bool(res.get("ok", false)):
-					refus = String(res.get("message", "Ordre refusé."))
+			var res := sim.ordonner_convoi(
+				_convoi_selectionne, String(port0.get("cle", "")))
+			if not bool(res.get("ok", false)):
+				refus = String(res.get("message", "Ordre refusé."))
 		elif sim.est_terre(monde0.x, monde0.y, 30.0):
 			_noter("Impossible d'aller à terre — clique sur la mer ou un port.")
 			return
 		else:
-			for ic in _convois_selectionnes:
-				var res := sim.ordonner_convoi_position(int(ic), monde0.x, monde0.y)
-				if not bool(res.get("ok", false)):
-					refus = String(res.get("message", "Ordre refusé."))
+			var res := sim.ordonner_convoi_position(
+				_convoi_selectionne, monde0.x, monde0.y)
+			if not bool(res.get("ok", false)):
+				refus = String(res.get("message", "Ordre refusé."))
 		if refus != "":
 			_noter(refus)
 		return
