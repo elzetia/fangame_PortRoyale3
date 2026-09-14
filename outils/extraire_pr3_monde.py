@@ -90,6 +90,11 @@ def lire():
             "case": (o[2] | o[3] << 8, o[4] | o[5] << 8),
             "taille": o[49],
             "nation": NATIONS[o[50]],
+            # +69 = `Region`, l'octet que lit le chargeur [Town%u]. Quatre
+            # valeurs, geographiques : 0 golfe et Floride, 1 Mexique et Main,
+            # 2 Grandes Antilles, 3 Petites Antilles. Elle repond une pour une a
+            # la culture coloniale ci-dessous, sur les soixante villes.
+            "region": o[69],
             "produits": [CLES[o[36 + k]] for k in range(5)],
         })
         cle = cle_de(villes[-1]["nom"])
@@ -253,9 +258,9 @@ def ecrire_villes(villes):
     for v in villes:
         out.append(
             '  { cle = "%s", nom = "%s", nation = "%s", case = { %d, %d },'
-            ' taille = %d,' % (
+            ' taille = %d, region = %d,' % (
                 cle_de(v["nom"]), v["nom"], v["nation"],
-                v["case"][0], v["case"][1], v["taille"]))
+                v["case"][0], v["case"][1], v["taille"], v["region"]))
         out.append('    produits = { %s } },'
                    % ", ".join('"%s"' % p for p in v["produits"]))
     out.append("}")

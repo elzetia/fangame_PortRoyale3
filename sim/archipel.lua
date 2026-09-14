@@ -65,14 +65,27 @@ Archipel.nations = {
   portugal   = { cle = "portugal",   nom = "Portugal",   adj = "portugaise",  couleur = { 0.11, 0.47, 0.20 }, bord = { 0.92, 0.78, 0.22 } },
 }
 
--- Les quatre régions de PR3, qu'il numérote 11 à 14. Elles comptent : c'est
+-- Les quatre régions de PR3, qu'il numérote 0 à 3. Elles comptent : c'est
 -- d'elles que vient la structure du commerce — le golfe ne produit pas ce que
 -- produisent les Petites Antilles, et il y a des jours de mer entre les deux.
+--
+-- La région est l'octet +69 de l'enregistrement de ville (`Region` dans le
+-- chargeur `[Town%u]`). Les quatre groupes se lisent sur la carte : 10 villes du
+-- golfe et de Floride, 13 du Mexique et du Main, 21 aux Grandes Antilles et 16
+-- aux Petites.
+--
+-- Elles portaient ici les numéros 11 à 14. Ce n'était pas faux, mais c'était un
+-- AUTRE index : celui des cultures coloniales. Région et culture se répondent en
+-- effet une pour une, sur les soixante villes sans exception — le golfe fait la
+-- teinture, le Mexique le café, les Grandes Antilles le tabac, les Petites le
+-- cacao. D'où la confusion : les deux colonnes disent la même chose.
+--
+-- On garde la numérotation de PR3 lui-même, celle de `Region`.
 Archipel.regions = {
-  [11] = "Golfe et Floride",
-  [12] = "Mexique et Main",
-  [13] = "Petites Antilles",
-  [14] = "Grandes Antilles",
+  [0] = "Golfe et Floride",
+  [1] = "Mexique et Main",
+  [2] = "Grandes Antilles",
+  [3] = "Petites Antilles",
 }
 
 
