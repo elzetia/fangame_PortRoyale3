@@ -556,13 +556,43 @@ La clé est `ID_GUI_TOWN_%02u`, et Port Royale 3 en compte **60, de 0 à 59**.
 > connaître le jeu, c'est `.original` ; pour savoir ce qui s'affiche à l'écran,
 > c'est le fichier vivant.
 
-`wac.xsl` en énumère pourtant 77. L'écart n'est pas une lacune de traduction :
-**le `constdata.dat` d'origine n'a que soixante enregistrements**. Au-delà, on
-lit hors du tableau, et cela se voit — la ville 60 y a pour case `(1319, 60)`,
-la 61 `(1319, 61)`, la 62 `(1319, 62)` : l'ordonnée n'est autre que l'indice de
-lecture, avec une taille de 4 et une nation de 4 qui n'existent ni l'une ni
-l'autre. Les dix-sept noms surnuméraires de `wac.xsl` sont donc des reliquats
-d'éditeur, pas des ports jouables.
+`wac.xsl` en énumère pourtant 77. L'écart s'explique par la forme du tableau :
+**le tableau des villes compte 72 entrées, dont 60 seulement portent un nom**.
+
+Le tableau est **précédé de son compte**, comme tous les tableaux de ce fichier :
+un `u32` à `0x1b57` qui vaut `0x48`, soit 72, suivi des 72 × 97 octets
+d'enregistrements jusqu'à `0x36a3`. Inutile donc de deviner la fin du tableau —
+il suffit de lire son compte. Trois dénombrements indépendants concordent :
+**72 entrées, 72 plans de ville** (les ancres de `pr3data`) et **72 dossiers
+`terrain/NN`**, de 0 à 71.
+
+Sur ces 72 entrées, le jeu d'origine en occupe **61** :
+
+- **0 à 59** : les soixante ports nommés, seuls à avoir une clé
+  `ID_GUI_TOWN_%02u` ;
+- **71** : une entrée bien réelle, case `(649, 442)`, **nation 4 — les
+  pirates** — avec un plan de ville complet et ses propres repères (mairie,
+  église, quai, taverne, chantier, phare, entrepôt), distincts de ceux de Port
+  Royale. Tout indique le **repaire de pirates** : il n'a pas de nom dans les
+  données parce que le joueur le baptise lui-même, ce dont témoigne la clé
+  `ID_GDD_TOWN_PIRATELIFE_HIDEOUTNAME_TITLE`, « Renommer le repaire » ;
+- **60 à 70** : onze emplacements **libres**.
+
+Un emplacement libre n'est pas remis à zéro : il **hérite** de la ville 59 sa
+position monde et ses cinq denrées, et ne se reconnaît qu'à sa case sentinelle
+dont l'**abscisse** vaut 1319. C'est bien l'abscisse seule qui compte — les
+emplacements 69 et 70 portent tous deux `(1319, 69)`, l'ordonnée ne reprend donc
+pas fidèlement l'indice. Leur taille de 4 et leur nation de 4 ne sont pas des
+valeurs valides : ce sont les **valeurs de repli** du chargeur, `Nations` hors
+bornes retombant sur 4, c'est-à-dire les pirates.
+
+Sur cette installation, l'emplacement 60 n'est plus libre : le mod y a écrit
+`Bacalar`, case `(360, 486)`, taille 2, espagnole. Il a donc **occupé un
+emplacement déjà prévu**, sans allonger le tableau ni toucher au compte — ce qui
+explique qu'aucun 60 ne devienne 61 nulle part dans le fichier.
+
+Les noms surnuméraires de `wac.xsl` restent des reliquats d'éditeur : il y en a
+77 pour 72 emplacements.
 
 Chaque enregistrement de ville fait **97 octets** (la 59 occupe 12 726 à 12 823,
 la 60 la suit immédiatement).
@@ -579,9 +609,10 @@ Le correctif est appliqué **en place** : les deux archives ont exactement 2 213
 entrées, aucune ajoutée ni retirée, aucune de taille changée.
 
 Détail qui compte pour qui veut ajouter des ports : PR3 embarque d'origine
-**72 dossiers `terrain/NN`**, de 0 à 71, pour soixante villes seulement.
-`terrain/60` existait donc avant le mod, qui l'a écrasé et non créé. Le jeu
-prévoit bien de la place au-delà de ses soixante ports.
+**72 dossiers `terrain/NN`**, de 0 à 71 — autant que d'entrées dans la table des
+villes et que de plans de ville. `terrain/60` existait donc avant le mod, qui
+l'a écrasé et non créé. La place était prévue, et elle était déjà comptée : voir
+plus bas, où les trois dénombrements se recoupent.
 
 ### Le chargeur de villes : `[Stadt%u]` puis `[Town%u]`
 
