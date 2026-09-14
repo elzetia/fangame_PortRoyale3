@@ -497,3 +497,52 @@ Une remarque à ne pas confondre avec une preuve : la paire de points de coque d
 sloop (110 000 deux fois) apparaît **quatre fois** dans une tout autre région
 (`0x1704xxxx`). Ce sont vraisemblablement des navires *instanciés* plutôt que des
 gabarits — mais rien ne l'établit pour l'instant.
+
+---
+
+## Les énumérations officielles du jeu
+
+L'exécutable porte une table **nom → identifiant** à `0xbcc7f0` : 95 entrées
+triées alphabétiquement, chacune une paire (pointeur vers une chaîne `GET_*`,
+entier). C'est l'API nommée de PR3 — celle par laquelle l'interface et les
+scripts désignent une denrée, un navire, une nation.
+
+Elle **vérifie deux énumérations** que le projet utilisait jusqu'ici sans preuve
+directe, en les ayant déduites de l'ordre des tables binaires.
+
+### Les vingt denrées, à `identifiant − 17`
+
+Les vingt concordent, sans exception :
+
+| id | indice | denrée | | id | indice | denrée |
+|---:|---:|---|---|---:|---:|---|
+| 17 | 0 | `WOOD` bois | | 27 | 10 | `METAL` objets métal |
+| 18 | 1 | `BRICKS` briques | | 28 | 11 | `DYESTUFF` teintures |
+| 19 | 2 | `GRAIN` blé | | 29 | 12 | `COFFEE` café |
+| 20 | 3 | `FRUITS` fruits | | 30 | 13 | `COCOA` cacao |
+| 21 | 4 | `CORN` maïs | | 31 | 14 | `TOBACCO` tabac |
+| 22 | 5 | `SUGAR` sucre | | 32 | 15 | `MEAT` viande |
+| 23 | 6 | `HEMP` chanvre | | 33 | 16 | `CLOTHES` vêtements |
+| 24 | 7 | `CLOTH` textiles | | 34 | 17 | `ROPES` cordes |
+| 25 | 8 | `ORE` métal | | 35 | 18 | `RUM` rhum |
+| 26 | 9 | `COTTON` coton | | 36 | 19 | `BREAD` pain |
+
+Noter la paire qui prête à confusion : `ORE` est le **métal** brut (indice 8) et
+`METAL` les **objets métal** (indice 10). Ce sont deux denrées distinctes.
+
+### Les seize navires, à `identifiant − 0x39`
+
+Les seize concordent, dans l'ordre même de `constdata.dat` : `GET_SHIP_PINNACE`
+`0x39`, `GET_SHIP_SLOOP` `0x3a`, … `GET_SHIP_WARGALLEON` `0x47`,
+`GET_SHIP_SHIPOFTHELINE` `0x48`. Le vaisseau de ligne porte donc deux noms selon
+l'endroit : `liner` dans les données, `SHIPOFTHELINE` dans l'API.
+
+### Les autres énumérations, utiles au clone
+
+| famille | valeurs |
+|---|---|
+| nations | Espagne 4, Angleterre 5, France 6, Provinces-Unies 7 |
+| compétences | combat naval 11, navigation 12, commerce 13, réparation 14, combat 15, vue 16 |
+| états de ville | bataille 37, peste 38, famine 39, sauterelles 40, pirates 41, sécheresse 42, tempête 43, incendie 44 |
+| icônes de conseiller | 45 à 56 |
+| divers | or 1, popularité 2, réputation 3, richesse de ville 8, navire 9, carte au trésor 10 |
