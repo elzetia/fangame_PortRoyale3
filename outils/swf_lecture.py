@@ -130,6 +130,20 @@ def au_repos(instance):
     return not any(m in b for m in ETATS_ACTIFS)
 
 
+def u30(d, p):
+    """L'entier variable d'ABC : sept bits utiles par octet."""
+    v = 0
+    sh = 0
+    for _ in range(5):
+        b = d[p]
+        p += 1
+        v |= (b & 0x7f) << sh
+        if not (b & 0x80):
+            break
+        sh += 7
+    return v, p
+
+
 def strz(d, o):
     e = d.index(b'\0', o)
     return d[o:e].decode('latin1'), e + 1
@@ -381,6 +395,56 @@ class Swf:
             if r is not None:
                 return (tx + r[0], ty + r[1])
         return None
+
+    def chaines(self):
+        """Le POOL DE CHAINES des blocs DoABC (82) : tout ce que l'ActionScript
+        nomme -- classes, evenements, et surtout les cles de localisation.
+
+        C'est un gisement que personne n'avait fouille : `pr3_loca.py`
+        n'extrayait ses cles que de l'executable, si bien que les 328
+        `ID_GUI_TT_*` vivant ici n'etaient jamais soumises au hachage, et donc
+        jamais appariees -- leur texte etait pourtant dans `global.res`.
+        """
+        d = self.d
+        out = []
+        b = Bits(d, 8)
+        rect(b)
+        o = b.p + 4
+        while o < len(d) - 2:
+            rh = struct.unpack_from("<H", d, o)[0]
+            o += 2
+            code = rh >> 6
+            ln = rh & 0x3f
+            if ln == 0x3f:
+                ln = struct.unpack_from("<I", d, o)[0]
+                o += 4
+            if code == 0:
+                break
+            if code == 82:
+                p = o + 4
+                while d[p]:
+                    p += 1
+                p += 1
+                abc = bytes(d[p:o + ln])
+                try:
+                    q = 4
+                    n, q = u30(abc, q)
+                    for _ in range(max(0, n - 1)):
+                        _, q = u30(abc, q)
+                    n, q = u30(abc, q)
+                    for _ in range(max(0, n - 1)):
+                        _, q = u30(abc, q)
+                    n, q = u30(abc, q)
+                    q += 8 * max(0, n - 1)
+                    n, q = u30(abc, q)
+                    for _ in range(max(0, n - 1)):
+                        L, q = u30(abc, q)
+                        out.append(abc[q:q + L].decode('utf-8', 'replace'))
+                        q += L
+                except Exception:
+                    pass
+            o += ln
+        return out
 
     def _champ_texte(self, body):
         """Les proprietes d'un DefineEditText : hauteur, couleur, alignement.
