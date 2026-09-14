@@ -763,9 +763,38 @@ document les rangeait à tort parmi les assets du registre `0x460d11`. Seul
 `SeaMapView` échappe à ce schéma (cinq sites, un autre lecteur, pas de section
 `Colors`).
 
-*À récupérer :* `scripts/carte2d.gd` teinte aujourd'hui l'anneau de sélection et
-les routes avec des couleurs choisies à la main. Les vraies sont dans les données,
-sous ces clés.
+**La section `[Colors]` en entier**, dans l'ordre du chargeur (`0x461155` à
+`0x461BDF`, un bloc de code identique tous les 0x57 octets, chacun `push 1.0 ;
+push 4 ; push <dest> ; push <clé> ; push "Colors" ; call 0x89d8a0`) :
+
+1. `SelectionConvoyMap` — 2. `SelectionConvoyTown` — 3. `SelectionShipTown` —
+4. `SelectionShipBattle` — 5. `SelectionShipBattleTarget` —
+6. `SelectionShipBattleBoardingIn` — 7. `SelectionShipBattleBoardingOut` —
+8. `ConvoyRoute` — 9. `ConvoyTradeRoute` — 10. `ConvoyTradeRouteMiniMap` —
+11. `ConvoyTargetLine` — 12. `TradeRoute` — 13. `TradeRouteStart` —
+14. `TradeRouteInactive` — 15. `TradeRouteInactiveStart` — 16. `TradeRouteOverview` —
+17. `TradeRouteHighlighted` — 18. `TradeRouteSelected` — 19. `BattleTargetLine` —
+20. `FogEpidemic` — 21-24. `MinimapPlayer%d` (**boucle bornée à 4**, un par joueur) —
+25. `MinimapTown` — 26. `MinimapHighlight` — 27. `MinimapBattle` —
+28. `ObjectHighlight` — 29. `PlayerShipConvoy` — 30. `BuildingSite` —
+31. `BuildingSiteActive` — 32. `BuildingSiteField` — 33. `TownBattleApFortress` —
+34. `TownBattleApMarket`.
+
+Trente-et-un sites de lecture, dont `MinimapPlayer%d` qui en vaut quatre : **34
+couleurs**. Un trente-deuxième site isolé (`0x0086D7AF`) n'a pas livré sa clé.
+
+**Les VALEURS n'ont pas été localisées.** Le défaut compilé est 1.0 pour chaque
+composante. Une recherche des 34 groupes RGBA contigus dans `ini/clientdata.dat`
+(8 Ko dans `data.fuk`, 15 Ko dans `data0.fuk`), en alignement strict sur quatre
+octets, ne rend rien — ce qui écarte la disposition « flottants contigus » dans ce
+fichier, sans dire où elles sont. Trois hypothèses restent ouvertes, aucune
+vérifiée : le sérialiseur entrelace les couleurs avec d'autres champs (le chargeur
+passe par le setter `0x755050`, rien n'impose la contiguïté) ; elles sont stockées
+autrement qu'en flottants ; ou les données ne surchargent rien et les défauts font
+foi, comme pour `Konvois` mais à l'envers.
+
+*À récupérer, donc, mais pas encore récupérable :* `scripts/carte2d.gd` teinte
+l'anneau de sélection et les routes avec des couleurs choisies à la main.
 
 **Alignement de la sim.** `scripts/carte2d.gd` fait : clic gauche = sélection d'UN
 convoi, clic droit = destination (port OU point de mer), anneau d'or = marqueur de
