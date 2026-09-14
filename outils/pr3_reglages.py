@@ -211,6 +211,21 @@ def analyser(img, site, type_lecteur, fins):
     # l'attribuer au mauvais champ.
     suivant = min((f for f in fins if f > site), default=site + PORTEE)
     dest = None
+
+    # LES LECTEURS DE TABLEAUX rangent par POINTEUR PASSE EN ARGUMENT, pas par un
+    # `mov` apres l'appel : `push <nb> ; lea edx, [edi+0x854] ; push edx ; ...`.
+    # Sans ce cas, ces reglages n'avaient AUCUNE destination — et c'est justement
+    # le cas des tables (l'or des marchands IA, les loyers d'entrepot...).
+    if type_lecteur in ("tableau", "tableau flt"):
+        reg = pousses[2].op_str if len(pousses) > 2 else None
+        if reg and not reg.startswith("0x"):
+            for ins in reversed(ctx[:-1]):
+                if ins.mnemonic == "lea" and ins.op_str.startswith(reg + ","):
+                    dest = ins.op_str.split(",", 1)[1].strip()
+                    break
+        if dest:
+            return section, cle, defaut, dest
+
     for ins in img.flux(site + 5, min(suivant, site + 0x200)):
         if ins.mnemonic == "mov" and ins.op_str.endswith((", ax", ", al", ", eax")) \
                 and "ptr [" in ins.op_str:

@@ -407,8 +407,38 @@ suit le même schéma pour le bit de famine (bit 2).
 `0x79F140` **crée un marchand IA, pas une ville** : il alloue un objet de 0x438
 octets et enchaîne cinq étapes :
 
-1. **L'or du marchand IA** (`0x79E210`) : 120 000, 90 000 ou 76 000, choisis par
-   une table de sauts sur `[ville+0x20]` (valeurs 1 à 9) — donc selon la nation.
+1. **L'or du marchand IA** (`0x79E210`). Le montant vient d'une table de sauts à
+   **dix entrées** sur `[ville+0x20] − 1` (`0x79F3D2`, relevée par
+   `outils/pr3_tables.py`), qui a **quatre issues** :
+
+   | index | or | note |
+   |---|---|---|
+   | 0 | 120 000 | fait en plus un appel à `0x79E080` |
+   | 1 | 76 000 | |
+   | 5 | 90 000 | |
+   | 6 à 9 | 120 000 | |
+   | 2, 3, 4 et > 9 | *table* | voir ci-dessous |
+
+   Les valeurs littérales ne sont donc que des **cas particuliers**. Le cas
+   général (`0x79F404`) **lit l'or dans une table de données** : un vecteur
+   d'entiers à `[réglages IA + 0xF4 .. +0xF8]`, indexé par l'octet `[ville+0x10]`
+   et borné à la taille du vecteur. Les « réglages IA » sont le sous-objet
+   `monde + 0x11C0` (`0x828980` = `call 0x412ef0 ; add eax, 0x11c0`), la table de
+   l'or se trouve donc à `monde + 0x12B4`.
+
+   **Ses valeurs ne sont pas dans l'exécutable, et ce n'est probablement pas un
+   réglage.** Deux recherches indépendantes le disent : le relevé exhaustif des
+   655 réglages nommés (`outils/pr3_reglages.py`) n'en contient aucun dont la
+   destination soit ce vecteur ; et les *seuls* points d'entrée de la structure
+   `+0x11C0` — quatre sites au total — sont du code de **sérialisation**, où
+   chaque sous-objet du monde (`+0x117C`, `+0x11C0`, `+0x13F8`) est passé à son
+   propre `sérialiser(flux, sens)`, aucun des onze appels ne touchant `+0xF4`.
+   L'inférence, à ce stade, est que cette table est de l'**état de partie** —
+   sauvegardée avec le monde — et non de la configuration ; elle se relèverait
+   donc en jeu, pas dans le binaire.
+
+   Le montant est ensuite passé à `0x79E210` avec un drapeau booléen
+   (`cmp [ville+0x20], 1 ; sete`).
 2. **Une étape non lue** (`0x79DCD0`).
 3. **Les comptoirs.** Une boucle parcourt les enregistrements du monde
    (`0x825080`, pas de 0x40 octets) en appelant `0x79EC80`, qui abandonne quand
