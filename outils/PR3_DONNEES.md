@@ -540,14 +540,51 @@ Elles ne coïncident pas, et il serait facile de les confondre :
 
 ### Les villes portent leur nom dans la localisation
 
-La clé est `ID_GUI_TOWN_%02u`. Les **61 premières** (0 à 60) ont un nom français ;
-les seize suivantes n'en ont pas et ne sont connues que par leur nom interne —
-vraisemblablement inutilisées ou réservées à l'éditeur. La 74 est vide des deux
-côtés.
+La clé est `ID_GUI_TOWN_%02u`, et Port Royale 3 en compte **60, de 0 à 59**.
+
+> **Attention, piège de méthode.** Deux lectures de `global.res` ont d'abord
+> donné deux réponses contraires sur l'existence d'une ville 60. Ce n'était un
+> défaut d'aucun décodeur : les deux ne lisaient pas le **même fichier**.
+> `pr3map.orig()` renvoie `_mod/<archive>.original`, la copie d'origine, tandis
+> qu'une lecture directe prend celle que le jeu charge. Or sur cette
+> installation, `data_fr.fuk` est **modifié** — 60 598 448 octets contre
+> 60 598 432, 5546 textes contre 5545 — alors que `data.fuk` et `data0.fuk`
+> sont identiques à leur copie d'origine. La clé `ID_GUI_TOWN_60` (« Bacalar »)
+> appartient donc à un ajout local, pas à PR3.
+>
+> Tout outil qui lit la localisation doit dire lequel des deux il vise. Pour
+> connaître le jeu, c'est `.original` ; pour savoir ce qui s'affiche à l'écran,
+> c'est le fichier vivant.
+
+`wac.xsl` en énumère pourtant 77. L'écart n'est pas une lacune de traduction :
+**le `constdata.dat` d'origine n'a que soixante enregistrements**. Au-delà, on
+lit hors du tableau, et cela se voit — la ville 60 y a pour case `(1319, 60)`,
+la 61 `(1319, 61)`, la 62 `(1319, 62)` : l'ordonnée n'est autre que l'indice de
+lecture, avec une taille de 4 et une nation de 4 qui n'existent ni l'une ni
+l'autre. Les dix-sept noms surnuméraires de `wac.xsl` sont donc des reliquats
+d'éditeur, pas des ports jouables.
+
+Chaque enregistrement de ville fait **97 octets** (la 59 occupe 12 726 à 12 823,
+la 60 la suit immédiatement).
+
+### Ce que le mod local ajoute, et ce que PR3 prévoyait
+
+Sur cette installation, la ville 60 **existe pour de bon** : case `(360, 486)`,
+taille 2, espagnole, produisant bois, maïs, métal, vêtements et café. C'est
+`Bacalar`, ajoutée par les outils de `_mod` — d'où son nom dans la localisation.
+Le `constdata.dat` d'origine, lui, s'arrête bien à 59. C'est la différence entre
+les deux archives : 6 207 octets, tous **hors de la table des navires**.
+
+Le correctif est appliqué **en place** : les deux archives ont exactement 2 213
+entrées, aucune ajoutée ni retirée, aucune de taille changée.
+
+Détail qui compte pour qui veut ajouter des ports : PR3 embarque d'origine
+**72 dossiers `terrain/NN`**, de 0 à 71, pour soixante villes seulement.
+`terrain/60` existait donc avant le mod, qui l'a écrasé et non créé. Le jeu
+semble prévoir de la place au-delà de ses soixante ports.
 
 Le nom français n'est pas une translittération : 1 *Nouvelle Orléans*, 25 *La
-Havane*, 34 *Saint-Domingue*, 48 *Carthagène*, 46 *Iles Caïmans*. Et la 60 ne
-concorde pas du tout — *Bacalar* en français contre *Rio Grande* en interne.
+Havane*, 34 *Saint-Domingue*, 46 *Iles Caïmans*, 48 *Carthagène*.
 
 La liste complète est écrite dans `reference_pr3/ui/agencement/villes_fr.txt`
 (hors dépôt : c'est du texte du jeu).
