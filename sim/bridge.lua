@@ -91,6 +91,13 @@ function Bridge.ports()
     -- pétale chantier que si oui ; le niveau borne les navires constructibles.
     d.chantier     = port.chantier == true
     d.niveau_chantier = port.niveau_chantier or 0
+    -- La region de PR3, l'octet +69 de l'enregistrement de ville : 0 le golfe et
+    -- la Floride, 1 le Mexique et le Main, 2 les Grandes Antilles, 3 les
+    -- Petites. Elle commande la structure du commerce -- c'est d'une region a
+    -- l'autre qu'une route paie, puisque chacune produit sa propre culture.
+    -- Elle etait bien dans les donnees et dans `archipel.lua`, mais s'arretait
+    -- ici : le pont ne la recopiait pas, donc le moteur ne l'a jamais vue.
+    d.region       = port.region
     -- Les CINQ marchandises que la ville produit, dans l'ordre de PR3. Le
     -- panneau d'infos les aligne telles quelles : c'est la carte d'identité
     -- économique du port, et elle ne change jamais en cours de partie.
