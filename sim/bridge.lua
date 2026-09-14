@@ -13,6 +13,10 @@ local Compagnie    = require("sim.compagnie")
 local Marchands    = require("sim.marchands")
 local Navires      = require("sim.navires")
 local Chantier     = require("sim.chantier")
+-- La sauvegarde et son format. `sauvegarde.lua` ne requiert PAS le pont : pas de
+-- cycle, et la simulation reste utilisable sans Godot.
+local Sauvegarde   = require("sim.sauvegarde")
+local Json         = require("sim.json")
 
 local Bridge = {}
 
@@ -198,6 +202,36 @@ function Bridge.avancer_temps(dt)
   end
   return heures
 end
+
+-- --- sauvegarde ----------------------------------------------------------------
+--
+-- L'état d'une partie ne traverse le pont que sous forme de TEXTE. Le moteur ne
+-- fait que l'écrire et le relire : il n'a pas à connaître la forme de l'état, et
+-- la simulation n'a pas à connaître le disque. Le fichier est du JSON, donc
+-- lisible et modifiable à la main — ce qui est le but même du projet.
+
+-- Rend l'état complet de la partie, en JSON.
+function Bridge.sauver_texte()
+  return Json.encoder(Sauvegarde.etat())
+end
+
+-- Reprend une partie depuis le texte rendu par `sauver_texte`.
+-- Rend { ok, message } : une sauvegarde abîmée ou d'une autre version est
+-- refusée AVANT qu'on touche à la partie en cours.
+function Bridge.charger_texte(txt)
+  local d = Dictionary()
+  local etat, err = Json.decoder(txt)
+  if not etat then
+    d.ok = false
+    d.message = "Sauvegarde illisible : " .. tostring(err)
+    return d
+  end
+  local ok, message = Sauvegarde.restaurer(etat)
+  d.ok = ok and true or false
+  d.message = message or ""
+  return d
+end
+
 
 function Bridge.etat_temps()
   local d = Dictionary()

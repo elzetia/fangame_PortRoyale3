@@ -328,6 +328,24 @@ function Economie.barres(cle_ville, cle_m, delta)
 end
 
 
+-- L'AVANCEMENT DE JOURNÉE, pour la sauvegarde.
+--
+-- `reste_jour` et `jour_no` sont locaux au module, et c'est bien : personne n'a
+-- à les toucher en cours de partie. Mais une partie rechargée sans eux repart au
+-- milieu d'une journée — les fléaux se retirent (leur graine dépend de
+-- `jour_no`) et la fraction de jour en cours est perdue. On les expose donc en
+-- lecture et en écriture, pour ce seul usage.
+function Economie.avancement()
+  return { reste_jour = reste_jour, jour_no = jour_no }
+end
+
+function Economie.poser_avancement(d)
+  if type(d) ~= "table" then return end
+  reste_jour = tonumber(d.reste_jour) or 0.0
+  jour_no = math.floor(tonumber(d.jour_no) or 0)
+end
+
+
 function Economie.reinitialiser()
   Economie.villes = {}
   reste_jour = 0.0

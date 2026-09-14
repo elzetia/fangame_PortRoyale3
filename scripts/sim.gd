@@ -41,6 +41,72 @@ func _appel(nom: String, args: Array = []):
 	return f.invokev(args)
 
 
+# --- sauvegarde ---------------------------------------------------------------
+#
+# Le partage des rôles : la SIMULATION rend son état en JSON, le MOTEUR écrit le
+# fichier. Elle n'a pas à connaître le disque, il n'a pas à connaître la forme de
+# l'état. Et le fichier reste lisible et modifiable à la main — c'est le but du
+# projet, un Port Royale qu'on édite.
+const DOSSIER_SAUVEGARDES := "user://sauvegardes/"
+
+
+func sauver_texte() -> String:
+	var r = _appel("sauver_texte", [])
+	return str(r) if r != null else ""
+
+
+func charger_texte(txt: String) -> Dictionary:
+	var r = _appel("charger_texte", [txt])
+	if r is Dictionary:
+		return r
+	return {"ok": false, "message": "La simulation n'a pas répondu."}
+
+
+# Écrit la partie sous `<nom>.json`. Rend { ok, message, chemin }.
+func sauver(nom: String) -> Dictionary:
+	var txt := sauver_texte()
+	if txt == "":
+		return {"ok": false, "message": "La simulation n'a rien rendu à sauver."}
+	DirAccess.make_dir_recursive_absolute(DOSSIER_SAUVEGARDES)
+	var chemin := DOSSIER_SAUVEGARDES + nom + ".json"
+	var f := FileAccess.open(chemin, FileAccess.WRITE)
+	if f == null:
+		return {"ok": false,
+				"message": "Écriture impossible : %s" % error_string(FileAccess.get_open_error())}
+	f.store_string(txt)
+	f.close()
+	return {"ok": true, "message": "", "chemin": chemin}
+
+
+# Reprend la partie écrite sous `<nom>.json`. La partie en cours n'est touchée
+# que si la sauvegarde est lisible ET de la bonne version : c'est la simulation
+# qui refuse, avant de rien modifier.
+func charger(nom: String) -> Dictionary:
+	var chemin := DOSSIER_SAUVEGARDES + nom + ".json"
+	if not FileAccess.file_exists(chemin):
+		return {"ok": false, "message": "Aucune sauvegarde nommée « %s »." % nom}
+	var f := FileAccess.open(chemin, FileAccess.READ)
+	if f == null:
+		return {"ok": false,
+				"message": "Lecture impossible : %s" % error_string(FileAccess.get_open_error())}
+	var txt := f.get_as_text()
+	f.close()
+	return charger_texte(txt)
+
+
+# Les parties enregistrées, du plus récent au plus ancien.
+func sauvegardes() -> Array:
+	var out: Array = []
+	var d := DirAccess.open(DOSSIER_SAUVEGARDES)
+	if d == null:
+		return out
+	for nom in d.get_files():
+		if nom.ends_with(".json"):
+			out.append(nom.get_basename())
+	out.sort()
+	return out
+
+
 func iles(segments := 160) -> Array:
 	var r = _appel("iles", [segments])
 	return r if r is Array else []
