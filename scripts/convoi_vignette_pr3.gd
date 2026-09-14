@@ -173,6 +173,100 @@ func _nom_strategie(cle: String) -> String:
 	return "" if nom == k else nom
 
 
+# L'onglet « tonneau » : la grille des marchandises portées.
+#
+# PR3 pose DOUZE cases (4 x 3) et deux flèches pour tourner les pages. Chaque
+# case est un `Visual_ListButton_Goods`, fait de trois couches — la plaque, un
+# éclat de plaque-texte sous elle, et le petit glyphe d'unité en bas à droite.
+# AUCUNE n'est l'icône du produit : comme les pastilles de la minimap et la
+# pièce d'or, PR3 l'assigne à l'exécution.
+#
+# L'ICÔNE EST `82 + rang`. Les vingt marchandises occupent les bitmaps 82 à 101
+# de `skinlib_pr3`, sans trou, dans l'ordre canonique du jeu — wood 82, bricks
+# 83, wheat 84, jusqu'à bread 101. Le rang vient du pont, qui le tient de
+# l'ordre de `Marchandises.liste`. Se fier aux NOMS anglais aurait été piégeux :
+# `fabric` est le tissu et `cloth` les vêtements, deux mots que seul l'ordre
+# départage.
+#
+# LE CHAMP DE QUANTITÉ EST AJOUTÉ ICI. `textes.txt` déclare bien que cette classe
+# porte du texte (16 px, police ordinaire), mais `EcranPR3` ne fabrique un
+# `Label` que pour les classes `Visual_Textfeld` : un textbutton sort en pile
+# d'images. On pose donc le champ sous l'icône, là où la couche `607.png` du jeu
+# met sa plaque de texte.
+const CASES := 12
+const CASE_ICONE := Vector2(42, 42)
+const CASE_TEXTE := Vector2(42, 18)
+const ICONE_BOIS := 82        # le premier bitmap de la serie des marchandises
+
+var _lots: Array = []
+var _page := 0
+
+
+func poser_cargaison(lots: Array) -> void:
+	_lots = lots
+	_page = 0
+	_rafraichir_cargaison()
+
+
+func _rafraichir_cargaison() -> void:
+	var debut := _page * CASES
+	for i in range(CASES):
+		var case := _trouver("list_item_%d" % i)
+		if case == null:
+			continue
+		var j := debut + i
+		var lot: Dictionary = _lots[j] if j < _lots.size() else {}
+		_poser_case(case, lot)
+
+
+func _poser_case(case: Control, lot: Dictionary) -> void:
+	# Les deux nœuds sont créés une seule fois et RÉUTILISÉS : la grille se
+	# rafraîchit à chaque changement de page, et les recréer ferait des
+	# allocations pour rien — même règle que les tracés de la minimap.
+	var icone := case.get_node_or_null("icone") as TextureRect
+	if icone == null:
+		icone = TextureRect.new()
+		icone.name = "icone"
+		icone.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icone.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icone.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icone.size = CASE_ICONE
+		case.add_child(icone)
+	var qte := case.get_node_or_null("quantite") as Label
+	if qte == null:
+		qte = Label.new()
+		qte.name = "quantite"
+		qte.add_theme_font_size_override("font_size", 16)
+		FontePR3.poser(qte)
+		qte.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		qte.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		qte.position = Vector2(0, CASE_ICONE.y)
+		qte.size = CASE_TEXTE
+		case.add_child(qte)
+
+	if lot.is_empty():
+		icone.texture = null
+		qte.text = ""
+		return
+	icone.texture = SkinPR3.texture(
+		EcranPR3.SKIN + str(ICONE_BOIS + int(lot.get("rang", 0))))
+	qte.text = str(int(lot.get("quantite", 0)))
+
+
+# Combien de pages la cargaison occupe : au moins une, même vide.
+func pages() -> int:
+	return maxi(1, int(ceil(_lots.size() / float(CASES))))
+
+
+func page() -> int:
+	return _page
+
+
+func tourner(pas: int) -> void:
+	_page = clampi(_page + pas, 0, pages() - 1)
+	_rafraichir_cargaison()
+
+
 func _poser(nom: String, valeur: String) -> void:
 	var l := champ(nom)
 	if l != null:

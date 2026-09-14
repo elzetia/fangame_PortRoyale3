@@ -656,6 +656,28 @@ function Bridge.convois_joueur()
     d.noeuds    = noeuds
     d.strategie = m.strategie or ""
     d.villes    = #(m.circuit or {})
+    -- La CARGAISON EN DETAIL, pour la grille de douze cases de l'onglet
+    -- « tonneau ». `d.cargaison` n'en donne qu'une phrase (« 24 t de sucre,
+    -- … ») : lisible sur la fiche de la carte, inutilisable pour une grille.
+    --
+    -- `rang` est l'indice 0 dans l'ORDRE CANONIQUE de PR3 (bois, briques, blé,
+    -- fruits, maïs, sucre…). Il ne sert pas qu'à trier : l'icône du jeu est
+    -- `82 + rang` dans `skinlib_pr3`, les vingt marchandises occupant les
+    -- bitmaps 82 à 101 sans trou. On le calcule ici plutôt que de lire un champ
+    -- `rang` pose ailleurs, pour ne dependre que de l'ordre de la liste.
+    local lots = Array()
+    for i, w in ipairs(Marchandises.liste) do
+      local q = (m.cale or {})[w.cle]
+      if q and q > 0.5 then
+        local e = Dictionary()
+        e.cle      = w.cle
+        e.nom      = w.nom
+        e.rang     = i - 1
+        e.quantite = math.floor(q + 0.5)
+        lots:append(e)
+      end
+    end
+    d.lots      = lots
     -- CE QU'ON NE FOURNIT PAS, ET POURQUOI. L'état de coque en %, la PUISSANCE
     -- du convoi, la durée d'une rotation, le gain de la dernière et l'état
     -- actif/inactif de la route : la sim ne suit ni les dégâts ni les rotations,

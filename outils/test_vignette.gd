@@ -172,6 +172,72 @@ func _init() -> void:
 	if villes != null and villes.text != "6":
 		_rater("tf_towns affiche « %s » au lieu de 6" % villes.text)
 
+	# --- la GRILLE DE CARGAISON ---------------------------------------------
+	# Une case remplie doit porter une ICONE et une QUANTITE, et deux
+	# marchandises differentes ne doivent pas montrer la meme image -- c'est ce
+	# qui distingue une grille qui marche d'une grille qui pose douze fois le
+	# meme tonneau. On donne treize lots pour exercer aussi la pagination.
+	print("\n=== la cargaison ===")
+	var lots: Array = []
+	for r in range(13):
+		lots.append({"cle": "m%d" % r, "nom": "M%d" % r, "rang": r,
+				"quantite": 10 + r})
+	v.poser_cargaison(lots)
+	print("   %d lots -> %d page(s), page courante %d"
+			% [lots.size(), v.pages(), v.page()])
+	if v.pages() != 2:
+		_rater("13 lots devraient tenir sur 2 pages, pas %d" % v.pages())
+
+	var textures := {}
+	var remplies := 0
+	for i in range(12):
+		var case := v.find_child("list_item_%d" % i, true, false)
+		if case == null:
+			continue
+		var ic := case.get_node_or_null("icone") as TextureRect
+		var q := case.get_node_or_null("quantite") as Label
+		if ic == null or q == null:
+			_rater("list_item_%d : icone ou quantite absente" % i)
+			continue
+		if ic.texture != null and q.text != "":
+			remplies += 1
+			# PAR IDENTITE D'OBJET, et non par `resource_path` : `SkinPR3`
+			# fabrique ses textures en memoire depuis un fichier, et une texture
+			# construite ainsi a un chemin VIDE. Les douze se reduisaient alors a
+			# une seule cle, et le test criait « les cases se repetent » alors
+			# que la grille allait bien -- une erreur de MESURE, pas de rendu.
+			textures[ic.texture.get_instance_id()] = true
+			if i < 3:
+				print("      case %d : quantite « %s », image %dx%d, chemin « %s »"
+						% [i, q.text, ic.texture.get_width(),
+							ic.texture.get_height(), ic.texture.resource_path])
+	print("   %d / 12 cases remplies, %d image(s) distincte(s)"
+			% [remplies, textures.size()])
+	if remplies != 12:
+		_rater("%d cases remplies sur 12" % remplies)
+	if textures.size() < 12:
+		_rater("seulement %d images distinctes : les cases se repetent"
+				% textures.size())
+
+	# Page suivante : il ne reste qu'UN lot, donc une seule case remplie.
+	v.tourner(1)
+	var reste := 0
+	for i in range(12):
+		var case2 := v.find_child("list_item_%d" % i, true, false)
+		var q2 := case2.get_node_or_null("quantite") as Label if case2 else null
+		if q2 != null and q2.text != "":
+			reste += 1
+	print("   page %d -> %d case(s) remplie(s), 1 attendue" % [v.page(), reste])
+	if reste != 1:
+		_rater("page 2 : %d cases remplies, 1 attendue" % reste)
+	# Et on ne doit pas pouvoir depasser la derniere page.
+	v.tourner(5)
+	if v.page() != v.pages() - 1:
+		_rater("la pagination depasse : page %d sur %d" % [v.page(), v.pages()])
+	v.tourner(-9)
+	if v.page() != 0:
+		_rater("la pagination passe sous zero : page %d" % v.page())
+
 	# --- les infobulles ------------------------------------------------------
 	print("\n=== les infobulles ===")
 	var fuites := 0

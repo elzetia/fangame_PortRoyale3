@@ -91,9 +91,31 @@ func _init() -> void:
 		# main, pas la sortie du pont.
 		for champ in ["position", "a_quai", "selectionne", "route",
 				"capacite", "charge", "canons", "equipage", "noeuds",
-				"strategie", "villes"]:
+				"strategie", "villes", "lots"]:
 			if not c0.has(champ):
 				_rater("convoi : champ manquant %s" % champ)
+		# `lots` nourrit la GRILLE de l'onglet « tonneau ». Le test de la
+		# vignette lui passe un tableau fabrique a la main : sans l'exigence
+		# ici, le pont pourrait n'en produire aucun sans que rien ne le dise.
+		# Chaque lot porte un RANG, qui choisit l'icone du jeu (`82 + rang`) --
+		# hors de 0..19 la case afficherait l'image d'autre chose.
+		var lots: Array = c0.get("lots", [])
+		var somme := 0
+		for l in lots:
+			var lot: Dictionary = l
+			for k in ["cle", "nom", "rang", "quantite"]:
+				if not lot.has(k):
+					_rater("lot : champ manquant %s" % k)
+			var r := int(lot.get("rang", -1))
+			if r < 0 or r > 19:
+				_rater("lot %s : rang %d hors de 0..19" % [lot.get("cle"), r])
+			somme += int(lot.get("quantite", 0))
+		print("  cargaison : %d lot(s), %d tonneaux" % [lots.size(), somme])
+		# La somme des lots EST la charge : deux chemins vers le meme nombre,
+		# donc une incoherence se verrait ici et nulle part ailleurs.
+		if somme != int(c0.get("charge", -1)):
+			_rater("la somme des lots (%d) ne fait pas la charge (%s)"
+					% [somme, c0.get("charge")])
 		# Et les valeurs doivent avoir un SENS : un convoi qui porte des navires
 		# a forcement une cale, des canons, un equipage et une allure. Un champ
 		# present mais a zero serait un agregat qui ne somme rien.
