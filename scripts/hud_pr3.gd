@@ -83,15 +83,22 @@ func _ready() -> void:
 		if etiquette != null:
 			etiquette.add_theme_color_override("font_color", ENCRE)
 
-	_armer("bu_minus", "Ralentir", func() -> void: _changer(-1))
-	_armer("bu_plus", "Accélérer", func() -> void: _changer(1))
-	_armer("bu_chronic", "Chronique", func() -> void: chronique_demandee.emit())
+	# Le SIGNE est porté par le bouton, pas par son image : `453.png` n'est que la
+	# plaque d'or. Composer l'art à la main (planche 639 + 1037 + 453 x2 aux
+	# coordonnées ci-dessus) montre deux carrés d'or NUS — c'est ce que verrait le
+	# joueur sans ces libellés. `Visual_Textbutton_Standard_Tiny` porte bien son
+	# nom : dans PR3 le glyphe est du TEXTE posé sur la plaque.
+	_armer("bu_minus", "−", "Ralentir", func() -> void: _changer(-1))
+	_armer("bu_plus", "+", "Accélérer", func() -> void: _changer(1))
+	# La chronique, elle, a son glyphe peint dans l'image (un sablier) : pas de
+	# libellé à ajouter.
+	_armer("bu_chronic", "", "Chronique", func() -> void: chronique_demandee.emit())
 
 
 # Recentre l'image d'un bouton sur son point — voir l'en-tête —, puis pose
 # par-dessus une zone sensible transparente : `EcranPR3` rend des images inertes,
 # jamais des boutons.
-func _armer(nom: String, infobulle: String, geste: Callable) -> void:
+func _armer(nom: String, libelle: String, infobulle: String, geste: Callable) -> void:
 	var image := EcranPR3.champ(_plateau, nom)
 	if image == null:
 		return
@@ -101,7 +108,13 @@ func _armer(nom: String, infobulle: String, geste: Callable) -> void:
 	var zone := Button.new()
 	zone.flat = true
 	zone.focus_mode = Control.FOCUS_NONE
+	zone.text = libelle
 	zone.tooltip_text = infobulle
+	# Encre sombre sur la plaque d'or, comme le reste de la planche.
+	zone.add_theme_font_size_override("font_size", 18)
+	zone.add_theme_color_override("font_color", ENCRE)
+	zone.add_theme_color_override("font_hover_color", ENCRE_SURVOL)
+	zone.add_theme_color_override("font_pressed_color", ENCRE_SURVOL)
 	zone.position = image.position
 	zone.size = taille
 	zone.pressed.connect(geste)
