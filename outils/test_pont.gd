@@ -98,6 +98,22 @@ func _init() -> void:
 			if not bool(f.get("a_quai", false)) and r.is_empty():
 				_rater("convoi %s : en mer mais sans route" % f.get("nom", "?"))
 
+	# --- compagnie : ce que la PLANCHE DROITE consomme -----------------------
+	# Rien n'exercait `etat_compagnie`. Or la planche droite y prend l'or ET le
+	# RANG : un champ absent cote Lua ne se verrait que par un HUD muet, sans
+	# qu'aucun compteur ne bronche.
+	var compagnie: Dictionary = sim.etat_compagnie()
+	print("etat_compagnie : %d champs" % compagnie.size())
+	for champ in ["or_", "rang", "capacite", "charge"]:
+		if not compagnie.has(champ):
+			_rater("compagnie : champ manquant %s" % champ)
+	var rang := int(compagnie.get("rang", -1))
+	print("  or %s  rang %d" % [compagnie.get("or_", "?"), rang])
+	# PR3 demarre a l'echelon 0 (« Mousse ») — une sauvegarde reelle du jeu le
+	# confirme. Hors de 0..17, le HUD afficherait un echelon qui n'existe pas.
+	if rang < 0 or rang > 17:
+		_rater("compagnie : rang %d hors de l'echelle 0..17" % rang)
+
 	# --- ville : ce que l'info-ville consomme --------------------------------
 	var etat: Dictionary = sim.etat_ville(str(p0.get("cle", "")))
 	print("etat_ville(%s) : %d champs" % [p0.get("cle", "?"), etat.size()])

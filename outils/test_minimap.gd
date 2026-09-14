@@ -311,7 +311,8 @@ func _init() -> void:
 		# `poser()` n'etait appele par aucun test : `_placer_piece()` n'avait
 		# donc JAMAIS tourne. On la pose pour de vrai et on regarde ou elle
 		# tombe -- elle doit suivre le nombre, pas flotter au bord du champ.
-		planche.poser(1480445, 3, 2)
+		# Rang 2 = Matelot : celui de la capture du jeu fournie en reference.
+		planche.poser(1480445, 3, 2, 2)
 		var piece: TextureRect = null
 		for e in champ_or.get_parent().get_children():
 			var tr := e as TextureRect
@@ -328,6 +329,31 @@ func _init() -> void:
 			print("   a droite du centre du texte (%.0f) : %s"
 				% [centre_texte,
 					"oui" if piece.position.x > centre_texte else "*** NON ***"])
+
+	# --- le RANG, avec les mots du JEU --------------------------------------
+	# Le rang est un NUMERO cote sim ; la planche doit le traduire par la table de
+	# textes de PR3. Un compteur de noeuds n'y verrait rien : une cle mal epelee
+	# retombe EN SILENCE sur du vide, et le champ existerait quand meme. On
+	# compare donc au LIBELLE, celui de la capture du jeu.
+	print("\n=== le rang ===")
+	var champ_rang := planche.get_node_or_null(
+		"Hud_Woodboard_Right_3/tf_rang") as Label
+	if champ_rang == null:
+		print("   tf_rang INTROUVABLE")
+	else:
+		var attendu_rang := "Matelot"
+		print("   rang 2 -> « %s »   attendu « %s »   %s"
+			% [champ_rang.text, attendu_rang,
+				"OK" if champ_rang.text == attendu_rang else "*** ECART ***"])
+		# La CLE ne doit jamais fuir a l'ecran : `LocaPR3` la reemet quand la
+		# table manque, et « ID_RANK_MALE_02 » s'afficherait sur le bois.
+		print("   la cle ne fuit pas : %s"
+			% ["oui" if not champ_rang.text.begins_with("ID_") else "*** NON ***"])
+		# Rang INCONNU (-1) : le champ reste vide plutot que d'inventer un echelon.
+		planche.poser(1480445, 3, 2, -1)
+		print("   rang -1 -> « %s » (vide attendu)   %s"
+			% [champ_rang.text, "OK" if champ_rang.text == "" else "*** ECART ***"])
+		planche.poser(1480445, 3, 2, 2)
 
 	# --- les INFOBULLES, avec les mots du JEU -------------------------------
 	# Rien ne lisait un `tooltip_text`. Or les six libelles viennent desormais de
@@ -401,9 +427,15 @@ func _init() -> void:
 # Espaces INSECABLES ramenees a des espaces ordinaires, et bords rognes.
 # La table du jeu porte de la typographie francaise : ces caracteres
 # s'impriment comme une espace mais ne comparent pas egal.
+#
+# PLUS DE `strip_edges()` ICI. Il rognait les bords, donc il cachait le RETOUR
+# CHARIOT que `LocaPR3` laissait au bout de chacune des 2955 valeurs du jeu
+# (fichier CRLF decoupe sur « \n » seul). Ce test avait vu le symptome, et la
+# bequille l'a fait taire pendant que le defaut restait dans le chargeur, pour
+# tous les ecrans. Corrige a la source : le test n'a plus a s'en proteger, et il
+# doit desormais ECHOUER si la pollution revient.
 func _normalise(s: String) -> String:
-	return s.replace(String.chr(0x00A0), " ").replace(
-		String.chr(0x202F), " ").strip_edges()
+	return s.replace(String.chr(0x00A0), " ").replace(String.chr(0x202F), " ")
 
 
 # Les points de code d'une chaine, pour voir ce qui separe deux textes

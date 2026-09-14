@@ -22,9 +22,17 @@
 # leurs nœuds existent, nommés et vides, et c'est à la simulation de les peupler
 # — chaque ville à sa place sur la carte, ce qui reste à faire.
 #
-# `tf_rang` n'est PAS renseigné. PR3 a une notion de rang (Krämer… Patrizier) ;
-# la simulation n'en a aucune, et je ne vais pas en inventer une pour remplir un
-# champ. Il reste vide tant que le rang n'est pas dérivé du jeu.
+# `tf_rang` porte le RANG, et l'échelle notée ici était FAUSSE : « Krämer…
+# Patrizier » est celle de Patrician et de Port Royale 2. Celle de PR3 est
+# NAVALE et compte dix-huit échelons, de Mousse à Maître des mers — vérifié deux
+# fois, par la table de textes du jeu (`ID_RANK_MALE_00`…`_17`) et par les titres
+# de dix-neuf parties réelles, qui vont de « Mousse_Steven » à « Amiral_Elzetia ».
+#
+# Le nom affiché n'est donc pas inventé : il vient de la table du jeu. Le NUMÉRO
+# vient de la sim, qui le garde comme PR3 — un octet de 0 à 17. Ce que la sim ne
+# sait pas encore, c'est FAIRE MONTER ce numéro : les seuils de PR3 sont
+# introuvables dans le jeu livré (voir `sim/compagnie.lua`). Le champ affiche
+# donc « Mousse », ce qu'affiche aussi PR3 pour une compagnie neuve.
 class_name HudDroitePR3
 extends Control
 
@@ -366,10 +374,25 @@ func _placer_piece() -> void:
 		_or.position.y + (_or.size.y - PIECE_TAILLE.y) * 0.5)
 
 
-func poser(or_: int, en_mer: int, a_quai: int) -> void:
+# Le nom du rang, pris dans la table du jeu. Un `rang` négatif veut dire
+# « inconnu » : on laisse le champ vide plutôt que d'afficher un échelon qu'on
+# n'a pas.
+func _nom_rang(rang: int) -> String:
+	if rang < 0:
+		return ""
+	var cle := "ID_RANK_MALE_%02d" % clampi(rang, 0, 17)
+	# `LocaPR3` RÉÉMET LA CLÉ quand la table manque : sans ce test, le HUD
+	# afficherait « ID_RANK_MALE_02 » en toutes lettres sur le bois.
+	var nom := LocaPR3.propre(cle, "")
+	return "" if nom == cle else nom
+
+
+func poser(or_: int, en_mer: int, a_quai: int, rang := -1) -> void:
 	if _or != null:
 		_or.text = nombre(or_)
 		_placer_piece()
+	if _rang != null:
+		_rang.text = _nom_rang(rang)
 	if _en_mer != null:
 		_en_mer.text = str(en_mer)
 	if _a_quai != null:

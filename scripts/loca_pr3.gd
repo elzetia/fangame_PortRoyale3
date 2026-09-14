@@ -28,7 +28,18 @@ static func _charger() -> void:
 	var chemin := ProjectSettings.globalize_path(FICHIER)
 	if not FileAccess.file_exists(chemin):
 		return
-	for ligne in FileAccess.get_file_as_string(chemin).split("\n"):
+	# LE FICHIER EST EN CRLF, et découper sur « \n » seul laissait un RETOUR
+	# CHARIOT au bout de CHACUNE des 2955 valeurs. « Matelot\r » ne vaut pas
+	# « Matelot » : la comparaison échoue sur deux chaînes qui s'affichent
+	# pourtant identiques. Cela touchait TOUT le jeu — chaque libellé, chaque
+	# infobulle, chaque écran —, pas seulement le champ qui l'a révélé.
+	#
+	# Le test des infobulles avait attrapé ce symptôme plus tôt ; je l'avais
+	# alors fait taire en normalisant DANS LE TEST (`strip_edges`). Le défaut est
+	# resté ici, invisible, jusqu'à ce que le rang le remontre. Corrigé à la
+	# source, et la béquille du test est retirée.
+	var texte := FileAccess.get_file_as_string(chemin).replace("\r\n", "\n")
+	for ligne in texte.split("\n"):
 		var coupe := ligne.split("\t", true, 1)
 		if coupe.size() == 2:
 			_table[coupe[0]] = coupe[1]

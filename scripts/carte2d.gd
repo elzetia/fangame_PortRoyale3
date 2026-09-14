@@ -2001,7 +2001,10 @@ func _maj_hud() -> void:
 				a_quai += 1
 			else:
 				en_mer += 1
-		_hud_droite.poser(int(compagnie.get("or_", 0)), en_mer, a_quai)
+		# Le rang est un NUMÉRO côté sim ; la planche va chercher son nom dans la
+		# table de textes du jeu. Défaut -1 = inconnu, et le champ reste vide.
+		_hud_droite.poser(int(compagnie.get("or_", 0)), en_mer, a_quai,
+			int(compagnie.get("rang", -1)))
 		# La minimap : les soixante villes une fois pour toutes, les convois à
 		# chaque image. `poser_villes` se garde lui-même contre la répétition.
 		if not ports.is_empty():

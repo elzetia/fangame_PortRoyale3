@@ -76,6 +76,77 @@ function Compagnie.reputation_nation(cle_nation)
   return n > 0 and somme / n or Compagnie.REP_DEPART
 end
 
+-- LE RANG, tel que PR3 le tient (`0x43E420` le lit, `0x7C6C80` le fait monter).
+--
+-- C'est un OCTET de 0 à 17 dans la structure du joueur (`joueur + 0x30A`, le
+-- sexe juste à côté en +0x311), et l'échelle est NAVALE : Mousse, Novice,
+-- Matelot… jusqu'à Maître des mers. Le nom ne vit pas ici mais dans la table de
+-- textes du jeu (`ID_RANK_MALE_%02d`), que l'interface interroge — la sim garde
+-- le NUMÉRO, comme PR3. L'échelle est vérifiée deux fois, par la table de textes
+-- et par les titres de dix-neuf parties réelles (« Mousse_Steven » à
+-- « Amiral_Elzetia »). La série féminine n'est pas la copie de la masculine :
+-- au rang 15 l'une dit « Grand amiral », l'autre « V-amiral d'escadre ».
+--
+-- LA RÈGLE DE MONTÉE, relevée dans `0x7C6C80` : le jeu demande l'enregistrement
+-- du rang SUIVANT, et n'avance que D'UN CRAN, à condition que les TROIS seuils
+-- de cet enregistrement soient tous franchis. Il plafonne à dix-huit échelons
+-- (`cmp esi, 0x12`). Chaque enregistrement fait quatre entiers ; le quatrième,
+-- ramené à un plancher de 20, ne sert pas à la montée.
+--
+-- LES SEUILS SONT INTROUVABLES, ET LA TABLE RESTE DONC VIDE. PR3 les lit sous
+-- `[Rank] Requirements%02u`, mais cette clé n'existe dans AUCUN fichier livré :
+-- ni dans les 9433 fichiers des trois archives (relus sans une seule erreur de
+-- décompression), ni dans l'un ou l'autre `constdata.dat` — cherché sous dix
+-- dispositions, dont celle lue directement dans le désérialiseur `0x814510`
+-- (compte u32 puis enregistrements de 16 octets) —, ni dans les fichiers libres
+-- du jeu, ni dans dix-neuf sauvegardes. Le chargeur résout alors sur son défaut
+-- (`rep stosd` avec 0 en `0x89D87C`), ce qui fait sortir le constructeur de
+-- table dès son premier tour.
+--
+-- Tant que ces nombres ne sont pas retrouvés, `promouvoir()` ne fait rien —
+-- exactement ce que fait PR3 avec une table vide. Le jour où ils le seront,
+-- SEULE cette table changera : la règle, elle, est déjà celle du jeu.
+Compagnie.RANG_MAX = 17
+Compagnie.rang = 0
+Compagnie.SEUILS_RANG = {}   -- [i] = { richesse, capacité, troisième } du rang i
+
+
+-- Les deux grandeurs que `0x7C6C80` compare, et qu'on sait calculer. La
+-- troisième (un cumul bâti sur les comptoirs, `[ebp-0xc]` + `edi`) n'est pas
+-- établie : on ne la calcule pas plutôt que d'en inventer une.
+function Compagnie.richesse()
+  local total = Compagnie.or_
+  for _, m in ipairs(Compagnie.convois) do total = total + math.max(0, m.or_ or 0) end
+  return math.floor(total + 0.5)
+end
+
+
+function Compagnie.capacite_totale()
+  local total = 0
+  for _, m in ipairs(Compagnie.convois) do total = total + (m.capacite or 0) end
+  return total
+end
+
+
+-- Monte le joueur D'UN SEUL cran s'il satisfait les seuils du rang suivant, et
+-- rend le rang courant.
+function Compagnie.promouvoir()
+  local suivant = Compagnie.rang + 1
+  if suivant > Compagnie.RANG_MAX then return Compagnie.rang end
+  local s = Compagnie.SEUILS_RANG[suivant]
+  if not s then return Compagnie.rang end
+  -- PR3 exige les TROIS seuils. On ne sait pas évaluer le troisième : s'il est
+  -- exigeant, on REFUSE de promouvoir plutôt que d'appliquer une règle amputée
+  -- qui monterait le joueur trop vite.
+  if (s[3] or 0) > 0 then return Compagnie.rang end
+  if Compagnie.richesse() >= (s[1] or 0)
+     and Compagnie.capacite_totale() >= (s[2] or 0) then
+    Compagnie.rang = suivant
+  end
+  return Compagnie.rang
+end
+
+
 -- LA FLOTTE DU JOUEUR, telle que PR3 la fait vivre (voir `sim/chantier.lua`).
 --
 -- On ACHÈTE ou on CONSTRUIT des navires au chantier ; ils entrent dans la flotte
@@ -471,6 +542,9 @@ end
 function Compagnie.reinitialiser()
   local sloop = Navires.get("sloop")
   Compagnie.or_ = 20000
+  -- Rang 0 = Mousse, comme PR3 : une partie neuve porte bien ce titre, et une
+  -- sauvegarde réelle du jeu le confirme (« Mousse_Steven »).
+  Compagnie.rang = 0
   Compagnie.flotte = {}
   Compagnie.file_chantier = {}
   Compagnie.compteur_navires = 0

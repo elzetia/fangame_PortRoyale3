@@ -260,6 +260,9 @@ function Bridge.etat_compagnie()
   local d = Dictionary()
   local m = Compagnie.convoi_actif()
   d.or_       = math.floor(Compagnie.or_ + 0.5)
+  -- Le RANG comme PR3 le tient : un NUMÉRO de 0 à 17, pas un libellé. Le nom est
+  -- dans la table de textes du jeu et c'est l'interface qui l'y résout.
+  d.rang      = Compagnie.rang
   d.selection = Compagnie.selection
   d.navire    = m and m.nom or "—"
   d.classe    = ""

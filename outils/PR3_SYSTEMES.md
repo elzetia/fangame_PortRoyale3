@@ -63,6 +63,52 @@ niveau au chantier).
 (`Ansehen`, `Pay`, `Steps`), `NationReputation` (`Annexed`), `Abwanderung`
 (exode), `MinRank`, `minRankMil` / `maxRankMil` / `minRankPir`, `Player`.
 
+#### Le rang — mécanique établie, seuils introuvables
+
+**L'échelle** fait dix-huit échelons et elle est NAVALE, pas marchande : Mousse,
+Novice, Matelot, Marinier, Enseigne, Officier marinier, Officier major,
+Timonier, Navigateur, Commandant, Capitaine, Cap. de corvette, Contre-amiral,
+Vice-amiral, Amiral, V-amiral d'escadre, Amiral d'escadre, Maître des mers. La
+carrière pirate a son propre libellé unique (`ID_RANK_PIRATE_MALE_00`,
+« Pirate »). Vérifié deux fois et par deux voies indépendantes : la table de
+textes du jeu (`ID_RANK_MALE_00`…`_17`) et les titres de dix-neuf sauvegardes
+réelles, de « Mousse_Steven » à « Amiral_Elzetia ». Les deux séries ne sont pas
+des copies : au rang 15 le masculin dit « V-amiral d'escadre », le féminin
+« Grand amiral ».
+
+**Où il vit** : un OCTET en `joueur + 0x30A` (le sexe juste à côté, en +0x311).
+Lu par `0x43E420` ; seulement trois écritures dans tout l'exe — la mise à zéro
+du constructeur (`0x75B194`) et deux mutateurs jumeaux (`0x759C70`, `0x759C90`),
+qui lèvent tous deux le drapeau « ce champ a changé » (`0x200`). Le numéro
+devient un nom par une table de saut en `0x63BAE0`, qui prend le rang et le
+sexe. Des portes en dur le consomment : hôpital ≥ 10, chantier ≥ 12,
+licence ≥ 10.
+
+**La règle de montée** (`0x7C6C80`) : le jeu demande l'enregistrement du rang
+SUIVANT, n'avance que D'UN CRAN, et seulement si les TROIS seuils de cet
+enregistrement sont franchis ; il plafonne à dix-huit (`cmp esi, 0x12`). Les
+grandeurs comparées sont une richesse 64 bits, une somme de capacité, et un
+troisième cumul bâti sur les comptoirs. Cela recoupe
+`ID_TOWNBUILDER_LICENCE_RANK`, qui dit que le rang monte avec les *richesses* et
+la *capacité des soutes*.
+
+**Les seuils, eux, sont introuvables dans le jeu livré**, et c'est un résultat
+négatif solide, pas un abandon. PR3 les lit sous `[Rank] Requirements%02u` ;
+cette clé n'existe :
+
+- dans aucun des 9433 fichiers des trois `.fuk` (relus sans une seule erreur de
+  décompression — un premier balayage avalait les échecs en silence) ;
+- dans aucun des deux `constdata.dat`, cherchés sous dix dispositions, dont
+  celle LUE dans le désérialiseur `0x814510` (compte `u32` puis enregistrements
+  de 16 octets) et non devinée ;
+- dans aucun fichier libre du dossier de jeu ;
+- dans aucune des dix-neuf sauvegardes.
+
+Faute de clé, le chargeur remplit le tampon avec son défaut (`rep stosd` avec 0,
+en `0x89D87C`), et le constructeur de table sort dès son premier tour, sur
+`arr[1] == 0`. `sim/compagnie.lua` implémente donc la RÈGLE avec une table VIDE :
+le jour où ces nombres seront retrouvés, seule la table changera.
+
 ### Événements et pirates — **identifiés**
 
 `Pirate`, `Pirates` (`Activity`, `TownAttackDist`, `TownAttackLock`), `Storm`,
