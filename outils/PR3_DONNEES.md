@@ -470,6 +470,88 @@ Ce qui est acquis, en revanche : l'onglet bascule entre **trois** panneaux. En
 contrat proprement dit. Ce sont les quatre denrées du panneau `offer` qu'il
 reste à nommer.
 
+### Quelle archive lit-on ? `data0.fuk` recouvre `data.fuk`
+
+L'installation porte **trois** archives, et non une : `data.fuk` (1,5 Go, 7218
+entrées), `data0.fuk` (406 Mo, 2213) et `data_fr.fuk` (2 entrées, dont toute la
+localisation française). Les deux premières contiennent chacune un
+`ini/constdata.dat`, **de tailles et d'empreintes différentes** — 1 420 718
+octets contre 1 357 370.
+
+C'est `data0.fuk` qu'il faut lire : c'est la couche de correctif, et c'est elle
+que le jeu charge. La mémoire du processus le prouve — les valeurs du sloop
+qu'on y a retrouvées (coque 110, triplet 143/1/0, matériaux `14 25 15 15 15`)
+sont celles de `data0.fuk`.
+
+Les deux versions s'accordent sur **tous les scalaires** des seize navires :
+prix, cale, coque, canons et le triplet `Nations`/`Masts`/`Gauge`. Elles
+diffèrent en deux points, tous deux instructifs :
+
+- **la géométrie** : `data.fuk` écrit `-12.1 | 4.5 | 11.5` en trois scalaires nus
+  là où `data0.fuk` met `[3] -12.1 4.5 11.5`, précédé de son compte. D'où les
+  quatre octets d'écart : le nom tombe à 97 octets de l'ancre numérique dans
+  l'un, 101 dans l'autre ;
+- **les matériaux** : `data.fuk` n'en a **aucun**. Après le triplet du sloop
+  vient directement `78 69 00 00`, soit 27 000 — le prix du brick, donc
+  l'enregistrement suivant. Les cinq octets de `Construct` sont une **addition
+  du correctif**.
+
+Conséquence pratique : tout outil qui lit `constdata.dat` doit viser
+`data0.fuk`, et ne peut pas supposer que les deux archives partagent une mise en
+page.
+
+---
+
+## `xsl/wac.xsl` : les énumérations internes, en clair
+
+Le jeu embarque une feuille XSL de 84 Ko qui traduit ses identifiants internes en
+noms lisibles — elle sert à présenter les hauts faits. C'est, de tout ce qu'on a
+ouvert, la source la plus directe : **onze familles d'identifiants**, écrites
+noir sur blanc, sans rien à déduire.
+
+| famille | contenu |
+|---|---|
+| `@iniid` | les **77 villes**, de 0 *Corpus Christi* à 76 *Barcelona* |
+| `@id` | les denrées, 3 `FRUITS` … 19 `BREAD` (0–2 y portent des libellés de richesse) |
+| `@type` | 0–4 les acteurs `ACT_*`, puis 5 *Fleute* … 15 *Linienschiff* |
+| `@nation` | Spain 0, England 1, France 2, Dutch 3, **Pirates 4** |
+| `@order` | `ORDER_NONE`, `AI_TRADE`, `TRADEROUTE`, `PROTECT_TOWN`, `RAID`, `WATCH`, `EXPORT`, `FLEET` |
+| `@aitype` | `AIINFO_FOLLOW`, `WATCH`, `PIRATE`, `PRIVATEER`, `CONQUEROR`, `FLEET`, `SLIDER`, `ATTACK`, `TREASUREFLEET` |
+| `@state` | `MSTATE_*` (missions) et `STATE_SEAMAP_MOVE` / `_EMERGENCY` / `_BATTLE` |
+| `@weather` | `SUNNY`, `GROUNDFOG`, `DROUGHT`, `RAIN`, `STORMY`, `GRASSHOPPERS` |
+| `@rank` | les dix rangs, de *Krämer* à *Patrizier* |
+
+Deux de ces familles **revérifient** ce qu'on avait établi autrement : `@id` 3–19
+donne exactement nos indices de denrées, et `@type` 5–15 exactement nos rangs de
+navires 5 à 15. Avec la table `GET_*` de l'exécutable, cela fait **trois** sources
+indépendantes qui concordent.
+
+### Attention : deux numérotations de nations
+
+Elles ne coïncident pas, et il serait facile de les confondre :
+
+| nation | `@nation` (enum interne) | `GET_REPUTATION_*` (API nommée) |
+|---|---:|---:|
+| Espagne | 0 | 4 |
+| Angleterre | 1 | 5 |
+| France | 2 | 6 |
+| Provinces-Unies | 3 | 7 |
+| Pirates | 4 | — |
+
+### Les villes portent leur nom dans la localisation
+
+La clé est `ID_GUI_TOWN_%02u`. Les **61 premières** (0 à 60) ont un nom français ;
+les seize suivantes n'en ont pas et ne sont connues que par leur nom interne —
+vraisemblablement inutilisées ou réservées à l'éditeur. La 74 est vide des deux
+côtés.
+
+Le nom français n'est pas une translittération : 1 *Nouvelle Orléans*, 25 *La
+Havane*, 34 *Saint-Domingue*, 48 *Carthagène*, 46 *Iles Caïmans*. Et la 60 ne
+concorde pas du tout — *Bacalar* en français contre *Rio Grande* en interne.
+
+La liste complète est écrite dans `reference_pr3/ui/agencement/villes_fr.txt`
+(hors dépôt : c'est du texte du jeu).
+
 ### L'enregistrement navire en mémoire fait 164 octets
 
 Le même passage le donne : `imul edi, edi, 0xa4` puis `add [esi+4], 0xa4` — le
