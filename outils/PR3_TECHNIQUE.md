@@ -500,13 +500,39 @@ remplissage, la capacité n'est jamais le facteur limitant.
 | route | `+0x74` | un vecteur de villes (`TownName1 -X- TownName2`, `tripLength`) |
 | `order`, `state`, `aitype` | — | l'ordre courant, l'état, et le type d'IA |
 
-**L'architecture de l'IA marchande** (repérée par le registre d'inspecteurs de
-débogage `0x717940`) est une hiérarchie de classes : `Convoy`, `Ship`, `Captain`
-(avec six compétences `skill0…skill5` et un `learn`), `GoodsContainer`,
-`TradeContainer`, `LimitedContainer`, `StoreKeeper`, `Route`, `Office`,
-`OfficeBalance`, `Trader`, `World`. Le capitaine a donc des **compétences qui
-progressent**, et le commerce automatique passe par un `StoreKeeper` sur des
-`Route` persistantes (le joueur en trace de mêmes, dans PR3).
+**Un convoi de l'IA et un convoi du joueur sont le MÊME OBJET.** Le registre
+d'inspecteurs de débogage `0x717940` enregistre 61 classes à la file (`push <nom> ;
+call 0x88cb10 ; mov ecx, [eax+0x14] ; call <inspecteur>`), et il n'y a qu'**un seul
+`Convoy`** — ni `AiConvoy`, ni `PlayerConvoy`. C'est cohérent avec le vidage de
+débogage, où `ConvoyList` liste tous les convois du monde sous un format de ligne
+unique (`ConvoyBasics`) portant une colonne *Owner Type* : le propriétaire est un
+`Trader`, et le joueur en est un (`ACT_PLAYER`).
+
+**L'IA est un pilote qu'on GREFFE sur un convoi**, pas une sous-espèce de convoi :
+le registre déclare une famille séparée, `ConvoyAiInfo` et treize spécialisations —
+`Follow`, `Watch`, `Privateer`, `Fleet`, `Pirate`, `Slider`, `Conqueror`, `Attack`,
+`TreasureFleet`, `PirateRaid`, `Commuter`, et surtout **`PlayerRaidAiInfo` et
+`PlayerPirateAiInfo`**. Ces deux dernières le prouvent : *le joueur aussi* peut
+porter une info d'IA. Un convoi PNJ est donc un convoi ordinaire auquel on a
+attaché un pilote, et un convoi du joueur un convoi sans pilote — ou avec, selon
+le mode.
+
+*Nuance :* l'énuméré `AiName` de `wac.xsl` ne compte que **neuf** valeurs quand le
+registre déclare **quatorze** classes d'`AiInfo`. La feuille de style de débogage
+est en retard sur le code ; c'est le registre qui fait foi.
+
+Les autres classes du modèle, relevées au même endroit : `Ship`, `Captain` (six
+compétences `skill0…skill5` et un `learn`), `GoodsContainer`, `TradeContainer`,
+`LimitedContainer`, `StoreKeeper`, `Route`, `AutoTradeLogic`, `AutoTradeRoute`,
+`Town`, `Office`, `OfficeBalance`, `Building`, `BuildingConstruction`, `Trader`,
+`Nation`, `World`, `PlayerData`, `PirateInfo`, `Hideout` / `HideoutData`,
+`Mission`, `SeaBattle` / `SeaBattleShip` / `SeaBattleSector` / `BattleShip`,
+`TownBattle` / `TownBattleShip`, `Projectile`, `Mine`, `Sailor`, `Shark`, `Storm`,
+`Grasshopper`, `Flotsam`, `Barrel`, `RoadSpline`, `DecoObject`, et les `Event*`
+(`MissionTimer`, `MissionIdle`, `TownStatus`, `TownFire`, `TownTurrets`,
+`TownFortressUpgrade`, `WorldWeather`, `WorldPirateClanRespawn`). Le capitaine a
+donc des **compétences qui progressent**, et le commerce automatique passe par un
+`StoreKeeper` sur des `Route` persistantes — celles-là mêmes que le joueur trace.
 
 **À quai**, un convoi passe `Einlaufzeit` (128) à entrer, puis `Einkaufszeit` et
 `Verkaufszeit` (64 chacun). Le détail de la décision — quelle ville viser, quoi

@@ -753,9 +753,19 @@ carte), `RangeOfVision1` **8** / `RangeOfVision2` **12** / `RangeOfVisionWatch` 
 elle-même : `[Gui] SeaMapWidth` 1024 × `SeaMapHeight` 512, `SpeedFactor` 0.25 (vitesse
 de défilement de la vue).
 
-**Entités visuelles** (assets, registre `0x460d11`) : `PlayerShipConvoy` (le convoi),
-`SelectionConvoyMap` / `SelectionConvoyTown` (le marqueur de sélection), `ConvoyTargetLine`
-(la ligne d'ordre), `ConvoyRoute` (le tracé de route), `SeaMapView` (la vue).
+**Entités visuelles et leurs COULEURS.** `PlayerShipConvoy` (le convoi),
+`SelectionConvoyMap` / `SelectionConvoyTown` (le marqueur de sélection),
+`ConvoyTargetLine` (la ligne d'ordre) et `ConvoyRoute` (le tracé de route) sont
+bien les objets que PR3 dessine — mais **ces chaînes-là ne sont pas des noms
+d'assets** : chacune est une clé de la section **`[Colors]`**, lue par `0x89d8a0`
+(tableau de quatre flottants, défaut 1.0), c'est-à-dire une **couleur RGBA**. Ce
+document les rangeait à tort parmi les assets du registre `0x460d11`. Seul
+`SeaMapView` échappe à ce schéma (cinq sites, un autre lecteur, pas de section
+`Colors`).
+
+*À récupérer :* `scripts/carte2d.gd` teinte aujourd'hui l'anneau de sélection et
+les routes avec des couleurs choisies à la main. Les vraies sont dans les données,
+sous ces clés.
 
 **Alignement de la sim.** `scripts/carte2d.gd` fait : clic gauche = sélection d'UN
 convoi, clic droit = destination (port OU point de mer), anneau d'or = marqueur de
