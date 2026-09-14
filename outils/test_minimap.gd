@@ -32,6 +32,9 @@ const LOIN := 99            # distance sentinelle
 # independante : si les deux se mettent a diverger, le test doit le dire.
 const CADRAGE_ATTENDU_U := 1.070
 const CADRAGE_ATTENDU_V := 0.930
+# La taille de la carte des mers, pour formuler l'attente sans relire l'image.
+const MINIMAP_L := 196.0
+const MINIMAP_H := 156.0
 # Les quatre voisins. En constantes nommées plutôt qu'en tableaux posés dans la
 # boucle : indexer un tableau littéral rend un Variant, que `:=` ne sait pas
 # typer.
@@ -208,6 +211,25 @@ func _init() -> void:
 			print("   taille %.1f x %.1f   attendu ~%.0f x %.0f"
 				% [x1 - x0, y1 - y0, 196.0 * 0.5 * CADRAGE_ATTENDU_U,
 					156.0 * 0.5 * CADRAGE_ATTENDU_V])
+
+			# Second cas : une vue PLUS GRANDE que la carte, ce qu'on obtient au
+			# dezoom maximal -- un etat tout a fait ordinaire en jeu. Le cadre
+			# doit alors etre rogne au rectangle de la minimap, sans quoi il irait
+			# peindre sur le bois de la planche. C'est ce que le commentaire de
+			# `poser_vue()` affirme, et cette branche (`Rect2.intersection`)
+			# n'etait pas exercee : on verifie l'affirmation plutot que de la
+			# croire.
+			planche.poser_vue(proj, Rect2(-centre, Vector2(proj.pixels) * 2.0))
+			var gx0 := bords[2].position.x
+			var gx1 := bords[3].position.x + bords[3].size.x
+			var gy0 := bords[0].position.y
+			var gy1 := bords[1].position.y + bords[1].size.y
+			print("   au dezoom maximal : x %.1f..%.1f   y %.1f..%.1f"
+				% [gx0, gx1, gy0, gy1])
+			var deborde := (gx0 < -0.01 or gy0 < -0.01
+				or gx1 > MINIMAP_L + 0.01 or gy1 > MINIMAP_H + 0.01)
+			print("   %s" % ("*** DEBORDE : le cadre peindrait sur le bois ***"
+				if deborde else "rogne au cadre, rien ne deborde"))
 
 	# --- le CLIC -------------------------------------------------------------
 	# Un signal jamais emis est un signal mort. On presse la premiere zone.
