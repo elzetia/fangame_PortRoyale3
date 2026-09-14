@@ -49,6 +49,9 @@ var _villes: Villes
 # HUD
 var _hud_planche: HudPR3
 var _hud_droite: HudDroitePR3
+# La carte à cinq onglets que PR3 ouvre sous la planche droite quand un convoi
+# est sélectionné.
+var _vignette: ConvoiVignettePR3
 var _lbl_statut: Label
 var _lbl_cargaison: Label
 var _lbl_message: Label
@@ -1905,6 +1908,18 @@ func _creer_hud() -> void:
 		_cam.position = proj.vers_carte(rade.x, rade.z))
 	couche.add_child(_hud_droite)
 
+	# La VIGNETTE DE CONVOI, sous la planche droite — c'est là que PR3 l'ouvre
+	# quand on sélectionne un convoi. Voir scripts/convoi_vignette_pr3.gd.
+	#
+	# Alignée sur le bord GAUCHE de la planche (x = -207, sa largeur) et posée
+	# juste dessous (y = sa hauteur) : les deux nombres viennent de
+	# `HudDroitePR3.TAILLE`, pas d'une mesure à l'œil.
+	_vignette = ConvoiVignettePR3.new()
+	_vignette.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_vignette.scale = Vector2.ONE * ECHELLE_HUD
+	_vignette.position = Vector2(-HudDroitePR3.TAILLE.x, HudDroitePR3.TAILLE.y)
+	couche.add_child(_vignette)
+
 	# Plus de bouton « Chantier » global : le chantier est propre à chaque port et
 	# ne s'ouvre que depuis le menu radial d'une ville où l'on a un convoi.
 
@@ -2005,6 +2020,32 @@ func _maj_hud() -> void:
 		# table de textes du jeu. Défaut -1 = inconnu, et le champ reste vide.
 		_hud_droite.poser(int(compagnie.get("or_", 0)), en_mer, a_quai,
 			int(compagnie.get("rang", -1)))
+
+		# LA VIGNETTE DU CONVOI CHOISI. PR3 l'ouvre dès qu'un convoi est
+		# sélectionné et la referme sinon — d'où le `visible` plutôt qu'une
+		# vignette vide qui occuperait le coin pour rien.
+		#
+		# Le message de situation vient des mots DU JEU : à quai, PR3 nomme le
+		# port ; en mer, il dit « En mer » (`ID_GUI_CONVOY_ON_SEA`). Les autres
+		# états qu'il connaît — bataille, réparations, raid — n'existent pas
+		# encore dans la simulation, donc on ne les invente pas.
+		if _vignette != null:
+			var vu := _convoi_par_indice(_convoi_selectionne)
+			_vignette.visible = not vu.is_empty()
+			if not vu.is_empty():
+				# `situation` et non `etat` : `_maj_hud` déclare déjà un `etat`
+				# pour la date, et GDScript les met dans la MÊME portée. C'est le
+				# quatrième nom que ce fichier me force à distinguer, après
+				# `sel`/`choisi`, `somme`/`cumul` et `centre`/`est_centre`.
+				var situation := LocaPR3.propre("ID_GUI_CONVOY_ON_SEA", "En mer")
+				if bool(vu.get("a_quai", false)):
+					var p := _port_par_cle(String(vu.get("ville", "")))
+					if not p.is_empty():
+						situation = String(p.get("nom", ""))
+				_vignette.poser_entete(String(vu.get("nom", "")), situation)
+				_vignette.poser_details(vu)
+				_vignette.poser_route(vu)
+				_vignette.poser_cargaison(vu.get("lots", []))
 		# La minimap : les soixante villes une fois pour toutes, les convois à
 		# chaque image. `poser_villes` se garde lui-même contre la répétition.
 		if not ports.is_empty():

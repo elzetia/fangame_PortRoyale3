@@ -68,6 +68,20 @@ func _ready() -> void:
 	_plateau = EcranPR3.batir(SWF, PLANCHE, true, PROFONDEUR)
 	add_child(_plateau)
 
+	# L'ORIGINE. `batir` pose chaque enfant aux coordonnées du .swf, qui pour
+	# cette carte commencent vers (62, 28) — PR3 la place dans un conteneur qui
+	# lui donne ce décalage. Laissée telle quelle, une vignette ancrée en haut à
+	# droite sortirait de l'écran par la droite. On ramène donc son contenu sur
+	# (0, 0) UNE FOIS, en décalant le plateau : le reste du code peut alors la
+	# poser comme n'importe quel panneau, sans connaître ce détail du fichier.
+	var coin := Vector2(INF, INF)
+	for e in _plateau.get_children():
+		var c := e as Control
+		if c != null:
+			coin = Vector2(minf(coin.x, c.position.x), minf(coin.y, c.position.y))
+	if coin.x < INF and coin.y < INF:
+		_plateau.position = -coin
+
 	# La carrière pirate remplace la route au même point : sans cela les deux
 	# pictogrammes se superposeraient, et on verrait une tête de mort sur la
 	# boussole.
