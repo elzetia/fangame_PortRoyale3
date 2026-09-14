@@ -1895,6 +1895,14 @@ func _creer_hud() -> void:
 	_hud_droite.liste_demandee.connect(func() -> void:
 		if _convoy_town != null:
 			_convoy_town.ouvrir(sim, _port_pour_bureau()))
+	# Cliquer une ville sur la minimap y porte la caméra — c'est ce que fait PR3,
+	# dont chaque pastille est un bouton.
+	_hud_droite.ville_choisie.connect(func(cle: String) -> void:
+		var p := _port_par_cle(cle)
+		if p.is_empty() or proj == null or _cam == null:
+			return
+		var rade: Vector3 = p["rade"]
+		_cam.position = proj.vers_carte(rade.x, rade.z))
 	couche.add_child(_hud_droite)
 
 	# Plus de bouton « Chantier » global : le chantier est propre à chaque port et
@@ -1999,6 +2007,13 @@ func _maj_hud() -> void:
 		if not ports.is_empty():
 			_hud_droite.poser_villes(ports, proj)
 		_hud_droite.poser_convois(convois, proj)
+		# Le cadre de vue. On prend le centre VU (`get_screen_center_position`)
+		# et non `position` : les bornes de la caméra écartent les deux dès
+		# qu'on longe un bord de la carte.
+		if _cam != null:
+			var demi := get_viewport_rect().size / (2.0 * _zoom)
+			_hud_droite.poser_vue(proj,
+				Rect2(_cam.get_screen_center_position() - demi, demi * 2.0))
 
 	# La cargaison du convoi sélectionné et l'or en caisse.
 	if _lbl_cargaison != null:

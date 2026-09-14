@@ -28,6 +28,10 @@ extends SceneTree
 const FICHE := "res://carte_cuite.json"
 const SEAMAP := "res://reference_pr3/ui/hud_pc/12.png"
 const LOIN := 99            # distance sentinelle
+# Le cadrage que `HudDroitePR3` applique, recopie ici pour formuler une ATTENTE
+# independante : si les deux se mettent a diverger, le test doit le dire.
+const CADRAGE_ATTENDU_U := 1.070
+const CADRAGE_ATTENDU_V := 0.930
 # Les quatre voisins. En constantes nommées plutôt qu'en tableaux posés dans la
 # boucle : indexer un tableau littéral rend un Variant, que `:=` ne sait pas
 # typer.
@@ -139,7 +143,10 @@ func _init() -> void:
 
 	var poses: Array[Vector2] = []
 	for e in hote.get_children():
-		var c := e as Control
+		# Seulement les MARQUEURS : depuis que la minimap se clique, chaque ville
+		# porte aussi une zone sensible posee au meme point. Les compter toutes
+		# doublerait le total et ferait mentir la ligne « 60 marqueurs ».
+		var c := e as TextureRect
 		if c != null:
 			poses.append(c.position + HudDroitePR3.PASTILLE * 0.5)
 
@@ -171,6 +178,56 @@ func _init() -> void:
 	# cale sur cette machine : la composition se fait donc hors du moteur.
 	#
 	#   godot --headless --script res://outils/test_minimap.gd -- <fichier>
+	# --- le CADRE DE VUE -----------------------------------------------------
+	# Rien ne l'exercait : ni `test_ecran` (sans sim ni projection), ni la mesure
+	# ci-dessus. Il pouvait donc planter, ou se poser n'importe ou sur la
+	# planche, en laissant tous les tests au vert. On lui donne une vue CONNUE --
+	# la moitie centrale de la carte -- et on relit les quatre bords.
+	var centre := Vector2(proj.pixels) * 0.5
+	var demi := Vector2(proj.pixels) * 0.25
+	planche.poser_vue(proj, Rect2(centre - demi, demi * 2.0))
+	var vue_hote := planche.get_node_or_null("Hud_Woodboard_Right_3/minimap_view")
+	if vue_hote == null:
+		print("\n=== cadre de vue : noeud `minimap_view` INTROUVABLE ===")
+	else:
+		var bords: Array[ColorRect] = []
+		for e in vue_hote.get_children():
+			var cr := e as ColorRect
+			if cr != null:
+				bords.append(cr)
+		print("\n=== cadre de vue : %d bords poses ===" % bords.size())
+		if bords.size() == 4:
+			var x0 := bords[2].position.x
+			var x1 := bords[3].position.x + bords[3].size.x
+			var y0 := bords[0].position.y
+			var y1 := bords[1].position.y + bords[1].size.y
+			# La vue couvre la moitie de la carte : apres cadrage le rectangle
+			# doit faire ~196/2*1,07 sur ~156/2*0,93, centre sur la minimap.
+			print("   x %.1f..%.1f   y %.1f..%.1f   (minimap 196 x 156)"
+				% [x0, x1, y0, y1])
+			print("   taille %.1f x %.1f   attendu ~%.0f x %.0f"
+				% [x1 - x0, y1 - y0, 196.0 * 0.5 * CADRAGE_ATTENDU_U,
+					156.0 * 0.5 * CADRAGE_ATTENDU_V])
+
+	# --- le CLIC -------------------------------------------------------------
+	# Un signal jamais emis est un signal mort. On presse la premiere zone.
+	var recu := {"cle": ""}
+	planche.ville_choisie.connect(func(c: String) -> void: recu["cle"] = c)
+	var zones := 0
+	var premier: Button = null
+	for e in hote.get_children():
+		var bt := e as Button
+		if bt != null:
+			zones += 1
+			if premier == null:
+				premier = bt
+	if premier == null:
+		print("\n=== clic : AUCUNE zone sensible sur les villes ===")
+	else:
+		premier.pressed.emit()
+		print("\n=== clic : %d zones sensibles ===" % zones)
+		print("   la premiere rend la cle « %s »" % str(recu["cle"]))
+
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		var sortie := FileAccess.open(args[0], FileAccess.WRITE)

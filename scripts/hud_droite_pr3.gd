@@ -31,6 +31,9 @@ extends Control
 signal liste_demandee
 signal journal_demande
 signal carte_basculee
+# Dans PR3 chaque emplacement de ville est un `Visual_Button_Minimap_Town` : la
+# minimap se CLIQUE. On rend donc la clé du port, et la carte se recentre.
+signal ville_choisie(cle: String)
 
 const SWF := "hud_pc"
 const PLANCHE := "Hud_pc_fla.Hud_Woodboard_Right_3"
@@ -72,7 +75,16 @@ const PASTILLE_CONVOI := "hud_pc/38"     # un convoi à quai
 const OR_CONVOI := Color(0.98, 0.82, 0.35)
 const OR_CHOISI := Color(1.0, 0.97, 0.80)
 
+# Le cadre de vue — où regarde la caméra. Comme les convois en mer, PR3 le trace
+# au runtime : `Visual_Minimap_Frame` ne mène à aucun bitmap. Il est donc dessiné
+# et non extrait, et c'est assumé.
+const CADRE_VUE := Color(1.0, 0.95, 0.78, 0.85)
+const CADRE_EPAISSEUR := 1.0
+
 var _villes_posees := false
+# Les quatre bords du cadre de vue, gardés d'une image à l'autre : les recréer à
+# chaque rafraîchissement ferait soixante allocations par seconde pour rien.
+var _vue: Array[ColorRect] = []
 
 var _plateau: Control
 var _or: Label
@@ -130,7 +142,12 @@ static func nombre(n: int) -> String:
 # On ne réécrit pas une seconde projection : la minimap et la carte doivent
 # s'accorder, et deux sources finiraient par diverger.
 func _vers_minimap(proj: ProjectionCarte, x: float, z: float) -> Vector2:
-	var pix := proj.vers_carte(x, z)
+	return _carte_vers_minimap(proj, proj.vers_carte(x, z))
+
+
+# Pixel de la GRANDE carte -> pixel de la minimap. La caméra se repère déjà en
+# pixels de carte : elle n'a donc pas à repasser par le monde pour revenir ici.
+func _carte_vers_minimap(proj: ProjectionCarte, pix: Vector2) -> Vector2:
 	var u := 0.5 + (pix.x / float(proj.pixels.x) - 0.5) * CADRAGE_KU + CADRAGE_DU
 	var v := 0.5 + (pix.y / float(proj.pixels.y) - 0.5) * CADRAGE_KV + CADRAGE_DV
 	return Vector2(u * MINIMAP.x, v * MINIMAP.y)
@@ -166,7 +183,20 @@ func poser_villes(ports: Array, proj: ProjectionCarte) -> void:
 	for p in ports:
 		var d: Dictionary = p
 		var rade: Vector3 = d["rade"]
-		_pastille(hote, PASTILLE_VILLE, _vers_minimap(proj, rade.x, rade.z))
+		var point := _vers_minimap(proj, rade.x, rade.z)
+		_pastille(hote, PASTILLE_VILLE, point)
+		# La zone sensible, au même point que le marqueur : PR3 fait de chaque
+		# ville un bouton, et une minimap qu'on ne peut pas cliquer n'est qu'une
+		# illustration.
+		var zone := Button.new()
+		zone.flat = true
+		zone.focus_mode = Control.FOCUS_NONE
+		zone.tooltip_text = str(d.get("nom", ""))
+		zone.size = PASTILLE
+		zone.position = point - PASTILLE * 0.5
+		var cle := str(d.get("cle", ""))
+		zone.pressed.connect(func() -> void: ville_choisie.emit(cle))
+		hote.add_child(zone)
 	_villes_posees = true
 
 
@@ -192,6 +222,38 @@ func poser_convois(convois: Array, proj: ProjectionCarte) -> void:
 		r.position = point - Vector2(1.5, 1.5)
 		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hote.add_child(r)
+
+
+# Le cadre de vue : ce que la caméra montre, reporté sur la minimap. `vue` est
+# donné en PIXELS DE LA GRANDE CARTE, le repère où vit déjà la caméra.
+func poser_vue(proj: ProjectionCarte, vue: Rect2) -> void:
+	if proj == null or not proj.valide:
+		return
+	var hote := EcranPR3.champ(_plateau, "minimap_view")
+	if hote == null:
+		return
+	if _vue.is_empty():
+		for i in range(4):
+			var bord := ColorRect.new()
+			bord.color = CADRE_VUE
+			bord.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			hote.add_child(bord)
+			_vue.append(bord)
+
+	var a := _carte_vers_minimap(proj, vue.position)
+	var b := _carte_vers_minimap(proj, vue.position + vue.size)
+	# Borné au cadre : au dézoom maximal la vue déborde la carte, et un cadre qui
+	# dépasse irait peindre sur le bois de la planche.
+	var r := Rect2(a, b - a).abs().intersection(Rect2(Vector2.ZERO, MINIMAP))
+	var e := CADRE_EPAISSEUR
+	_vue[0].position = r.position
+	_vue[0].size = Vector2(r.size.x, e)
+	_vue[1].position = r.position + Vector2(0.0, r.size.y - e)
+	_vue[1].size = Vector2(r.size.x, e)
+	_vue[2].position = r.position
+	_vue[2].size = Vector2(e, r.size.y)
+	_vue[3].position = r.position + Vector2(r.size.x - e, 0.0)
+	_vue[3].size = Vector2(e, r.size.y)
 
 
 func poser(or_: int, en_mer: int, a_quai: int) -> void:
