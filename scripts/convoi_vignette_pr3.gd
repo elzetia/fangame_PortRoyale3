@@ -194,15 +194,36 @@ func poser_details(fiche: Dictionary) -> void:
 # garde une clé (`profit`, `wealth`, `construct`…), le nom vient de la table du
 # jeu (`ID_STRATEGY_*_NAME`), jamais d'une traduction de mon cru.
 #
-# `tf_time`, `tf_profit` et l'état actif restent vides : la sim ne mesure pas
-# encore les rotations.
+# LA ROTATION est mesurée, désormais, et le mot est celui du jeu : PR3 intitule
+# ce champ « Dernière rotation : » (`ID_GUI_HUD_TROUTE_LAST_TOUR`). La sim clôt
+# un tour quand le convoi ré-accoste à la première escale de son circuit, et
+# retient sa durée et le gain net de sa caisse (voir `sim/marchands.lua`).
+#
+# TANT QU'AUCUN TOUR N'EST BOUCLÉ, la durée et le gain restent VIDES : un « 0 j »
+# et un « 0 » se liraient comme une route qui tourne sans rien rapporter, ce qui
+# est un autre fait que « on ne sait pas encore ».
 func poser_route(fiche: Dictionary) -> void:
 	_poser("route", "tf_name", str(fiche.get("nom", "")))
 	_poser("route", "tf_towns", str(int(fiche.get("villes", 0))))
 	_poser("route", "tf_tour", _nom_strategie(str(fiche.get("strategie", ""))))
-	_poser("route", "tf_time", "")
-	_poser("route", "tf_profit", "")
-	_poser("route", "tf_state", "")
+	var tours := int(fiche.get("rotations", 0))
+	_poser("route", "tf_time",
+		("%d j" % int(fiche.get("rotation_jours", 0))) if tours > 0 else "")
+	_poser("route", "tf_profit",
+		HudDroitePR3.nombre(int(fiche.get("rotation_gain", 0))) if tours > 0 else "")
+	# L'état porte les mots de PR3, pas les miens : « Route activée » / « Route
+	# désactivée » sont dans sa table.
+	_poser("route", "tf_state", _texte_jeu(
+		"ID_GUI_HUD_TROUTE_ACTIVATED" if bool(fiche.get("route_active", false))
+		else "ID_GUI_HUD_TROUTE_DEACTIVE"))
+
+
+# Le texte du jeu pour cette clé, ou RIEN. `LocaPR3` RÉÉMET LA CLÉ quand la table
+# est absente : sans ce test, la vignette afficherait « ID_GUI_HUD_TROUTE_ACTIVATED »
+# en toutes lettres. C'est le même piège que pour le type de route, ci-dessous.
+func _texte_jeu(cle: String) -> String:
+	var t := LocaPR3.propre(cle, "")
+	return "" if t == cle else t
 
 
 func _nom_strategie(cle: String) -> String:

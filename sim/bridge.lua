@@ -656,6 +656,14 @@ function Bridge.convois_joueur()
     d.noeuds    = noeuds
     d.strategie = m.strategie or ""
     d.villes    = #(m.circuit or {})
+    -- L'onglet « bourse » de la vignette : durée d'un tour, gain du dernier tour
+    -- bouclé, et si la route tourne. `rotations` vaut 0 tant qu'aucun tour n'est
+    -- fini — la vignette laisse alors le champ vide plutôt que d'afficher un
+    -- zéro qui se lirait comme une route à perte nulle.
+    d.rotations      = m.rotations or 0
+    d.rotation_jours = math.floor((m.rotation_jours or 0) + 0.5)
+    d.rotation_gain  = math.floor((m.rotation_gain or 0) + 0.5)
+    d.route_active   = (m.mode or "route") == "route"
     -- La CARGAISON EN DETAIL, pour la grille de douze cases de l'onglet
     -- « tonneau ». `d.cargaison` n'en donne qu'une phrase (« 24 t de sucre,
     -- … ») : lisible sur la fiche de la carte, inutilisable pour une grille.

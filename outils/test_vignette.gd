@@ -205,6 +205,46 @@ func _init() -> void:
 	if villes != null and villes.text != "6":
 		_rater("tf_towns affiche « %s » au lieu de 6" % villes.text)
 
+	# AUCUN TOUR BOUCLÉ : durée et gain doivent rester VIDES. Un « 0 j » ou un
+	# « 0 » affirmerait une route qui tourne sans rien rapporter — ce qui n'est
+	# pas la même chose que « pas encore mesuré ».
+	for nom in ["tf_time", "tf_profit"]:
+		var vide := v.champ_de("route", nom)
+		if vide != null and vide.text != "":
+			_rater("%s devrait rester vide sans rotation, il affiche « %s »"
+					% [nom, vide.text])
+	print("   tf_time et tf_profit vides tant qu'aucun tour n'est bouclé : ok")
+
+	# UN TOUR BOUCLÉ : les deux champs parlent, et l'état porte les MOTS DU JEU.
+	v.poser_route({"nom": "Tourbillon", "villes": 6, "strategie": "wealth",
+			"rotations": 3, "rotation_jours": 18, "rotation_gain": -12450,
+			"route_active": true})
+	var duree := v.champ_de("route", "tf_time")
+	var vu_duree := duree.text if duree != null else "<absent>"
+	if vu_duree != "18 j":
+		_rater("tf_time affiche « %s » au lieu de « 18 j »" % vu_duree)
+	# UN GAIN NÉGATIF GARDE SON SIGNE, et les milliers au point de PR3
+	# (« -12.450 ») : une route à perte affichée « 12.450 » mentirait sur son sens.
+	var gain := v.champ_de("route", "tf_profit")
+	var vu_gain := gain.text if gain != null else "<absent>"
+	var attendu_gain := HudDroitePR3.nombre(-12450)
+	if vu_gain != attendu_gain:
+		_rater("tf_profit affiche « %s » au lieu de « %s »"
+				% [vu_gain, attendu_gain])
+	if not vu_gain.begins_with("-"):
+		_rater("tf_profit perd le signe d'une rotation à perte : « %s »" % vu_gain)
+	print("   tf_time « %s », tf_profit « %s » : ok" % [vu_duree, vu_gain])
+
+	# L'état doit porter le texte de PR3, jamais sa clé.
+	var etat := v.champ_de("route", "tf_state")
+	var vu_etat := etat.text if etat != null else "<absent>"
+	print("   tf_state     « %s »   attendu « Route activée »   %s"
+			% [vu_etat, "OK" if vu_etat == "Route activée" else "*** ECART ***"])
+	if vu_etat != "Route activée":
+		_rater("tf_state affiche « %s »" % vu_etat)
+	if vu_etat.begins_with("ID_"):
+		_rater("tf_state laisse fuir sa cle")
+
 	# --- la GRILLE DE CARGAISON ---------------------------------------------
 	# Une case remplie doit porter une ICONE et une QUANTITE, et deux
 	# marchandises differentes ne doivent pas montrer la meme image -- c'est ce

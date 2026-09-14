@@ -91,7 +91,11 @@ func _init() -> void:
 		# main, pas la sortie du pont.
 		for champ in ["position", "a_quai", "selectionne", "route",
 				"capacite", "charge", "canons", "equipage", "noeuds",
-				"strategie", "villes", "lots"]:
+				"strategie", "villes", "lots",
+				# L'onglet « bourse » de la vignette : la ROTATION mesuree --
+				# duree d'un tour de circuit, gain net du dernier tour boucle,
+				# et si la route tourne.
+				"rotations", "rotation_jours", "rotation_gain", "route_active"]:
 			if not c0.has(champ):
 				_rater("convoi : champ manquant %s" % champ)
 		# `lots` nourrit la GRILLE de l'onglet « tonneau ». Le test de la

@@ -244,6 +244,16 @@ local function armer(port, genre, navires, circuit)
     achats = {},               -- ce que chaque lot a coûté, par tonne
     circuit = circuit,
     etape = 1,
+    -- LA ROTATION : un tour complet du circuit, revenu au port d'attache. PR3
+    -- l'affiche dans l'onglet « bourse » de la vignette de convoi — la durée du
+    -- tour et le gain du dernier. On la MESURE, on ne l'estime pas :
+    -- `rotation_age` compte les jours depuis le dernier passage à l'attache, et
+    -- `rotation_or` retient la caisse à cet instant (posé au premier pas piloté,
+    -- car le capital d'un convoi du joueur n'est versé qu'après l'armement).
+    rotations = 0,
+    rotation_jours = 0,
+    rotation_gain = 0,
+    rotation_age = 0,
     ville = port.cle,          -- port où il est à quai, nil s'il est en mer
     destination = nil,
     quete = "",
@@ -479,6 +489,20 @@ local function accoster(m)
   m.destination = nil
   m.route = {}
   m.escale = ESCALE
+
+  -- CLÔTURE D'UNE ROTATION. Un tour est fini quand le convoi ré-accoste à la
+  -- PREMIÈRE escale de son circuit — son port d'attache. Le test tient pour les
+  -- deux genres : le caboteur parcourt ses cinq escales et revient, le
+  -- long-courrier fait attache → cible → attache. On exige un âge non nul pour
+  -- ne pas clore un tour sur une simple manœuvre dans le port d'attache.
+  if m.circuit and m.ville and m.ville == m.circuit[1]
+     and (m.rotation_age or 0) > 0 then
+    m.rotation_jours = m.rotation_age
+    m.rotation_gain = m.or_ - (m.rotation_or or m.or_)
+    m.rotations = (m.rotations or 0) + 1
+    m.rotation_age = 0
+    m.rotation_or = m.or_
+  end
 end
 
 
@@ -570,6 +594,12 @@ end
 -- navigation. Le même code sert les convois de l'IA et ceux du joueur — un convoi
 -- du joueur (`m.joueur`) garde tout son or (pas de plafond ni de fonds commun).
 local function piloter_convoi(m, jours)
+  -- L'âge de la rotation en cours, en jours de jeu. On le compte ici parce que
+  -- c'est le seul endroit qui reçoit le pas de temps : la sim n'a donc pas
+  -- besoin de connaître le calendrier pour mesurer la durée d'un tour.
+  m.rotation_age = (m.rotation_age or 0) + jours
+  if m.rotation_or == nil then m.rotation_or = m.or_ end
+
   -- Un convoi MANUEL ne paie pas sur son propre or : c'est la caisse du joueur qui
   -- règle son entretien (`Compagnie.payer_entretien`). Les autres paient ici.
   if m.mode ~= "manuel" then
