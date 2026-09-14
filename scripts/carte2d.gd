@@ -12,6 +12,26 @@ const CHEMIN_MER := "res://carte_cuite_mer.png"
 const RAYON_CLIC_PORT := 90.0        # en mètres monde
 const MARGE_CLIC := 8.0              # en pixels de carte, autour du dessin
 
+# L'ANNEAU DE SÉLECTION DU JEU, et non un disque de mon cru.
+#
+# Port Royale 3 le pose en `selectioncircle` : le registre d'entités de la carte
+# maritime (`0x460d11`) nomme `SelectionConvoyMap` pour un convoi et
+# `SelectionConvoyTown` pour une ville, et l'archive livre deux anneaux de
+# 256 x 256 — `selectioncircle0` (trait FIN) et `selectioncircle1` (trait ÉPAIS).
+#
+# CE QUE JE N'AI PAS PU ÉTABLIR : lequel des deux revient à la ville. Leurs
+# descripteurs `.asset` sont identiques à leur nom près, et leurs maillages le
+# sont au octet près (215 / 1104 / 416) — la taille est appliquée à l'exécution,
+# elle n'est pas dans l'art, donc le rapport 16:11 des rayons de sélection ne
+# permet pas de les départager non plus. Il se peut d'ailleurs que la distinction
+# ne soit pas ville/convoi mais SURVOL/SÉLECTION, ce que l'écart d'épaisseur
+# suggère davantage. L'appariement vit dans l'exécutable.
+#
+# On prend donc le trait fin pour le survol d'une ville, et c'est un choix, pas
+# un relevé. L'art est sous droits (© Kalypso / Gaming Minds) : il vit dans
+# `reference_pr3/`, ignoré par git, et s'extrait de ta copie du jeu.
+const ANNEAU_SELECTION := "res://reference_pr3/assets/selectioncircle0.png"
+
 var sim: Sim
 var proj: ProjectionCarte
 var navire := NavireEtat.new()
@@ -764,7 +784,21 @@ func _dessiner_port(port: Dictionary) -> void:
 	var e := 1.0 / _zoom                                # taille constante à l'écran
 
 	if _port_survole == port:
-		draw_circle(p, 22 * e, Color(1, 0.95, 0.7, 0.25))
+		# L'anneau du jeu s'il est là, le disque dessiné sinon. `SkinPR3.fichier`
+		# rend `null` quand l'art manque, et la règle du projet est que SEUL LE
+		# LOOK en dépende, jamais le comportement : une copie fraîche, sans
+		# `reference_pr3/`, doit rester jouable.
+		var anneau := SkinPR3.fichier(ANNEAU_SELECTION)
+		if anneau != null:
+			# Même encombrement que le disque qu'il remplace (rayon 22) : on
+			# change l'art, pas la taille — sans quoi on ne saurait plus lequel
+			# des deux a bougé.
+			var cote := 44.0 * e
+			draw_texture_rect(anneau,
+				Rect2(p - Vector2(cote, cote) * 0.5, Vector2(cote, cote)),
+				false, Color(1.0, 0.98, 0.85, 0.85))
+		else:
+			draw_circle(p, 22 * e, Color(1, 0.95, 0.7, 0.25))
 
 	# Mouillage, au large
 	draw_arc(r, 9 * e, 0, TAU, 20, Color(1, 1, 1, 0.35), 1.5 * e)

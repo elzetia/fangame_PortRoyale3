@@ -40,7 +40,9 @@ produit `outils/champ_cote.py`.
   l'eau du large à la nappe animée.
 - **`reference_pr3/`** — textures extraites de Port Royale 3 (© Kalypso /
   Gaming Minds), gardées en local comme référence de direction artistique.
-  Regénère-les depuis ta propre copie du jeu avec `outils/dds2png.py`.
+  Regénère-les depuis ta propre copie du jeu avec `outils/dds2png.py`, et les
+  anneaux de sélection de la carte maritime avec
+  `outils/extraire_selection_pr3.py`.
 - **Les binaires non-Windows de `lua-gdextension`** — l'addon en livre ~209 Mo
   pour toutes les plateformes. Seul Windows est versionné ; prends les autres
   chez [gilzoide/lua-gdextension](https://github.com/gilzoide/lua-gdextension).
