@@ -120,9 +120,20 @@ for cid in sorted(names, key=lambda i:names[i].lower()):
     if motif and motif not in names[cid].lower(): continue
     lv=[b for b in leaves(cid) if bmp[b][0]]
     if not lv: continue
-    best=max(lv, key=lambda b: bmp[b][0]*bmp[b][1])
-    court=names[cid].split('.')[-1]
-    lignes.append(f"{court:<48} {best}.png  {bmp[best][0]}x{bmp[best][1]}")
+    # La PLUS PETITE feuille, pas la plus grande : un symbole d'interface place
+    # son glyphe sur un support (cadre de bouton, bandeau de liste) toujours plus
+    # grand que lui. « La plus grande » ramenait donc le decor. Verifie a l'oeil :
+    # Cycle -> 1872 (deux fleches) et non 436 (une plaque) ; Bships -> 1186 (un
+    # navire) et non 1480 (un bandeau). Mesure : 622 entrees justes sur 677
+    # contre 599 pour l'ancienne regle. C'est une approximation, pas une loi.
+    best=min(lv, key=lambda b: bmp[b][0]*bmp[b][1])
+    # Le nom ENTIER quand c'est un nom de fichier : `split('.')[-1]` reduisait
+    # « Flag_England.png » a « png » et faisait s'effondrer 414 symboles sur une
+    # seule cle. Sinon, le dernier segment pointe : components.button.Visual_X.
+    nm=names[cid]
+    court = nm if nm.lower().endswith(".png") else nm.split('.')[-1]
+    # TABULATEURS : c'est ainsi que `EcranPR3.icones()` decoupe le fichier.
+    lignes.append(f"{court}\t{best}.png\t{bmp[best][0]}x{bmp[best][1]}")
 dest=r"D:\GOG Galaxy\Games\PortRoyale3D\reference_pr3\ui\agencement\icones.txt"
 os.makedirs(os.path.dirname(dest),exist_ok=True)
 open(dest,"w",encoding="utf-8").write("\n".join(lignes)+"\n")
