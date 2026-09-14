@@ -528,7 +528,8 @@ thésaurise pas, il bâtit.
   - rangs `minRankMil`/`maxRankMil`/`minRankPir` ;
   - `Vmin`, `Vmax`, `Wendig` ;
   - assets, dimensions de coque et de voiles, positions des canons ;
-  - `Nations` (masque), `Masts`, `Gauge` (tirant d'eau), `DailyCosts` (entretien
+  - `Nations` (masque), `Masts`, `Gauge` (**classe** de tirant d'eau 0/1/2 : le
+    chargeur n'en garde que le reste modulo 3), `DailyCosts` (entretien
     par jour), `Construct` (coût et matériaux au chantier).
 - **Bâtiments** : `Bauplatzkosten` (trois coûts) et `Baukosten Betriebe` (les
   matériaux : 20 bois et 40 briques pour une ferme, 60 et 120 pour une

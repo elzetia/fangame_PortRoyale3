@@ -6,7 +6,7 @@ tirés des tables binaires de `ini/constdata.dat` — pas les défauts de l'exe,
 les vraies valeurs du jeu (elles écrasent parfois l'exe : 1Fass 2000, Faktor 1.1,
 Lohn 6).
 
-Pour la config SCALAIRE complète (146 sections), voir `PR3_CONFIG.md`.
+Pour la config SCALAIRE complète (81 sections), voir `PR3_CONFIG.md`.
 Pour la logique et les systèmes, voir `PR3_SYSTEMES.md`.
 
 ```
@@ -182,13 +182,27 @@ Pour la logique et les systèmes, voir `PR3_SYSTEMES.md`.
 ## La table des navires de `constdata.dat`, relue proprement
 
 Mon premier décodeur cherchait les navires par une ancre heuristique et ne lisait
-que onze colonnes. La structure réelle se lit mieux : **chaque navire occupe un
-bloc de 120 octets qui se termine à son nom**, suivi de son nom de carte et de
-ses positions de canon.
+que onze colonnes. La structure réelle est entièrement lisible, et rien n'y est
+positionnel au sens d'une grille de colonnes : c'est une **suite de champs, dont
+les tableaux portent leur compte devant**.
 
 ```
-[ scalaires, 120 octets ] [ nom ] [ nom_wm ] [ blocs GunPos de 16 octets ]
+[ scalaires ]                      Value, Capacity, Hitpoints, HitpointsSail,
+                                   Construct, DailyCosts, rangs, Vmin, Vmax, Wendig
+[ géométrie ]                      HullLength f[3], HullWidth f[2], HullHeight flt,
+                                   SailOffset f[3], SailLength f[3], SailHeight flt,
+                                   SailType i[3]
+[ nom ] [ nom_wm ]                 BattleAsset, SeaMapAsset (préfixés d'un u32 de longueur)
+[ u32 n ] [ n × 21 octets ]        GunPos : le compte, puis les positions
+[ Nations ] [ Masts ] [ Gauge ]    trois octets
 ```
+
+Le bloc scalaire commence **exactement 101 octets avant le nom**, pour les seize
+navires. C'est cette régularité qui permet d'ancrer la lecture sans heuristique.
+
+Le compte de `GunPos` étant déclaré, le triplet `Nations`/`Masts`/`Gauge` se
+trouve en suivant la dernière position de canon — sans rien devoir au navire
+suivant. C'est ce qui rend le **seizième** navire lisible (voir plus bas).
 
 ### Colonnes PROUVÉES
 
@@ -273,6 +287,14 @@ Les octets `+0` à `+11` de la fenêtre d'un navire appartiennent à
 l'enregistrement **précédent** : la fenêtre de 120 octets déborde sur la queue du
 voisin. En réattribuant `+5` au navire d'avant on lit 2, 1, 2, 3 pour pinasse,
 sloop, brick, barque — soit leurs mâts, ce qui est historiquement juste.
+
+> **Dépassé.** Ce « décalage » n'était pas une propriété du fichier mais de la
+> fenêtre de 120 octets, choisie arbitrairement : elle coupait les
+> enregistrements n'importe où. La vraie raison est plus simple — le triplet
+> `Nations`/`Masts`/`Gauge` clôt l'enregistrement, *après* les positions de
+> canon, et tombe donc juste avant l'enregistrement suivant. Le schéma ci-dessus
+> le donne directement, sans fenêtre ni réattribution. On garde le passage parce
+> que c'est lui qui a mis `Masts` sur la piste.
 
 ### `Masts`, à +5 de la fenêtre suivante
 

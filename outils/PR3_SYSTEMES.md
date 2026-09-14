@@ -20,8 +20,13 @@ PR3 lit tous ses réglages par cinq fonctions de chargement, chacune prenant une
 | `0x89E270` | chaîne |
 
 En balayant l'exécutable pour tous les appels à ces cinq fonctions et en
-remontant les deux chaînes poussées juste avant (section, clé), on obtient le
-**dictionnaire complet** : **134 sections, 421 clés** (`outils/config_map.py`).
+remontant les deux chaînes poussées juste avant (section, clé) — en coupant aux
+frontières d'appel, sans quoi une clé emprunte la section de sa voisine — on
+obtient le **dictionnaire complet** : **82 sections, 455 clés**
+(`outils/config_map.py`). Certaines sections sont **formatées à l'exécution**
+(`[Ship%02u]`, `[Town%02u]`) et n'existent nulle part comme chaîne : leurs clés
+sont rangées sous `(section calculée)` plutôt que rattachées à une section
+inventée.
 La valeur par défaut poussée est celle qui s'applique quand `ini/constdata.dat`
 ne la surcharge pas — souvent la valeur effective du jeu.
 
@@ -771,7 +776,7 @@ Objectif : une bible complète tirée des seuls fichiers, et le fan game bâti d
 extensible. Prochaines briques, par ordre d'utilité :
 
 1. **Config scalaire — FAIT.** `outils/PR3_CONFIG.md` (généré par
-   `outils/config_defauts.py`) donne les **146 sections / 421 clés avec leurs
+   `outils/config_defauts.py`) donne les **81 sections / 438 clés avec leurs
    défauts**. Découverte : il n'y a **pas** d'arbre de config texte ; `constdata.dat`
    est fait de **TABLES BINAIRES** (navires, villes, munitions, prix…) et l'exe porte
    la logique + les défauts scalaires. Pour les scalaires, le défaut EST la valeur du
@@ -786,7 +791,7 @@ extensible. Prochaines briques, par ordre d'utilité :
 5. **UI/menus — structure FAITE.** `outils/swf_ui.py` + `PR3_UI.md` : catalogue de composants et hiérarchie de chaque écran (radial, ville/convoi/chantier, HUD, routes, capitainerie), extraits des `.swf`. Restent les positions fines (bruit CXFORM) et les images (droits, non extraites).
 6. **Campagne/missions** : script à lire et réécrire.
 
-La liste exhaustive des 134 sections et 421 clés est reproductible par
+La liste exhaustive des 82 sections et 455 clés est reproductible par
 `py -3 outils/config_map.py` (l'outil lit l'exécutable local, jamais commité).
 
 ---
