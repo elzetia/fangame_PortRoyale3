@@ -1778,7 +1778,12 @@ func _clic_gauche() -> void:
 		# Un port : la couronne s'ouvre au curseur, en pixels écran (elle vit dans
 		# une CanvasLayer, hors de la transformée de la caméra). Dock et chantier
 		# ne s'ouvrent que si un convoi du joueur est à ce port.
-		_radial.ouvrir(port, get_viewport().get_mouse_position(), _joueur_au_port(port))
+		# `sim` en quatrième argument : le centre de la couronne y prend la
+		# réputation de la ville et les compteurs que PR3 pose sur ses pétales
+		# (convois à l'ancre, navires en construction). L'argument est facultatif,
+		# la couronne s'ouvre sans lui.
+		_radial.ouvrir(port, get_viewport().get_mouse_position(),
+				_joueur_au_port(port), sim)
 		return
 	# Pas de port : on sélectionne un convoi du joueur en pleine mer (anneau d'or),
 	# et un clic dans le VIDE désélectionne.
