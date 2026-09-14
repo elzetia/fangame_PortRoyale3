@@ -23,12 +23,21 @@ le tien diffère). Scène principale : `scenes/carte.tscn`.
 | `tools/` | Sondes GDScript pour vérifier que le pont Lua répond. |
 | `sprites/`, `assets_generes/` | Les sprites du jeu, générés puis découpés en atlas. |
 
-La carte n'est pas une image peinte : `shaders/cuisson_carte.gdshader` la **cuit**
-à partir d'un champ d'altitude, comme le fait l'original. `carte_cuite.png` est
-le résultat, `carte_relief.png` et `carte_champ.png` les entrées.
+La carte du monde **est celle de Port Royale 3** : `outils/carte_ombrage.py` la
+décode depuis les textures du jeu, puis l'ombre d'après ses propres hauteurs —
+avec la lumière de PR3 lui-même (`LightDirection` −1/−1/−1, soit un soleil à
+35,26°). Elle n'est pas dans le dépôt ; l'outil la refabrique depuis ta copie.
+
+Le terrain en relief, lui, est **cuit** par `shaders/cuisson_carte.gdshader` à
+partir d'un champ d'altitude : `carte_relief.png` et `carte_champ.png`, que
+produit `outils/champ_cote.py`.
 
 ## Ce qui n'est pas dans le dépôt
 
+- **`carte_cuite.png`** — la carte du monde peinte de Port Royale 3 (© Kalypso /
+  Gaming Minds). Refabrique-la depuis ta propre copie du jeu :
+  `py -3 outils/carte_ombrage.py`, puis `py -3 outils/carte_eau.py` pour rendre
+  l'eau du large à la nappe animée.
 - **`reference_pr3/`** — textures extraites de Port Royale 3 (© Kalypso /
   Gaming Minds), gardées en local comme référence de direction artistique.
   Regénère-les depuis ta propre copie du jeu avec `outils/dds2png.py`.

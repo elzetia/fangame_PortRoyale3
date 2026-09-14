@@ -25,3 +25,14 @@ addons/lua-gdextension/build/*
 # Caches Python des outils
 __pycache__/
 *.pyc
+
+# --- La carte du monde, decodee depuis Port Royale 3 ---
+# `carte_cuite.png` N'EST PLUS un decor a nous : depuis que le decor est devenu
+# celui du jeu, ce fichier EST la carte peinte de Port Royale 3 (c) Kalypso /
+# Gaming Minds, assemblee depuis worldmapleft.dds + worldmapright.dds. Elle n'a
+# donc pas sa place dans un depot public, au meme titre que reference_pr3/.
+#
+# On ne perd rien : `outils/carte_ombrage.py` la refabrique depuis TA copie du
+# jeu, et le fait a l'identique (verifie : 0,00 d'ecart, 100 % des pixels).
+#   py -3 outils/carte_ombrage.py     puis     py -3 outils/carte_eau.py
+carte_cuite.png
