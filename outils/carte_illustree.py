@@ -290,6 +290,31 @@ def ecrire_masque(terre, mw, mh):
 
 
 def main(chemin):
+    # ⚠ CE SCRIPT EST DESORMAIS DANGEREUX, et c'est pourquoi il refuse de partir
+    # tout seul.
+    #
+    # Il ne fabrique pas seulement un decor : il REECRIT `sim/carte_monde.lua`
+    # (le masque de navigation) et `carte_cuite.json` (la fiche de projection) a
+    # partir de l'illustration qu'on lui donne. Or le monde du clone est
+    # desormais celui de Port Royale 3 -- masque extrait de son `ini/map.bmp`,
+    # decor tire de ses propres textures, et les soixante ports places en cases
+    # de ce masque. Le relancer remplacerait cette geographie par celle d'un
+    # dessin, et il faudrait tout recaler : ports, minimap, nappe de mer.
+    #
+    # Pour refaire seulement la fiche de profondeur de la mer, utiliser
+    # `outils/carte_mer.py`, qui ne touche a rien d'autre.
+    #
+    # (On n'imprime PAS `__doc__` ici : il contient des caracteres que la
+    # console Windows en cp1252 ne sait pas encoder, et le refus levait alors
+    # une exception au lieu d'afficher son message.)
+    if "--remplacer-la-geographie" not in sys.argv:
+        print("REFUS : ce script reecrit sim/carte_monde.lua et"
+              " carte_cuite.json a partir de l'illustration donnee,")
+        print("        donc il remplacerait la geographie de Port Royale 3.")
+        print("        Relancer avec --remplacer-la-geographie si c'est"
+              " VRAIMENT ce qu'on veut.")
+        return
+
     w, h, px = lire_png(chemin)
     print("illustration %d x %d" % (w, h))
     px, w, h = rogner(px, w, h, MARGE_CADRE)
