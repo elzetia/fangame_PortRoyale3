@@ -373,8 +373,11 @@ def main():
     ci.ecrire_png(os.path.join(RACINE, "carte_cuite.png"), W, H, sortie, 3)
     print("carte_cuite.png : %d x %d, ombre" % (W, H))
     print()
-    print("RELANCER ENSUITE : py -3 outils/carte_eau.py")
-    print("   (il rend la mer du large a la nappe animee et recalcule mer_fond)")
+    print("RELANCER ENSUITE, DANS CET ORDRE :")
+    print("   py -3 outils/carte_eau.py")
+    print("      rend la mer du large a la nappe animee, recalcule mer_fond")
+    print("   godot --headless --path . --import")
+    print("      SANS QUOI LE DECOR DISPARAIT (voir carte_eau.py)")
 
 
 if __name__ == "__main__":

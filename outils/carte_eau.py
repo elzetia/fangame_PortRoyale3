@@ -195,6 +195,18 @@ def main():
         json.dumps(fiche, indent="\t", ensure_ascii=False) + NL)
     print("carte_cuite.json : mer_fond = %s" % (fiche["mer_fond"],))
 
+    # LE PAS QU'ON OUBLIE, ET QUI EFFACE LA CARTE SANS RIEN DIRE.
+    print()
+    print("RELANCER ENSUITE : godot --headless --path . --import")
+    print("   SANS QUOI LE DECOR DISPARAIT. Godot constate que la source a")
+    print("   change, invalide son .ctex et NE LE RECONSTRUIT PAS -- le mode")
+    print("   --script ne le fait pas non plus. `load()` rend alors null, plus")
+    print("   rien n'est dessine, et il ne reste que la nappe de mer : un ecran")
+    print("   uniformement bleu, sans une ile et sans erreur visible.")
+    print()
+    print("PUIS VERIFIER :")
+    print("   godot --headless --path . --script res://outils/test_carte.gd")
+
 
 if __name__ == "__main__":
     main()
