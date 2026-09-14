@@ -164,6 +164,23 @@ func _init() -> void:
 	print("   distance moyenne %.1f px"
 		% (float(cumul) / float(maxi(poses.size(), 1))))
 	print("   (doit reproduire la ligne « avec le MEILLEUR ajustement » ci-dessus)")
+
+	# On DÉPOSE les points, pour pouvoir les regarder. Une distance moyenne de
+	# 0,7 px ne dit pas si la carte est lisible, et chaque défaut sérieux trouvé
+	# sur ce HUD l'a été à l'œil, jamais par un compteur. Godot en mode fenêtre
+	# cale sur cette machine : la composition se fait donc hors du moteur.
+	#
+	#   godot --headless --script res://outils/test_minimap.gd -- <fichier>
+	var args := OS.get_cmdline_user_args()
+	if args.size() > 0:
+		var sortie := FileAccess.open(args[0], FileAccess.WRITE)
+		if sortie != null:
+			for p in poses:
+				sortie.store_line("%.2f %.2f" % [p.x, p.y])
+			sortie.close()
+			print("   %d points déposés dans %s" % [poses.size(), args[0]])
+		else:
+			print("   impossible d'écrire dans %s" % args[0])
 	quit(0)
 
 
