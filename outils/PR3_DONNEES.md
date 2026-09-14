@@ -408,3 +408,60 @@ voisine la barque. Ces huit navires n'ont simplement aucune entrée de géométr
 dans les données, et retombent tous sur les mêmes valeurs par défaut. C'est une
 lacune de PR3, pas du décodage — elle ne touche que la coque et la voilure
 affichées au combat, jamais les chiffres de commerce.
+
+### `Construct` : un entier d'or, puis cinq octets
+
+Le chargeur lit `Construct` comme un tableau de **six** entiers (`push 6` en
+`0x85fe70`), mais il les répartit en deux endroits de nature différente :
+
+```
+0085fe8d  mov   eax, dword [ebp-0x174]   ; élément 0
+0085feaa  mov   dword [ebp-0x128], eax   ;   -> un DWORD
+0085fe86  movzx ecx, byte  [ebp-0x170]   ; éléments 1 à 5
+0085fe9d  mov   byte  [ebp-0x117], cl    ;   -> cinq OCTETS consécutifs
+   …
+0085fed8  mov   byte  [ebp-0x113], dl
+```
+
+L'élément 0 est le **coût en or** — la colonne `Construct` déjà relevée (9 000
+pour la pinasse, 240 000 pour le vaisseau de ligne). Les cinq suivants sont des
+octets rangés **juste après `Gauge`**, qui occupe `[ebp-0x118]`.
+
+Le fichier les met exactement là : après le triplet viennent cinq octets, puis un
+zéro d'alignement. **Ce zéro n'est pas un sixième matériau** — il ne reçoit rien.
+
+| navire | les cinq octets |
+|---|---|
+| pinasse | 11, 20, 10, 15, 10 |
+| flûte commerciale | 42, 80, 45, 60, 25 |
+| galion | 42, 75, 40, 55, 40 |
+| vaisseau de ligne | 38, 65, 35, 45, 45 |
+
+Tous croissent avec la taille de la coque : ce sont des **quantités**, pas des
+indices de denrée.
+
+**Ouvert.** L'onglet « contrat de construction » n'offre que **quatre**
+emplacements de marchandise (`good_0`…`good_3`), plus un sablier et un
+`tf_time_val`. Cinq octets pour quatre emplacements : le cinquième est
+vraisemblablement la **durée en jours** (10 pour la pinasse, 45 pour le vaisseau
+de ligne), mais ce n'est pas démontré. Et les quatre denrées ne sont désignées
+nulle part : ni dans ces octets, qui sont des quantités, ni dans les textes —
+`ID_GUI_LEGEND_SHIPYARD_BUILD` ne dit que « Signer le contrat », l'interface
+remplissant ses icônes à l'exécution. Il faut le code qui les consomme.
+
+### L'enregistrement navire en mémoire fait 164 octets
+
+Le même passage le donne : `imul edi, edi, 0xa4` puis `add [esi+4], 0xa4` — le
+jeu range ses navires dans un tableau au **pas de 0xA4 = 164 octets**. La base de
+l'enregistrement en cours de construction est `[ebp-0x134]` : c'est elle que le
+code compare aux bornes du tableau avant de l'y pousser. D'où les décalages, qui
+valent pour la structure **en mémoire** et non pour le fichier :
+
+| champ | décalage |
+|---|---:|
+| `Construct` (or) | +0x0c |
+| `DailyCosts` | +0x12 |
+| `Nations` | +0x1a |
+| `Masts` | +0x1b |
+| `Gauge` | +0x1c |
+| matériaux (5 octets) | +0x1d … +0x21 |
