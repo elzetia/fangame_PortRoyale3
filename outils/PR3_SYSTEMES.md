@@ -801,10 +801,11 @@ Cinq niveaux : **porté** (dans `sim/`), **décodé** (math/structure exacte lue
 | Réputation par ville (commerce) | **porté** |
 | Navires (16 types, cale, vitesse, entretien), carte, eau, formats | **porté / décodé** |
 | Convois : taille (420÷1900), composition, routes à ordres `set_goods`, 9 stratégies | **décodé** ; modèle porté |
+| Convois IA : combien par marchand — `Konvois` (2) **par comptoir**, acteurs/ordres/états/`aitype` | **décodé** ; le MULTIPLICATEUR (taille du vecteur de comptoirs) n'est pas mesuré, et le NOMBRE de marchands IA est hors de portée statique |
 | Bâtiments : coûts, matériaux, effets (école, hôpital, ambassade…) | **décodé** |
 | Chantier : 5 onglets (build/buy/sell/repair), stats `[Ship%02u]`, limites, réparation, montée de niveau | **décodé** (mécanisme) ; recette de construction **bloquée-dynamique** |
 | Journée d'une ville : les 20 étapes de `0x7C2D20`, dans l'ordre | **décodé** |
-| Diplomatie : 18 rangs à la richesse, licences, donations, lettres de marque | **sémantique** ; seuils numériques (convois 3→100, `[Licence]`, `[Requirements%02u]`, `[MinRank]`) **décodés**, titres/courbe de richesse dans les `.fuk` |
+| Diplomatie : 18 rangs à la richesse, licences, donations, lettres de marque | **sémantique** ; seuils numériques (`[Limits] maxConvoys` 100, `[Licence]`, `[Requirements%02u]`, `[MinRank]`) **décodés**, titres/courbe de richesse dans les `.fuk`. Le POINT DE DÉPART du droit aux convois n'est pas décodé : `[Initial] Konvois` n'a rien à voir avec lui (voir « Diplomatie, rangs et lettres de marque ») |
 | Réputation de nation, dérive sinusoïdale (`Offset`/`Amplitude`/`Phase`) | **sémantique** |
 | Pirates, tempêtes, sauterelles, mines, patrouilles, météo | **décodé** (paramètres) |
 | Signaux de ville (conseiller) — taxonomie | **décodé** |
@@ -821,7 +822,7 @@ Cinq niveaux : **porté** (dans `sim/`), **décodé** (math/structure exacte lue
 **Verdict.** Toute la logique de JEU lisible statiquement est décortiquée : l'économie
 entière (portée dans la sim), les convois et le commerce, la ville et sa population,
 la diplomatie, les fléaux, les bâtiments. Ne restent hors de portée du binaire figé
-que **trois choses, par nature** :
+que **quatre choses, par nature** :
 
 1. **Les formules de combat** (puissance, dégâts, abordage) — calculées et mises en
    cache dans la couche de composants ECS, elles ne s'exposent pas en clair ; leur
