@@ -534,6 +534,15 @@ compétences `skill0…skill5` et un `learn`), `GoodsContainer`, `TradeContainer
 donc des **compétences qui progressent**, et le commerce automatique passe par un
 `StoreKeeper` sur des `Route` persistantes — celles-là mêmes que le joueur trace.
 
+Cette liste n'est plus relevée à la main : **`py -3 outils/pr3_classes.py`** la
+régénère, avec l'adresse de chaque inspecteur, et extrait en plus les **71 classes
+du moteur et de l'interface** (`Render::*`, `NGUI::*`, `Client::*Component`) que
+le studio déclare par son RTTI maison (`TypeIdSetupGmRtti`). Deux mises en garde
+que l'outil répète : PR3 est compilé **sans RTTI MSVC** (`??_R0` × 0), et les
+inspecteurs **n'énumèrent pas les champs** de leur classe — leurs corps sont
+identiques à une constante près, celle de la fabrique créée par type. On a donc
+des noms, pas des dispositions mémoire.
+
 **À quai**, un convoi passe `Einlaufzeit` (128) à entrer, puis `Einkaufszeit` et
 `Verkaufszeit` (64 chacun). Le détail de la décision — quelle ville viser, quoi
 charger — vit dans cette hiérarchie de classes (`StoreKeeper` / `TradeContainer`
