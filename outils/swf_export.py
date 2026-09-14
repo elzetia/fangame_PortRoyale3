@@ -61,7 +61,13 @@ def place(d,body,code):
     f2=b.u(8) if code==70 else 0
     depth=struct.unpack_from("<H",d,b.p)[0]; b.p+=2
     klass=None
-    if code==70 and ((f2 & 0x08) or ((f2 & 0x10) and (f1 & 0x02))):
+    # Le nom de classe n'est la QUE si HasClassName (0x08). La spec SWF ajoute
+    # « ou HasImage(0x10) et HasCharacter(0x02) », mais Scaleform/Iggy n'emet
+    # alors AUCUNE chaine : la lire consomme des octets de bourrage, decale tout
+    # ce qui suit et fabrique de faux charId. C'est ce qui rendait « char 64 »
+    # pour 269 symboles de skinlib_pr3 ; sans cette clause, la table classe ->
+    # image passe de 412 a 599 entrees justes sur 681.
+    if code==70 and (f2 & 0x08):
         klass,b.p=strz(d,b.p)
     cid=None
     if f1 & 0x02:

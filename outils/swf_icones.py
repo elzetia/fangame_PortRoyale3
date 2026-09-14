@@ -55,16 +55,21 @@ while o<len(d)-2:
         while p<body+ln-1:
             srh=struct.unpack_from("<H",d,p)[0]; hp=p; p+=2
             sc=srh>>6; sl=srh&0x3f
-            if sl==0x3f: sl=struct.unpack_from("<I",d,p)[0]; p+=4
+            # Forme LONGUE : il faut retenir le fait AVANT d'ecraser `sl`, sinon
+            # l'avancement compte un en-tete de 2 octets la ou il en fait 6.
+            longue = (sl==0x3f)
+            if longue: sl=struct.unpack_from("<I",d,p)[0]; p+=4
             if sc==0: break
             if sc==26:
                 f=d[p]
                 if f&2: kids.append(struct.unpack_from("<H",d,p+3)[0])
             elif sc==70:
                 f1=d[p]; f2=d[p+1]; q=p+4
-                if (f2&0x08) or ((f2&0x10) and (f1&0x02)): _,q=strz(d,q)
+                # Nom de classe seulement si HasClassName : Scaleform n'en met
+                # pas pour HasImage, et le lire fabrique de faux charId.
+                if f2&0x08: _,q=strz(d,q)
                 if f1&0x02: kids.append(struct.unpack_from("<H",d,q)[0])
-            p=hp+(6 if sl==0x3f else 2)+sl
+            p=hp+(6 if longue else 2)+sl
         sprites[sid]=kids
     elif code in (2,22,32,83):
         shapes[struct.unpack_from("<H",d,body)[0]]=(code,body,ln)
