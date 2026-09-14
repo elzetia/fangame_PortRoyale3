@@ -1228,6 +1228,18 @@ func _selectionner(indice: int) -> void:
 	sim.selectionner_convoi(_convoi_selectionne)
 
 
+# Plus aucun convoi commandé.
+#
+# On ne prévient PAS la simulation, et c'est délibéré : son `Compagnie.selection`
+# désigne le convoi avec qui le comptoir négocie, et la vider ferait perdre
+# l'interlocuteur du port. Ici tout ce qui lit `_convoi_selectionne` tolère déjà
+# l'absence — `_convoi_par_indice` rend {}, la vignette se referme, le clic droit
+# ne commande rien, et la caméra comme le bureau du port ont leur repli.
+func _deselectionner() -> void:
+	_convoi_selectionne = -1
+	queue_redraw()
+
+
 # L'indice du convoi du joueur sous un point du monde, ou -1. Sert à en sélectionner
 # un d'un clic en pleine mer.
 func _convoi_sous_monde(monde: Vector2) -> int:
@@ -1707,12 +1719,22 @@ func _clic_gauche() -> void:
 		# ne s'ouvrent que si un convoi du joueur est à ce port.
 		_radial.ouvrir(port, get_viewport().get_mouse_position(), _joueur_au_port(port))
 		return
-	# Pas de port : on sélectionne un convoi du joueur en pleine mer (anneau d'or).
-	# Un clic dans le vide garde le convoi courant — il y en a toujours un de
-	# commandé, pour le comptoir comme pour le clic droit.
+	# Pas de port : on sélectionne un convoi du joueur en pleine mer (anneau d'or),
+	# et un clic dans le VIDE désélectionne.
+	#
+	# PR3 a bien cet ordre : `ID_LEGEND_ORDER_CONVOYDESELECT`, « Désélectionner le
+	# convoi », dans la légende des ordres de la carte maritime — aux côtés de
+	# `CONVOYSELECT`, `CONVOYTARGETPOS` et `CONVOYPATROL`. En revanche le GESTE qui
+	# le déclenche n'est PAS dans la table de textes : les seules légendes de
+	# commandes qui s'y trouvent (`ID_LEGEND_PC_HUD_*`) concernent le mode
+	# construction et les routes. Le clic gauche à vide est donc DÉDUIT, pas relevé
+	# — c'est le seul aboutissement inutilisé du clic gauche, et il n'entre en
+	# conflit avec rien.
 	var ic := _convoi_sous_monde(monde)
 	if ic != -1:
 		_selectionner(ic)
+	else:
+		_deselectionner()
 
 
 # Le joueur a-t-il un convoi à quai dans ce port ? Tout est convoi désormais.
