@@ -4,6 +4,7 @@
 -- Tout le reste de sim/ reste du Lua portable.
 
 local Archipel     = require("sim.archipel")
+local Exploration  = require("sim.exploration")
 local Navigation   = require("sim.navigation")
 local Calendrier   = require("sim.calendrier")
 local Marchandises = require("sim.marchandises")
@@ -125,6 +126,36 @@ end
 -- Construit la grille de navigation. À appeler une fois au démarrage.
 function Bridge.preparer_navigation()
   return Navigation.construire()
+end
+
+
+-- --- ce que le joueur a découvert ---------------------------------------------
+
+-- Cette ville a-t-elle été découverte ?
+--
+-- Chez PR3 la carte montre TOUT LE MONDE — « d'autres villes vont apparaître
+-- quand vous les découvrirez » (`ID_PLAYER_TIPP_A00_TEXT`). C'est donc l'ENTITÉ
+-- qui manque tant qu'on ne l'a pas approchée, jamais le terrain.
+function Bridge.ville_decouverte(cle)
+  return Exploration.ville_decouverte(cle)
+end
+
+-- Combien de villes découvertes — le compteur que PR3 tient lui aussi
+-- (`ID_GUI_OUTGAME_MENU_DISCOVERED_TOWNS`, « Villes découvertes »).
+function Bridge.villes_decouvertes()
+  return Exploration.nombre_decouvertes()
+end
+
+-- Monte dès qu'une ville est découverte : le moteur s'en sert pour ne refaire ses
+-- marqueurs que lorsque quelque chose a changé.
+function Bridge.exploration_version()
+  return Exploration.version
+end
+
+-- Ce point est-il sous les yeux d'un convoi du joueur EN CE MOMENT ? À la
+-- différence d'une ville, voir un navire ne s'acquiert pas : il bouge.
+function Bridge.en_vue(x, z)
+  return Exploration.en_vue(x, z)
 end
 
 -- Route maritime entre deux points, en points de passage successifs.

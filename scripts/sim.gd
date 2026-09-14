@@ -114,6 +114,30 @@ func marchands() -> Array:
 	return r if r is Array else []
 
 
+# --- ce que le joueur a découvert ---------------------------------------------
+
+# Une ville n'apparaît sur la carte qu'une fois approchée par un convoi ; ensuite
+# elle y reste. Un convoi étranger, lui, ne se voit que tant qu'on l'a en vue.
+func ville_decouverte(cle: String) -> bool:
+	var r = _appel("ville_decouverte", [cle])
+	return bool(r) if r != null else false
+
+
+func villes_decouvertes() -> int:
+	var r = _appel("villes_decouvertes", [])
+	return int(r) if r != null else 0
+
+
+func exploration_version() -> int:
+	var r = _appel("exploration_version", [])
+	return int(r) if r != null else 0
+
+
+func en_vue(x: float, z: float) -> bool:
+	var r = _appel("en_vue", [x, z])
+	return bool(r) if r != null else false
+
+
 # --- routes commerciales automatiques du joueur ------------------------------
 
 func strategies() -> Array:

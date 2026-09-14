@@ -147,6 +147,34 @@ func _init() -> void:
 			if not bool(f.get("a_quai", false)) and r.is_empty():
 				_rater("convoi %s : en mer mais sans route" % f.get("nom", "?"))
 
+	# --- ce que le joueur a decouvert -----------------------------------------
+	#
+	# CE BLOC EXISTE PARCE QUE RIEN D'AUTRE NE PEUT L'ATTRAPER. `test_compilation`
+	# ne compile que du GDScript : un `require` circulaire cote Lua, ou une
+	# fonction de pont qui rendrait autre chose que ce qu'on attend, lui echappent
+	# entierement.
+	#
+	# CHEZ PR3 LA CARTE MONTRE TOUT LE MONDE ; ce sont les VILLES qui manquent tant
+	# qu'on ne les a pas approchees (`ID_PLAYER_TIPP_A00_TEXT`). On verifie donc un
+	# compteur d'entites, pas une surface.
+	var decouvertes := sim.villes_decouvertes()
+	print("villes decouvertes : %d / %d" % [decouvertes, ports.size()])
+	if decouvertes < 0 or decouvertes > ports.size():
+		_rater("villes decouvertes : %d hors de 0..%d" % [decouvertes, ports.size()])
+	# AU DEPART, AUCUNE N'EST DECOUVERTE : le convoi de depart est a quai et n'a
+	# pas encore ete pilote. Si la carte etait deja ouverte ici, c'est que la
+	# decouverte se ferait ailleurs qu'a l'approche, et elle ne voudrait rien dire.
+	if decouvertes != 0:
+		_rater("villes decouvertes : %d au demarrage, 0 attendu" % decouvertes)
+	# Et le premier port ne doit pas l'etre non plus.
+	var cle0 := String((ports[0] as Dictionary).get("cle", ""))
+	if sim.ville_decouverte(cle0):
+		_rater("%s est decouverte avant d'avoir ete approchee" % cle0)
+	# Aucun oeil pose tant qu'aucun convoi n'a navigue : rien n'est en vue.
+	if sim.en_vue(0.0, 0.0):
+		_rater("un point est « en vue » alors qu'aucun convoi n'a navigue")
+	print("  version %d, rien en vue au demarrage : ok" % sim.exploration_version())
+
 	# --- compagnie : ce que la PLANCHE DROITE consomme -----------------------
 	# Rien n'exercait `etat_compagnie`. Or la planche droite y prend l'or ET le
 	# RANG : un champ absent cote Lua ne se verrait que par un HUD muet, sans

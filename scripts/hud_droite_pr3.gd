@@ -143,7 +143,6 @@ const PIECE_TAILLE := Vector2(12, 12)
 const ECART_PIECE := 3.0
 
 var _piece: TextureRect = null
-var _villes_posees := false
 # Les quatre bords du cadre de vue, gardés d'une image à l'autre : les recréer à
 # chaque rafraîchissement ferait soixante allocations par seconde pour rien.
 var _vue: Array[ColorRect] = []
@@ -253,10 +252,21 @@ func _pastille(hote: Control, cle: String, centre: Vector2) -> void:
 # n'utilise que la première : le pont n'expose pas encore de drapeau « comptoir »,
 # et je ne vais pas deviner lesquelles le sont.
 func poser_villes(ports: Array, proj: ProjectionCarte) -> void:
-	if _villes_posees or proj == null or not proj.valide:
+	if proj == null or not proj.valide:
 		return
 	var hote := EcranPR3.champ(_plateau, "towns")
 	if hote == null:
+		return
+	# ELLES NE SONT PLUS POSÉES UNE FOIS POUR TOUTES. Une ville n'apparaît qu'une
+	# fois DÉCOUVERTE — « d'autres villes vont apparaître quand vous les
+	# découvrirez » —, donc la liste grandit en cours de partie : un verrou
+	# définitif l'aurait figée sur celles qu'on connaît au départ.
+	#
+	# On compte donc les enfants déjà posés — DEUX par ville, la pastille et sa
+	# zone cliquable — et l'on ne rebâtit que si ce compte a changé. Pas à chaque
+	# image non plus : les soixante boutons qu'elle porte ne survivraient pas à un
+	# rebâti par image.
+	if hote.get_child_count() == ports.size() * 2:
 		return
 	for e in hote.get_children():
 		e.queue_free()
@@ -277,7 +287,6 @@ func poser_villes(ports: Array, proj: ProjectionCarte) -> void:
 		var cle := str(d.get("cle", ""))
 		zone.pressed.connect(func() -> void: ville_choisie.emit(cle))
 		hote.add_child(zone)
-	_villes_posees = true
 
 
 # Les convois du joueur, relus à chaque image : ceux-là bougent.

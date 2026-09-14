@@ -740,7 +740,21 @@ func _draw() -> void:
 		_dessiner_marque_convoi(port)
 
 
+# Une ville n'est sur la carte QUE SI le joueur l'a découverte — « d'autres villes
+# vont apparaître quand vous les découvrirez » (`ID_PLAYER_TIPP_A00_TEXT`), et
+# « pour découvrir une ville, vous devez en approcher avec votre convoi »
+# (`ID_TUTORIAL_A04_TEXT2`).
+#
+# LE TERRAIN, LUI, RESTE TOUJOURS VISIBLE : la carte maritime « montre tout le
+# monde du jeu ». Port Royale 3 n'a pas de voile, et une première version de ce
+# travail en avait posé un à tort — c'est l'entité qui manque, jamais le décor.
+func _ville_vue(port: Dictionary) -> bool:
+	return sim.ville_decouverte(String(port.get("cle", "")))
+
+
 func _dessiner_port(port: Dictionary) -> void:
+	if not _ville_vue(port):
+		return
 	var bourg: Vector3 = port["bourg"]
 	var rade: Vector3 = port["rade"]
 	var p := proj.vers_carte(bourg.x, bourg.z, 14.0)   # un peu au-dessus du sol
@@ -886,6 +900,8 @@ func _geometrie_cartouche(port: Dictionary) -> Dictionary:
 # passe EN DESSOUS des étiquettes : deux ports voisins se chevauchent souvent,
 # et c'est alors le nom qu'il faut pouvoir lire, pas la marchandise du voisin.
 func _dessiner_besoin(port: Dictionary) -> void:
+	if not _ville_vue(port):
+		return
 	var cle_besoin := str(_besoins.get(port["cle"], ""))
 	if cle_besoin == "":
 		return
@@ -902,6 +918,8 @@ func _dessiner_besoin(port: Dictionary) -> void:
 
 # Passe 2 : la plaque et le nom.
 func _dessiner_nom(port: Dictionary) -> void:
+	if not _ville_vue(port):
+		return
 	var g := _geometrie_cartouche(port)
 	var r: Rect2 = g["nom"]
 	var t_ecran: int = g["t_ecran"]
@@ -930,6 +948,8 @@ func _convoi_du_joueur_au_port(cle: String) -> bool:
 # Un petit sceau d'or au bord de la plaque quand un de tes convois y est à quai :
 # d'un coup d'œil sur la carte, on sait où sont ses navires.
 func _dessiner_marque_convoi(port: Dictionary) -> void:
+	if not _ville_vue(port):
+		return
 	if not _convoi_du_joueur_au_port(String(port.get("cle", ""))):
 		return
 	var g := _geometrie_cartouche(port)
@@ -950,6 +970,8 @@ func _dessiner_marque_convoi(port: Dictionary) -> void:
 # Passe 3 : le pavillon, tout au-dessus. Il mord sur le filet supérieur de la
 # plaque — voir CART_CHEVAUCHE.
 func _dessiner_pavillon(port: Dictionary) -> void:
+	if not _ville_vue(port):
+		return
 	var g := _geometrie_cartouche(port)
 	var rect: Rect2 = g["pavillon"]
 	Pavillon.dessiner(self, str(port.get("nation_cle", "")), rect)
@@ -1115,6 +1137,11 @@ func _dessiner_marchands() -> void:
 		# faisait disparaître la moitié du temps, et l'archipel semblait vide.
 		var quai := bool(m.get("a_quai", false))
 		var pos: Vector2 = m["position"]
+		# UN CONVOI ÉTRANGER NE SE VOIT QUE SOUS LES YEUX D'UN DES NÔTRES, ici et
+		# maintenant. À la différence d'une ville, voir un navire ne s'acquiert
+		# pas : il bouge, donc la vue se reperd dès qu'on s'éloigne.
+		if not sim.en_vue(pos.x, pos.y):
+			continue
 		var p := proj.vers_carte(pos.x, pos.y)
 		var a := proj.angle_ecran(cos(float(m["cap"])), sin(float(m["cap"])))
 
@@ -2063,10 +2090,20 @@ func _maj_hud() -> void:
 				_vignette.poser_details(vu)
 				_vignette.poser_route(vu)
 				_vignette.poser_cargaison(vu.get("lots", []))
-		# La minimap : les soixante villes une fois pour toutes, les convois à
-		# chaque image. `poser_villes` se garde lui-même contre la répétition.
-		if not ports.is_empty():
-			_hud_droite.poser_villes(ports, proj)
+		# LA MINIMAP NE MONTRE QUE LES VILLES DÉCOUVERTES, comme la grande carte :
+		# « d'autres villes vont apparaître quand vous les découvrirez »
+		# (`ID_PLAYER_TIPP_A00_TEXT`). Elle n'est donc plus posée une fois pour
+		# toutes — `poser_villes` se rebâtit quand le compte change.
+		#
+		# LE FILTRAGE EST FAIT ICI, PAR LA CARTE, et pas dans la planche : celle-ci
+		# ne reçoit que des données simples et ignore la simulation, ce qui est
+		# exactement ce qui permet à `test_minimap` de l'exercer seule. Lui passer
+		# `sim` pour la commodité casserait cette propriété.
+		var villes_vues: Array = []
+		for p in ports:
+			if sim.ville_decouverte(String((p as Dictionary).get("cle", ""))):
+				villes_vues.append(p)
+		_hud_droite.poser_villes(villes_vues, proj)
 		_hud_droite.poser_convois(convois, proj)
 		# Les routes de TOUS les convois, telles que la SIM les suit — `m.route`,
 		# pas un chemin recalculé pour l'occasion. La planche distingue elle-même

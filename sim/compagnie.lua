@@ -9,6 +9,7 @@
 -- transaction ne doit jamais pouvoir réussir à moitié.
 
 local Archipel     = require("sim.archipel")
+local Exploration  = require("sim.exploration")
 local Economie     = require("sim.economie")
 local Marchandises = require("sim.marchandises")
 local Navires      = require("sim.navires")
@@ -515,8 +516,17 @@ end
 -- Fait avancer les convois automatiques du joueur d'un pas de `jours`. Appelé par
 -- le pont, en même temps que les convois de l'IA.
 function Compagnie.avancer_convois(jours)
+  -- Les yeux d'hier ne valent pas pour aujourd'hui : on les efface avant de
+  -- repiloter, sinon un convoi laisserait derrière lui un champ de vision qu'il
+  -- a quitté, et les navires étrangers resteraient visibles dans son sillage.
+  Exploration.oublier_les_yeux()
   for _, m in ipairs(Compagnie.convois) do
     Marchands.piloter(m, jours)
+    -- CE SONT LES CONVOIS QUI DÉCOUVRENT LES VILLES — « pour découvrir une ville,
+    -- vous devez en approcher avec votre convoi » —, et on le fait APRÈS les
+    -- avoir pilotés, pour que la découverte suive la position réelle et non
+    -- celle du pas précédent.
+    Exploration.approcher(m.x, m.z, Exploration.portee_de(m))
   end
 end
 
