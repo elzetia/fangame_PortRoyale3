@@ -1985,14 +1985,20 @@ func _maj_hud() -> void:
 	# — c'est ce que PR3 met derrière `tf_on_sea` et `tf_anchor`.
 	if _hud_droite != null:
 		var compagnie := sim.etat_compagnie()
+		var convois := sim.convois_joueur()
 		var en_mer := 0
 		var a_quai := 0
-		for m in sim.convois_joueur():
+		for m in convois:
 			if bool((m as Dictionary).get("a_quai", false)):
 				a_quai += 1
 			else:
 				en_mer += 1
 		_hud_droite.poser(int(compagnie.get("or_", 0)), en_mer, a_quai)
+		# La minimap : les soixante villes une fois pour toutes, les convois à
+		# chaque image. `poser_villes` se garde lui-même contre la répétition.
+		if not ports.is_empty():
+			_hud_droite.poser_villes(ports, proj)
+		_hud_droite.poser_convois(convois, proj)
 
 	# La cargaison du convoi sélectionné et l'or en caisse.
 	if _lbl_cargaison != null:
