@@ -81,29 +81,34 @@ ECHELLE_CASE = 12.0
 
 
 def lire_vue():
-    """(vue_x, vue_y) de `carte_cuite.json`. Le centre y est a [0, 0]."""
+    """(vue, centre) de `carte_cuite.json`, chacun en (x, y).
+
+    LE CENTRE N'EST PLUS SUPPOSE NUL. Il l'etait tant que la carte etait calee en
+    faisant coincider deux emprises de terre, ce qui la laissait centree par
+    construction. Le recalage sur le relief de PR3 (`outils/caler_masque.py`) le
+    deplace d'environ [-60, -238], et refuser un centre non nul bloquerait toute
+    la chaine de regeneration au premier maillon.
+    """
     fiche = json.load(io.open(os.path.join(RACINE, "carte_cuite.json"),
                               encoding="utf-8"))
     v = fiche["vue_taille"]
     c = fiche.get("centre", [0.0, 0.0])
-    if abs(c[0]) > 0.5 or abs(c[1]) > 0.5:
-        raise SystemExit("centre non nul : ce script suppose [0, 0]")
-    return float(v[0]), float(v[1])
+    return (float(v[0]), float(v[1])), (float(c[0]), float(c[1]))
 
 
-def case_de_pixel(x, y, iw, ih, mw, mh, vue):
-    cx = (x / float(iw) - 0.5) * (vue[0] / ECHELLE_CASE) + mw / 2.0
-    cz = (y / float(ih) - 0.5) * (vue[1] / ECHELLE_CASE) + mh / 2.0
+def case_de_pixel(x, y, iw, ih, mw, mh, vue, centre):
+    cx = (centre[0] + (x / float(iw) - 0.5) * vue[0]) / ECHELLE_CASE + mw / 2.0
+    cz = (centre[1] + (y / float(ih) - 0.5) * vue[1]) / ECHELLE_CASE + mh / 2.0
     return int(cx), int(cz)
 
 
-def pixel_de_case(cx, cz, iw, ih, mw, mh, vue):
-    x = iw * (0.5 + (cx + 0.5 - mw / 2.0) * ECHELLE_CASE / vue[0])
-    y = ih * (0.5 + (cz + 0.5 - mh / 2.0) * ECHELLE_CASE / vue[1])
+def pixel_de_case(cx, cz, iw, ih, mw, mh, vue, centre):
+    x = iw * (0.5 + ((cx + 0.5 - mw / 2.0) * ECHELLE_CASE - centre[0]) / vue[0])
+    y = ih * (0.5 + ((cz + 0.5 - mh / 2.0) * ECHELLE_CASE - centre[1]) / vue[1])
     return int(x), int(y)
 
 
-def couleur_du_large(ipx, iw, ih, mw, mh, terre, prof, vue):
+def couleur_du_large(ipx, iw, ih, mw, mh, terre, prof, vue, centre):
     """La couleur de l'eau a plus de TRANSPARENT_DES cases de toute cote."""
     r = v = b = n = 0
     for cz in range(mh):
@@ -111,7 +116,7 @@ def couleur_du_large(ipx, iw, ih, mw, mh, terre, prof, vue):
             i = cz * mw + cx
             if terre[i] or prof[i] // 5 < TRANSPARENT_DES:
                 continue
-            ix, iy = pixel_de_case(cx, cz, iw, ih, mw, mh, vue)
+            ix, iy = pixel_de_case(cx, cz, iw, ih, mw, mh, vue, centre)
             if not (0 <= ix < iw and 0 <= iy < ih):
                 continue
             s = (iy * iw + ix) * 4
@@ -126,11 +131,11 @@ def main():
     iw, ih, ipx = ci.lire_png(os.path.join(RACINE, "carte_cuite.png"))
     print("illustration %d x %d, masque %d x %d" % (iw, ih, mw, mh))
 
-    vue = lire_vue()
-    print("vue_taille %s : le monde couvert par l'image" % (vue,))
+    vue, centre = lire_vue()
+    print("vue_taille %s, centre %s : le monde couvert par l'image" % (vue, centre))
     mer = [not terre[i] for i in range(mw * mh)]
     prof = ci.chanfrein(mer, mw, mh)          # le chanfrein compte 5 par case
-    fond, n_large = couleur_du_large(ipx, iw, ih, mw, mh, terre, prof, vue)
+    fond, n_large = couleur_du_large(ipx, iw, ih, mw, mh, terre, prof, vue, centre)
     print("couleur du large : %s  (sur %d cases)" % (fond, n_large))
 
     # Alpha par CASE du masque, puis lu par pixel : le masque est la seule
@@ -152,12 +157,12 @@ def main():
     sortie = bytearray(iw * ih * 4)
     recifs = 0
     for y in range(ih):
-        _, cz = case_de_pixel(0, y, iw, ih, mw, mh, vue)
+        _, cz = case_de_pixel(0, y, iw, ih, mw, mh, vue, centre)
         dehors_y = not (0 <= cz < mh)
         for x in range(iw):
             s = (y * iw + x) * 4
             d = (y * iw + x) * 4
-            cx, _ = case_de_pixel(x, 0, iw, ih, mw, mh, vue)
+            cx, _ = case_de_pixel(x, 0, iw, ih, mw, mh, vue, centre)
             # Hors du monde jouable (le cadre de bois) : on garde l'image telle
             # quelle, la nappe animee ne va pas jusque-la.
             if dehors_y or not (0 <= cx < mw):

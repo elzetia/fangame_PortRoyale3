@@ -75,23 +75,32 @@ const MINIMAP := Vector2(196, 156)
 # Le cadrage de 12.png par rapport à la grande carte. MESURÉ, pas deviné, par
 # `outils/test_minimap.gd` : on projette les soixante ports et on regarde à
 # quelle distance du littoral ils tombent.
-#   sans cadrage : 32 ports à 1 px ou moins, 16 au-delà de 4 px, aucun hors cadre
-#   avec         : 47 à 1 px ou moins, AUCUN au-delà de 4, aucun hors cadre
-# La moyenne passe de 3,0 px à 0,7 px. Les échecs sans cadrage sont groupés —
+#   sans cadrage : 31 ports à 1 px ou moins, 11 au-delà de 4 px, aucun hors cadre
+#   avec         : 48 à 1 px ou moins, AUCUN au-delà de 4, aucun hors cadre
+# La moyenne passe de 2,7 px à 0,6 px. Les échecs sans cadrage sont groupés —
 # le golfe du Mexique, puis tout l'arc des Petites Antilles — donc systématiques.
 #
 # CES QUATRE NOMBRES DÉPENDENT DE LA PROJECTION DE LA GRANDE CARTE, et ils ont
-# été refaits le jour où le décor est passé de l'illustration à la carte de Port
-# Royale 3 : `vue_taille` a changé (17280 x 11940 au lieu de 15840 x 10392),
-# donc un même port ne tombe plus au même endroit relatif. Les anciennes valeurs
-# (1,070 / 0,020 / 0,930 / 0,025) faisaient alors remonter la moyenne à 2,1 px
-# et rejetaient onze ports au-delà de 4. Si la fiche de projection rebouge, il
-# faut relire ce que `outils/test_minimap.gd` propose sous « MEILLEUR
-# ajustement » et réécrire ces quatre lignes — le test les cherche pour ça.
+# déjà été refaits DEUX FOIS pour cette raison :
+#
+#   1. quand le décor est passé de l'illustration à la carte de Port Royale 3
+#      (`vue_taille` 15840 x 10392 -> 17280 x 11940). Les valeurs d'avant
+#      (1,070 / 0,020 / 0,930 / 0,025) laissaient la moyenne à 2,1 px et onze
+#      ports au-delà de 4 ;
+#   2. quand le masque de navigation a été recalé sur le relief de PR3
+#      (`outils/caler_masque.py` : accord 83,20 % -> 88,97 %). La fiche y a pris
+#      un centre non nul et `vue_taille.y` a perdu 3,55 %. SEUL L'AXE V BOUGE,
+#      1,090 / 0,030 -> 1,040 / 0,010, et c'est cohérent : ce recalage-là était
+#      vertical (+34,7 px) et quasi nul en x (-3,6 px).
+#
+# Si la fiche de projection rebouge encore, relire ce que `outils/test_minimap.gd`
+# propose sous « MEILLEUR ajustement » et réécrire ces quatre lignes. Le test les
+# cherche pour ça, et il dit quand le code livré cesse de les reproduire — c'est
+# exactement ainsi que la deuxième reprise a été détectée.
 const CADRAGE_KU := 1.170
 const CADRAGE_DU := 0.020
-const CADRAGE_KV := 1.090
-const CADRAGE_DV := 0.030
+const CADRAGE_KV := 1.040
+const CADRAGE_DV := 0.010
 
 # Les marqueurs de PR3, tous en 8x8 centrés sur leur point.
 const PASTILLE := Vector2(8, 8)

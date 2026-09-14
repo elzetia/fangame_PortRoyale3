@@ -92,9 +92,10 @@ def main():
                               encoding="utf-8"))
     vue = fiche["vue_taille"]
     pixels = fiche["pixels"]
+    # LE CENTRE N'EST PLUS SUPPOSE NUL : le recalage du masque sur le relief de
+    # PR3 (`outils/caler_masque.py`) le deplace. On le fait donc entrer dans le
+    # placement, au lieu de refuser de travailler.
     centre = fiche.get("centre", [0.0, 0.0])
-    if abs(centre[0]) > 0.5 or abs(centre[1]) > 0.5:
-        raise SystemExit("centre non nul : cet outil suppose [0, 0]")
 
     mw, mh, terre = lire_masque()
     fw, fh = pixels[0] // REDUCTION, pixels[1] // REDUCTION
@@ -120,13 +121,15 @@ def main():
     total = [0] * (fw * fh)
     creux = [None] * (fw * fh)
     for cz in range(mh):
-        v = (cz + 0.5) / mh - 0.5
-        py = int((0.5 + v * part_y) * fh)
+        # On passe par le MONDE, comme le moteur : case -> monde -> pixel. La
+        # simple proportion ne suffit plus des lors que le centre n'est pas nul.
+        z = (cz + 0.5 - mh / 2.0) * ECHELLE_CASE
+        py = int((0.5 + (z - centre[1]) / vue[1]) * fh)
         if not (0 <= py < fh):
             continue
         for cx in range(mw):
-            u = (cx + 0.5) / mw - 0.5
-            px = int((0.5 + u * part_x) * fw)
+            x = (cx + 0.5 - mw / 2.0) * ECHELLE_CASE
+            px = int((0.5 + (x - centre[0]) / vue[0]) * fw)
             if not (0 <= px < fw):
                 continue
             j = py * fw + px

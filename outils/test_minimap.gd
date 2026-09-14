@@ -34,11 +34,14 @@ const LOIN := 99            # distance sentinelle
 # LA COPIE EST VOULUE, ne pas la remplacer par une lecture de `HudDroitePR3` :
 # une attente qui lit la valeur qu'elle verifie ne verifie plus rien.
 #
-# Refait le jour ou le decor est passe de l'illustration a la carte de Port
-# Royale 3 : `vue_taille` ayant change, les quatre constantes de la planche ont
-# ete reajustees (1,070/0,930 -> 1,170/1,090) et cette attente-ci les suit.
+# Refait DEUX FOIS, chaque fois que la projection de la grande carte a bouge :
+#   1. le decor passe de l'illustration a la carte de Port Royale 3
+#      (1,070/0,930 -> 1,170/1,090) ;
+#   2. le masque de navigation recale sur le relief de PR3 -- la fiche prend un
+#      centre non nul et `vue_taille.y` perd 3,55 %, donc seul l'axe V bouge
+#      (1,090 -> 1,040).
 const CADRAGE_ATTENDU_U := 1.170
-const CADRAGE_ATTENDU_V := 1.090
+const CADRAGE_ATTENDU_V := 1.040
 # La taille de la carte des mers, pour formuler l'attente sans relire l'image.
 const MINIMAP_L := 196.0
 const MINIMAP_H := 156.0
