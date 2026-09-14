@@ -250,6 +250,34 @@ func _init() -> void:
 		print("\n=== clic : %d zones sensibles ===" % zones)
 		print("   la premiere rend la cle « %s »" % str(recu["cle"]))
 
+	# --- la ROUTE ------------------------------------------------------------
+	# Comme le cadre de vue, rien ne l'exerce : on lui donne trois points de
+	# passage CONNUS, pris autour du centre du monde, et on relit le trace.
+	var depart := proj.centre
+	var etapes: Array = [
+		Vector2(proj.centre.x + 2000.0, proj.centre.y),
+		Vector2(proj.centre.x + 2000.0, proj.centre.y + 1500.0)]
+	planche.poser_route(proj, depart, etapes)
+	var route_hote := planche.get_node_or_null("Hud_Woodboard_Right_3/minimap_route")
+	if route_hote == null:
+		print("\n=== route : noeud `minimap_route` INTROUVABLE ===")
+	else:
+		var ligne: Line2D = null
+		for e in route_hote.get_children():
+			var l2 := e as Line2D
+			if l2 != null:
+				ligne = l2
+		if ligne == null:
+			print("\n=== route : aucun trace pose ===")
+		else:
+			print("\n=== route : %d points traces (depart + 2 etapes) ===)"
+				% ligne.points.size())
+			for p in ligne.points:
+				print("   (%.1f, %.1f)" % [p.x, p.y])
+			# Et un convoi A QUAI, sans route : le trace doit se vider.
+			planche.poser_route(proj, depart, [])
+			print("   a quai (route vide) -> %d points" % ligne.points.size())
+
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		var sortie := FileAccess.open(args[0], FileAccess.WRITE)

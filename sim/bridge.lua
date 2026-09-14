@@ -635,6 +635,15 @@ function Bridge.convois_joueur()
     d.selectionne = (i == Compagnie.selection)
     local tete = m.navires and m.navires[1]
     d.modele      = tete and tete.modele or ""
+    -- Les points de passage QUE LE CONVOI SUIT REELLEMENT : `m.route`, posé par
+    -- `tracer_route` et consommé point par point par le déplacement. On les
+    -- expose plutôt que de les recalculer côté moteur — recalculer avec
+    -- `Bridge.route` donnerait un chemin plausible, pas celui qu'il navigue.
+    -- Les entrées sont positionnelles ({x, z}), comme les lit `Marchands`.
+    -- Vide quand il est à quai : `accoster` la vide, et le tracé disparaît.
+    local r = Array()
+    for _, p in ipairs(m.route or {}) do r:append(Vector2(p[1], p[2])) end
+    d.route       = r
     sortie:append(d)
   end
   return sortie

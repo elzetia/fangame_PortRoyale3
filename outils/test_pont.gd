@@ -75,6 +75,29 @@ func _init() -> void:
 		else:
 			print("  cles : ", ", ".join(PackedStringArray(fiche.keys())))
 
+	# --- convois : ce que la MINIMAP consomme --------------------------------
+	# Ce test ne regardait aucun convoi. Or la minimap en dessine les pastilles
+	# et trace la route du convoi choisi : un champ manquant s'y verrait par une
+	# carte vide, sans que rien ne le dise.
+	var convois: Array = sim.convois_joueur()
+	print("convois du joueur : ", convois.size())
+	if convois.is_empty():
+		_rater("aucun convoi : la minimap n'aurait rien a tracer")
+	else:
+		var c0: Dictionary = convois[0]
+		for champ in ["position", "a_quai", "selectionne", "route"]:
+			if not c0.has(champ):
+				_rater("convoi : champ manquant %s" % champ)
+		var trace: Array = c0.get("route", [])
+		print("  premier convoi : %s  a_quai %s  %d point(s) de route" % [
+				c0.get("nom", "?"), c0.get("a_quai"), trace.size()])
+		# Un convoi EN MER doit avoir une route ; a quai, `accoster` la vide.
+		for c in convois:
+			var f: Dictionary = c
+			var r: Array = f.get("route", [])
+			if not bool(f.get("a_quai", false)) and r.is_empty():
+				_rater("convoi %s : en mer mais sans route" % f.get("nom", "?"))
+
 	# --- ville : ce que l'info-ville consomme --------------------------------
 	var etat: Dictionary = sim.etat_ville(str(p0.get("cle", "")))
 	print("etat_ville(%s) : %d champs" % [p0.get("cle", "?"), etat.size()])

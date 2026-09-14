@@ -81,10 +81,17 @@ const OR_CHOISI := Color(1.0, 0.97, 0.80)
 const CADRE_VUE := Color(1.0, 0.95, 0.78, 0.85)
 const CADRE_EPAISSEUR := 1.0
 
+# Le tracé de route, lui aussi dessiné et non extrait. Plus pâle que la pastille
+# d'or du convoi : c'est son chemin, pas lui.
+const TRACE_ROUTE := Color(0.98, 0.86, 0.48, 0.70)
+const TRACE_EPAISSEUR := 1.0
+
 var _villes_posees := false
 # Les quatre bords du cadre de vue, gardés d'une image à l'autre : les recréer à
 # chaque rafraîchissement ferait soixante allocations par seconde pour rien.
 var _vue: Array[ColorRect] = []
+# Le tracé, gardé d'une image à l'autre comme les bords du cadre.
+var _trace: Line2D = null
 
 var _plateau: Control
 var _or: Label
@@ -222,6 +229,41 @@ func poser_convois(convois: Array, proj: ProjectionCarte) -> void:
 		r.position = point - Vector2(1.5, 1.5)
 		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hote.add_child(r)
+
+
+# La route du convoi choisi : les points de passage qu'il suit RÉELLEMENT.
+#
+# Ils viennent de la simulation (`convois_joueur().route`, c'est-à-dire `m.route`
+# de `sim/marchands.lua`) et ne sont pas recalculés ici. La tentation était de
+# refaire le chemin avec `sim.route(position, destination)` : cela aurait donné
+# un tracé plausible, mais pas celui que le convoi navigue.
+#
+# `depart` est sa position courante, sans quoi le trait commencerait au prochain
+# point de passage et flotterait devant sa pastille.
+func poser_route(proj: ProjectionCarte, depart: Vector2, points: Array) -> void:
+	if proj == null or not proj.valide:
+		return
+	var hote := EcranPR3.champ(_plateau, "minimap_route")
+	if hote == null:
+		return
+	if _trace == null:
+		_trace = Line2D.new()
+		_trace.width = TRACE_EPAISSEUR
+		_trace.default_color = TRACE_ROUTE
+		_trace.joint_mode = Line2D.LINE_JOINT_ROUND
+		_trace.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		_trace.end_cap_mode = Line2D.LINE_CAP_ROUND
+		hote.add_child(_trace)
+
+	# Moins de deux points : `Line2D` ne dessine rien, ce qui est exactement ce
+	# qu'on veut d'un convoi à quai.
+	var pts := PackedVector2Array()
+	if not points.is_empty():
+		pts.append(_vers_minimap(proj, depart.x, depart.y))
+		for p in points:
+			var w: Vector2 = p
+			pts.append(_vers_minimap(proj, w.x, w.y))
+	_trace.points = pts
 
 
 # Le cadre de vue : ce que la caméra montre, reporté sur la minimap. `vue` est
