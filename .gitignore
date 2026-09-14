@@ -36,3 +36,21 @@ __pycache__/
 # jeu, et le fait a l'identique (verifie : 0,00 d'ecart, 100 % des pixels).
 #   py -3 outils/carte_ombrage.py     puis     py -3 outils/carte_eau.py
 carte_cuite.png
+
+# --- Les cartes DERIVEES du relief de Port Royale 3 ---
+# Meme raison, et meme (c) Kalypso / Gaming Minds : `carte_relief.png` est son
+# relief reechantillonne, `carte_biome.png` et `carte_champ.png` en derivent, et
+# `carte_cuite_mer.png` est deduit de son masque de navigation.
+#
+# Elles etaient versionnees depuis le premier commit, donc DEJA PUBLIQUES sur
+# origin/main : les retirer ici arrete la diffusion, mais ne les efface pas de
+# l'historique. Reecrire une branche deja publiee est une decision du joueur, pas
+# la mienne.
+#
+# On ne perd rien : chacune a sa recette.
+#   py -3 outils/champ_cote.py   -> carte_relief.png, carte_biome.png, carte_champ.png
+#   py -3 outils/carte_mer.py    -> carte_cuite_mer.png
+carte_relief.png
+carte_biome.png
+carte_champ.png
+carte_cuite_mer.png
