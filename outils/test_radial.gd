@@ -151,6 +151,22 @@ func _lancer() -> void:
 	if manquants == art.size():
 		print("  (aucun art PR3 sur ce poste — le menu reste jouable en repli)")
 
+	# LA ROUE, tiree des ARCHIVES du jeu et non du .swf : `centercircle0`, que
+	# `outils/extraire_selection_pr3.py` sort de `data.fuk`. Elle se charge par
+	# chemin `res://` complet, pas par la forme "<swf>/<id>" des autres.
+	#
+	# Sa TAILLE est le controle utile : 512 x 512. Une autre dimension voudrait
+	# dire qu'on est tombe sur un autre asset -- l'erreur que j'ai deja faite
+	# plusieurs fois en nommant une image d'apres sa voisine.
+	var roue := SkinPR3.fichier("res://reference_pr3/assets/centercircle0.png")
+	if roue == null:
+		print("  roue centercircle0      absente -> la couronne se passe d'elle")
+	else:
+		print("  roue centercircle0      %d x %d" % [roue.get_width(), roue.get_height()])
+		if roue.get_width() != 512 or roue.get_height() != 512:
+			_rater("centercircle0 fait %d x %d, attendu 512 x 512"
+					% [roue.get_width(), roue.get_height()])
+
 	# Et les images posées : avec l'art présent, la couronne doit en porter.
 	radial.ouvrir(port, Vector2(700, 450), true, sim)
 	var images := 0

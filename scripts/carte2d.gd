@@ -1922,9 +1922,31 @@ func _unhandled_input(e: InputEvent) -> void:
 				if not e.pressed:
 					_clic_droit()
 			MOUSE_BUTTON_MIDDLE:
-				_glisse = e.pressed
-				_a_glisse = e.pressed
-				_glisse_bouton = MOUSE_BUTTON_MIDDLE
+				# LE BOUTON DU MILIEU OUVRE LA COURONNE — c'est le geste de Port
+				# Royale 3, où ce menu est sur la molette.
+				#
+				# Il panoramique AUSSI, et les deux doivent cohabiter : on reprend
+				# donc le motif du bouton gauche. `_a_glisse` part à FAUX et ne
+				# passe à vrai qu'au-delà de 5 px de trajet (voir le gestionnaire
+				# de mouvement) ; au relâchement, s'il n'a pas bougé, c'était un
+				# clic.
+				#
+				# Il valait `e.pressed`, donc VRAI dès la pression : la carte
+				# suivait la souris immédiatement, et aucun relâchement ne pouvait
+				# compter comme un clic.
+				#
+				# CE QUI CHANGE : un glissé de moins de 5 px n'entraîne plus la
+				# carte, il ouvre le menu. C'est le compromis déjà accepté à
+				# gauche.
+				if e.pressed:
+					_clic_depart = e.position
+					_a_glisse = false
+					_glisse = true
+					_glisse_bouton = MOUSE_BUTTON_MIDDLE
+				else:
+					_glisse = false
+					if not _a_glisse:
+						_ouvrir_radial(proj.vers_monde(get_global_mouse_position()))
 	# Le trackpad ne parle PAS la langue de la molette. Sur macOS, Godot rend
 	# le glissé à deux doigts comme un InputEventPanGesture et le pincement
 	# comme un InputEventMagnifyGesture : aucun des deux n'est un bouton de
@@ -2108,19 +2130,7 @@ func _clic_gauche() -> void:
 			_selectionner(suivant)
 		return
 
-	var port := _port_survole
-	if port.is_empty():
-		port = _port_proche(monde, RAYON_CLIC_PORT)
-	if not port.is_empty() and _radial != null:
-		# Un port : la couronne s'ouvre au curseur, en pixels écran (elle vit dans
-		# une CanvasLayer, hors de la transformée de la caméra). Dock et chantier
-		# ne s'ouvrent que si un convoi du joueur est à ce port.
-		# `sim` en quatrième argument : le centre de la couronne y prend la
-		# réputation de la ville et les compteurs que PR3 pose sur ses pétales
-		# (convois à l'ancre, navires en construction). L'argument est facultatif,
-		# la couronne s'ouvre sans lui.
-		_radial.ouvrir(port, get_viewport().get_mouse_position(),
-				_joueur_au_port(port), sim)
+	if _ouvrir_radial(monde):
 		return
 	# Pas de port : on sélectionne un convoi du joueur en pleine mer (anneau d'or),
 	# et un clic dans le VIDE désélectionne.
@@ -2138,6 +2148,30 @@ func _clic_gauche() -> void:
 		_selectionner(ic)
 	else:
 		_deselectionner()
+
+
+# Ouvre la couronne sur le port visé, s'il y en a un. Rend VRAI si elle s'ouvre.
+#
+# PARTAGÉE ENTRE DEUX GESTES : le clic gauche, et le bouton du MILIEU qui est
+# celui de Port Royale 3. Deux copies de cette recherche de port finiraient par
+# diverger — c'est déjà arrivé ailleurs dans ce fichier.
+#
+# La couronne s'ouvre au curseur, en pixels ÉCRAN : elle vit dans une CanvasLayer,
+# hors de la transformée de la caméra. Dock et chantier ne s'ouvrent que si un
+# convoi du joueur est à ce port. `sim` en quatrième argument est facultatif — le
+# centre y prend la réputation de la ville et les compteurs que PR3 pose sur ses
+# pétales.
+func _ouvrir_radial(monde: Vector2) -> bool:
+	if _radial == null:
+		return false
+	var port := _port_survole
+	if port.is_empty():
+		port = _port_proche(monde, RAYON_CLIC_PORT)
+	if port.is_empty():
+		return false
+	_radial.ouvrir(port, get_viewport().get_mouse_position(),
+			_joueur_au_port(port), sim)
+	return true
 
 
 # Le joueur a-t-il un convoi à quai dans ce port ? Tout est convoi désormais.

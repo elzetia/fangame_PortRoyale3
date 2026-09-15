@@ -113,6 +113,30 @@ const R_PRODUIT := PR3_GOODS_IC * ECHELLE / 2.0
 const ART_DESACTIVE := "ingame_radial_town/4"    # le disque gris (char7)
 const ART_HALO      := "ingame_radial_town/8"    # l'anneau de sélection (char9..16)
 const ART_LOUPE     := "ingame_radial_town/33"   # « Sélectionner », sur le pétale ville
+
+# LA ROUE DU JEU, et elle n'était pas dans le .swf.
+#
+# `ingame_radial_town.swf` ne porte pour ce fond qu'un `Visual_CR_Radial`, un
+# `customrenderelement` dont le remplissage Flash est un aplat bleu de
+# remplacement — (0, 102, 204), la couleur témoin classique. J'en avais conclu
+# que le moteur peignait les pétales de rien. FAUX : il pose un maillage et une
+# TEXTURE, rangée dans `data.fuk` comme l'était déjà `selectioncircle`. Il
+# fallait chercher dans les archives du jeu, pas seulement dans l'interface.
+#
+# `outils/extraire_selection_pr3.py` la sort ; `reference_pr3/` est ignoré par git.
+#
+# MESURÉE, pas devinée : huit rayons à 0/45/90/135/180/225/270/315 degrés —
+# relevés à trois rayons différents (0,35 / 0,55 / 0,75) —, un anneau lumineux à
+# 0,89 du demi-côté et un moyeu vers 0,05. Les huit rayons tombent exactement sur
+# nos huit pétales, sans rotation à appliquer.
+#
+# SON ALPHA EST PLAT : les 16384 blocs BC3 partagent la paire (64, 65) et les
+# 262144 indices valent 0, donc tous les texels sont à 64. Le dessin vit dans le
+# RGB — sombre partout sauf l'anneau, les rayons et le moyeu. Elle se pose donc
+# en fusion ADDITIVE : en fusion normale, c'est un carré sombre à 25 %.
+const ART_ROUE := "res://reference_pr3/assets/centercircle0.png"
+# Où tombe l'anneau lumineux dans l'image, en fraction du demi-côté.
+const ROUE_ANNEAU := 0.89
 # Les six illustrations de ville. Le septième état d'`Icon_Towns_Big` est un
 # crâne (`ingame_radial_town/30`) : on ne sait pas ce qui le déclenche.
 const ART_VILLES := ["ingame_radial_town/18", "ingame_radial_town/20",
@@ -225,6 +249,7 @@ func ouvrir(port: Dictionary, ecran_pos: Vector2, a_convoi: bool, sim_ref = null
 		clampf(ecran_pos.x, marge, vp.x - marge),
 		clampf(ecran_pos.y, marge, vp.y - marge))
 
+	_roue(c)            # la roue du jeu, SOUS tout le reste (prof 1 chez PR3)
 	for p in PETALES:
 		_petale(c, p)
 	_centre(c)          # le centre EN DERNIER : il passe au-dessus des pétales
@@ -238,6 +263,28 @@ func fermer() -> void:
 # Le libellé de PR3 pour ce pétale, ou le nôtre si la table n'est pas là.
 func _libelle(p: Dictionary) -> String:
 	return LocaPR3.texte(String(p["loca"]), String(p["txt"]))
+
+
+# La roue de PR3, posée sous la couronne. Absente, on ne dessine rien de plus :
+# les pétales et le centre se suffisent, comme avant.
+func _roue(c: Vector2) -> void:
+	var tex := SkinPR3.fichier(ART_ROUE)
+	if tex == null:
+		return
+	# On la dimensionne pour que SON anneau tombe sur le bord extérieur des
+	# pétales : demi-côté = (RAYON + R_PETALE) / 0,89.
+	var demi := (RAYON + R_PETALE) / ROUE_ANNEAU
+	var tr := TextureRect.new()
+	tr.texture = tex
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.size = Vector2(demi, demi) * 2.0
+	tr.position = c - Vector2(demi, demi)
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# FUSION ADDITIVE, sans quoi son alpha plat en ferait un carré sombre.
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	tr.material = mat
+	_racine.add_child(tr)
 
 
 # --- les pétales -------------------------------------------------------------
@@ -270,8 +317,9 @@ func _petale(c: Vector2, p: Dictionary) -> void:
 		halo.visible = false
 		_racine.add_child(halo)
 
-	# 2. LE DISQUE. PR3 le dessine en code natif (`Visual_CR_Radial`) : il n'y a
-	#    pas d'image à charger, on le trace.
+	# 2. LE DISQUE du pétale. La ROUE du jeu passe dessous (voir `_roue`) ; ce
+	#    disque-ci reste tracé, car PR3 n'a pas d'image par pétale — sa roue porte
+	#    les huit secteurs d'un seul tenant.
 	var b := Button.new()
 	b.text = _libelle(p)
 	b.size = Vector2(R_PETALE * 2, R_PETALE * 2)
