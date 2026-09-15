@@ -964,18 +964,31 @@ const PR3_PLONGEE := 35.0
 # Rien à échantillonner : `vers_carte` est AFFINE en (x, z) à altitude constante,
 # donc un cercle au sol y devient une ellipse exacte, à axes alignés.
 func _anneau_sol(centre: Vector2, rayon_x: float) -> PackedVector2Array:
-	var k := proj.echelle()
-	var f := (k.y / k.x) if k.x > 0.0 else 1.0
-	# Fiche zénithale : l'obliquité n'est pas dans la projection, on prend celle
-	# du dessin.
-	if proj.angle >= 89.0:
-		f *= sin(deg_to_rad(PR3_PLONGEE))
-	var ry := rayon_x * f
+	var ry := rayon_x * _aplatissement(proj.angle, proj.echelle())
 	var pts := PackedVector2Array()
 	for i in range(41):
 		var a := TAU * float(i) / 40.0
 		pts.append(centre + Vector2(cos(a) * rayon_x, sin(a) * ry))
 	return pts
+
+
+# L'ÉCRASEMENT DU SOL, isolé et STATIQUE pour être exerçable hors du jeu.
+#
+# C'est la règle qui vient d'être FAUSSE DEUX COMMITS DE SUITE sans que rien ne le
+# dise : un facteur de 0,9998 ne se voit pas en lisant le code, il faut le
+# calculer. Les tests passaient au vert pendant que l'écran ne changeait pas, et
+# c'est le joueur qui l'a vu. `outils/test_carte.gd` le calcule maintenant sur la
+# VRAIE fiche et refuse tout facteur proche de 1.
+#
+# `angle_fiche` est l'angle de `carte_cuite.json` ; `k` le rendu de
+# `proj.echelle()`.
+static func _aplatissement(angle_fiche: float, k: Vector2) -> float:
+	var f := (k.y / k.x) if k.x > 0.0 else 1.0
+	# Fiche zénithale : l'obliquité n'est pas dans la projection mais dans le
+	# dessin de PR3, on prend donc la plongée de sa caméra.
+	if angle_fiche >= 89.0:
+		f *= sin(deg_to_rad(PR3_PLONGEE))
+	return f
 
 
 

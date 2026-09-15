@@ -132,6 +132,43 @@ func _init() -> void:
 	# pirate. Il garde le notre, et ce n'est pas un manque a signaler.
 	print("   (le Portugal garde le notre : PR3 n'en livre pas)")
 
+	# --- l'ecrasement des anneaux poses au sol --------------------------------
+	#
+	# CE CONTROLE EXISTE A CAUSE D'UNE PANNE QUI EST PASSEE AU VERT DEUX FOIS. Les
+	# anneaux de selection doivent etre des ELLIPSES, ecrasees comme la carte. Ils
+	# etaient des cercles, et le « correctif » multipliait le rayon vertical par
+	# 0,9998 -- un cercle. Rien ne le disait : la compilation passait, les tests
+	# aussi, et l'ecran ne changeait pas. C'est le joueur qui l'a vu.
+	#
+	# Un tel facteur ne se LIT pas, il se CALCULE. On le calcule donc ici, sur la
+	# vraie fiche.
+	print("")
+	print("=== l'ecrasement des anneaux (ellipse, pas cercle) ===")
+	var sc_carte := ResourceLoader.load("res://scripts/carte2d.gd") as GDScript
+	if sc_carte == null or sc_carte.reload() != OK:
+		_rater("carte2d.gd ne compile pas : l'ecrasement n'est pas verifiable")
+	elif not proj.valide:
+		print("   fiche absente : rien a mesurer")
+	else:
+		var k := proj.echelle()
+		var f: float = sc_carte.call("_aplatissement", proj.angle, k)
+		print("   fiche  : angle %.1f   echelle (%.6f ; %.6f)   rapport %.4f"
+				% [proj.angle, k.x, k.y, k.y / k.x])
+		print("   applique : %.4f" % f)
+		if f > 0.9:
+			_rater("aplatissement %.4f : l'anneau serait un cercle, pas une ellipse" % f)
+		# La camera `seamap` de PR3 est a 35 deg (atan(280,083/400)), donc
+		# sin = 0,5736. La fiche peinte etant zenithale, c'est ce qu'on doit
+		# retrouver exactement.
+		if proj.angle >= 89.0 and absf(f - 0.5736) > 0.01:
+			_rater("fiche zenithale : %.4f obtenu, 0,5736 attendu (sin 35 deg)" % f)
+		# Et un terrain CUIT, lui, a deja son obliquite dans la projection : on ne
+		# doit pas lui ajouter celle du dessin par-dessus.
+		var cuit: float = sc_carte.call("_aplatissement", 65.0, Vector2(0.2, 0.12))
+		print("   terrain cuit (angle 65, rapport 0,60) : %.4f" % cuit)
+		if absf(cuit - 0.6) > 0.001:
+			_rater("terrain cuit : %.4f obtenu, 0,60 attendu (aucun facteur en plus)" % cuit)
+
 	# --- l'ancre : le cycle entre les convois a quai --------------------------
 	#
 	# L'ancre du cartouche se clique et fait defiler les convois du port. La regle
