@@ -868,8 +868,8 @@ func _dessiner_port(port: Dictionary) -> void:
 	var bord: Color = port["couleur_bord"]
 	var e := 1.0 / _zoom                                # taille constante à l'écran
 
-	# Mouillage, au large
-	draw_arc(r, 9 * e, 0, TAU, 20, Color(1, 1, 1, 0.35), 1.5 * e)
+	# Mouillage, au large. Posé sur l'eau, donc écrasé comme le reste.
+	draw_polyline(_anneau_sol(r, 9 * e), Color(1, 1, 1, 0.35), 1.5 * e)
 
 	# --- la ville -------------------------------------------------------------
 	if not _villes.vide():
@@ -897,8 +897,13 @@ func _dessiner_port(port: Dictionary) -> void:
 	else:
 		draw_circle(p, 7 * e, Color(0.10, 0.08, 0.06))
 		draw_circle(p, 5 * e, couleur)
+		# LE REPLI, quand les vignettes ne sont pas chargées. Même anneau au sol
+		# que l'autre branche : il était resté un cercle parfait alors que le
+		# pourtour principal venait d'être écrasé — deux moitiés du même geste qui
+		# ne se ressemblaient plus.
 		if _port_survole == port:
-			draw_arc(p, 11 * e, 0.0, TAU, 28, Color(0.98, 0.78, 0.30, 0.95), 2.0 * e)
+			draw_polyline(_anneau_sol(p, 11 * e),
+					Color(0.98, 0.78, 0.30, 0.95), 2.0 * e)
 
 
 # LE POURTOUR DE SÉLECTION : un ovale doré autour de l'IMAGE de la ville.
@@ -918,17 +923,35 @@ func _dessiner_port(port: Dictionary) -> void:
 # ville/convoi mais survol/sélection.
 func _pourtour_ville(r: Rect2) -> void:
 	var e := 1.0 / _zoom
-	var c := r.get_center()
-	# Un ovale plutôt qu'un cercle : les vignettes sont plus larges que hautes, et
-	# un cercle laisserait deux vides sur les côtés.
-	var ra := r.size * Vector2(0.62, 0.58)
-	var pts := PackedVector2Array()
-	for i in range(41):
-		var a := TAU * float(i) / 40.0
-		pts.append(c + Vector2(cos(a) * ra.x, sin(a) * ra.y))
+	var pts := _anneau_sol(r.get_center(), r.size.x * 0.62)
 	# Un liseré sombre dessous : sur une plage claire, l'or seul s'évanouit.
 	draw_polyline(pts, Color(0.10, 0.06, 0.02, 0.55), 4.0 * e)
 	draw_polyline(pts, Color(0.98, 0.78, 0.30, 0.95), 2.0 * e)
+
+
+# UN ANNEAU POSÉ AU SOL, donc une ELLIPSE et non un cercle.
+#
+# La carte est une plongée oblique : elle comprime le nord-sud, et tout ce qui y
+# est dessiné suit cet angle. Un `draw_arc` trace un cercle parfait, qui flotte
+# alors au-dessus du terrain au lieu d'y être posé — c'est ce qui clochait sur
+# l'anneau du convoi et sur le pourtour des villes.
+#
+# LE RAPPORT N'EST PAS DEVINÉ. `proj.echelle()` rend les pixels de carte par mètre
+# monde sur chaque axe — `pixels.x / vue_taille.x` et `pixels.y * sin(angle) /
+# vue_taille.y` — et leur rapport EST l'écrasement. Il suit donc l'angle de vue
+# si celui-ci change, au lieu d'un coefficient figé qu'il faudrait rattraper.
+#
+# Et il n'y a rien à échantillonner : `vers_carte` est AFFINE en (x, z) à altitude
+# constante, donc un cercle au sol y devient une ellipse exacte, à axes alignés.
+# Projeter quarante points donnerait le même tracé, pour plus cher.
+func _anneau_sol(centre: Vector2, rayon_x: float) -> PackedVector2Array:
+	var k := proj.echelle()
+	var ry := rayon_x * (k.y / k.x) if k.x > 0.0 else rayon_x
+	var pts := PackedVector2Array()
+	for i in range(41):
+		var a := TAU * float(i) / 40.0
+		pts.append(centre + Vector2(cos(a) * rayon_x, sin(a) * ry))
+	return pts
 
 
 
@@ -1464,7 +1487,10 @@ func _dessiner_convois_joueur() -> void:
 			continue
 		_dessiner_sillage(p, a, u)
 		if int(m.get("indice", -1)) == _convoi_selectionne:
-			draw_arc(p, NAV_TAILLE * 0.5 * u, 0.0, TAU, 32, Color(0.95, 0.83, 0.4, 0.95), 2.5 * u)
+			# Au SOL, donc écrasé comme la carte — voir `_anneau_sol`. `u` vaut
+			# déjà les pixels par mètre en est-ouest, d'où un rayon en mètres.
+			draw_polyline(_anneau_sol(p, NAV_TAILLE * 0.5 * u),
+					Color(0.95, 0.83, 0.4, 0.95), 2.5 * u)
 		draw_circle(p, NAV_TAILLE * 0.20 * u, Color(0, 0, 0, 0.22))
 		_poser_navire(p, a, NAV_TAILLE * 0.9 * u, Color(1, 1, 1, 1),
 			_modele_voile(str(m.get("modele", "")), NAV_VOILE_JOUEUR))
