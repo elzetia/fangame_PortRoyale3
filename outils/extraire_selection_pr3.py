@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Sort de Port Royale 3 les ANNEAUX de sa carte maritime et la ROUE de son menu
-radial.
+"""Sort de Port Royale 3 les ANNEAUX DE SELECTION de sa carte maritime.
 
     py -3 outils/extraire_selection_pr3.py
 
@@ -8,7 +7,17 @@ Ecrit dans `reference_pr3/assets/` :
 
     selectioncircle0.png   l'anneau a trait FIN     (256 x 256, DXT5)
     selectioncircle1.png   l'anneau a trait EPAIS   (256 x 256, DXT5)
-    centercircle0.png      la roue du menu radial   (512 x 512, DXT5)
+
+CE QU'IL NE SORT PAS, ET POURQUOI C'EST ECRIT ICI PLUTOT QUE NULLE PART.
+`assets/centercircle0` est un anneau de 512 x 512 a HUIT rayons -- angles
+0/45/90/135/180/225/270/315, mesures a trois rayons differents -- que j'ai pris
+pour le fond du menu radial et extrait un temps. IL NE L'EST PAS : une capture du
+jeu montre une couronne sans aucun grand anneau, et son centre est une BARRE A
+ROUE en bois, `skinlib_pr3/301`, avec son ombre portee `skinlib_pr3/298`.
+
+Les huit angles qui tombaient juste ne prouvaient rien : huit directions, c'est
+commun. `centercircle0` reste un decalque de carte dont l'usage n'est pas etabli.
+Ne pas le reintroduire ici en le croyant radial.
 
 POURQUOI CET OUTIL EXISTE. `scripts/carte2d.gd` pose l'anneau du jeu sous la
 ville survolee, au lieu du disque translucide qu'il dessinait. Cet art est celui
@@ -55,23 +64,6 @@ DDS2PNG = os.path.join(RACINE, "outils", "dds2png.py")
 CIBLES = [
     "assets/selectioncircle0/selectioncircle0.dds",
     "assets/selectioncircle1/selectioncircle1.dds",
-    # LA ROUE DU MENU RADIAL. 512 x 512, DXT5, et c'est bien le fond de la
-    # couronne : la mesure donne HUIT rayons a 0/45/90/135/180/225/270/315
-    # degres -- verifiee a trois rayons differents (0,35 / 0,55 / 0,75) --, un
-    # anneau lumineux a 0,89 du demi-cote et un moyeu vers 0,05.
-    #
-    # ELLE S'EST LONGTEMPS CACHEE : `ingame_radial_town.swf` ne porte pour ce
-    # fond qu'un `Visual_CR_Radial`, un `customrenderelement` dont le remplissage
-    # Flash est un aplat bleu de remplacement (0, 102, 204). J'en avais conclu
-    # que le moteur peignait les petales sans texture. C'etait faux : il pose CE
-    # maillage et CETTE texture, rangee dans `data.fuk` comme `selectioncircle`.
-    #
-    # ATTENTION AU RENDU : son alpha est PLAT. Les 16384 blocs BC3 ont tous la
-    # meme paire (a0=64, a1=65) et les 262144 indices valent 0, donc chaque texel
-    # est a 64. Le dessin vit dans le RGB, sombre partout sauf l'anneau, les
-    # rayons et le moyeu : elle se pose en fusion ADDITIVE. En fusion normale,
-    # c'est un carre sombre a 25 %.
-    "assets/centercircle0/centercircle0.dds",
 ]
 
 
