@@ -130,6 +130,23 @@ func _ready() -> void:
 		if zone != null:
 			zone.pressed.connect(func() -> void: montrer(nom_panneau))
 
+	# LES DEUX FLÈCHES DE PAGE. PR3 les déclare dans `Visual_List_Goods_43`, à
+	# côté des douze cases : `bu_prev` (`Visual_Button_Left`) et `bu_next`
+	# (`Visual_Button_Right`).
+	#
+	# Elles n'étaient branchées à RIEN. `tourner()` existait, la pagination
+	# fonctionnait, et aucun appelant ne s'en servait — la grille ne montrait donc
+	# jamais que ses douze premiers lots. C'est la moitié de ce qui faisait
+	# paraître cet onglet cassé ; l'autre moitié est dans `poser_cargaison`.
+	var liste := _trouver("li_goods")
+	if liste != null:
+		var prec := EcranPR3.bouton(liste, "bu_prev")
+		if prec != null:
+			prec.pressed.connect(func() -> void: tourner(-1))
+		var suiv := EcranPR3.bouton(liste, "bu_next")
+		if suiv != null:
+			suiv.pressed.connect(func() -> void: tourner(1))
+
 	montrer(_actif)
 
 
@@ -266,9 +283,41 @@ var _page := 0
 
 
 func poser_cargaison(lots: Array) -> void:
+	# LA CARTE APPELLE CECI À CHAQUE IMAGE, depuis `_maj_hud()` dans `_process`.
+	#
+	# Deux conséquences, et c'est ce qui rendait l'onglet de la cale inutilisable :
+	#
+	#  1. `_page = 0` inconditionnel effaçait la page choisie dans la milliseconde.
+	#     On cliquait une flèche, et la grille revenait à la page 1 avant même
+	#     d'avoir été redessinée. La pagination MARCHAIT — 14 lots donnent bien
+	#     deux pages — mais rien ne pouvait la faire tenir.
+	#  2. La grille se reconstruisait soixante fois par seconde pour un contenu
+	#     identique.
+	#
+	# On ne touche donc à rien tant que la CARGAISON n'a pas changé. Et quand elle
+	# change, on ne revient à la première page que si la page courante n'existe
+	# plus — vendre trois tonneaux ne doit pas ramener le joueur au début.
+	if not _cargaison_differente(lots):
+		return
 	_lots = lots
-	_page = 0
+	if _page >= pages():
+		_page = 0
 	_rafraichir_cargaison()
+
+
+# La cargaison a-t-elle bougé ? On compare ce qui est AFFICHÉ — la marchandise et
+# sa quantité — et rien d'autre : le pont reconstruit ses dictionnaires à chaque
+# appel, donc comparer les objets eux-mêmes répondrait toujours « oui ».
+func _cargaison_differente(lots: Array) -> bool:
+	if lots.size() != _lots.size():
+		return true
+	for i in lots.size():
+		var a: Dictionary = lots[i]
+		var b: Dictionary = _lots[i]
+		if int(a.get("rang", -1)) != int(b.get("rang", -1)) \
+				or int(a.get("quantite", 0)) != int(b.get("quantite", 0)):
+			return true
+	return false
 
 
 func _rafraichir_cargaison() -> void:
