@@ -115,7 +115,8 @@ def lire_texture(dossier):
     return w, h, px
 
 
-def rendre(dossier, sortie, taille=512, angle=58.0, lumiere=(-0.55, 0.68, -0.48)):
+def rendre(dossier, sortie, taille=512, angle=58.0, lumiere=(-0.55, 0.68, -0.48),
+           gain=1.0):
     """Rend le maillage en plongee oblique, sur fond transparent."""
     sommets, normales, uv, triangles = lire_maillage(dossier)
     tex = lire_texture(dossier)
@@ -205,7 +206,17 @@ def rendre(dossier, sortie, taille=512, angle=58.0, lumiere=(-0.55, 0.68, -0.48)
                 else:
                     r = g = b_ = 190
 
-                f = 0.62 + 0.48 * eclair
+                # LE GAIN. L'ombrage `0,62 + 0,48 x eclairement` est celui d'un
+                # rendu neutre ; les textures de batiment de PR3 sont sombres, et
+                # les vignettes sortaient illisibles. Le jeu, lui, eclaire sa
+                # carte avec un soleil a 2,5 et un ciel a 1,5 (releve dans
+                # `seamap.sceneview`, voir outils/PR3_TECHNIQUE.md) -- trois a
+                # quatre fois plus que ce rendu. `rendre_navires_pr3.gd` avait
+                # paye la meme lecon : ses navires « sortaient sombres ».
+                #
+                # Defaut a 1,0 : le comportement d'avant, pour ne rien changer a
+                # qui ne demande rien.
+                f = (0.62 + 0.48 * eclair) * gain
                 d = o * 4
                 img[d] = min(255, int(r * f))
                 img[d + 1] = min(255, int(g * f))

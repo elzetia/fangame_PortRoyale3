@@ -72,13 +72,19 @@ VIGNETTES = os.path.join(RACINE, "reference_pr3", "ui", "batiments")
 
 # Les modeles a sortir. Un par petale, plus les deux candidats a departager.
 BATIMENTS = [
-    "lighthouse",            # Capitainerie
-    "tavern",                # Taverne
-    "depot",                 # Entrepot
-    "church0_sp",            # Eglise      (variante espagnole)
-    "administration0_sp",    # Hotel de ville
-    "dockyard0",             # Chantier naval ?
-    "port0",                 # Docks ?
+    "lighthouse",            # Capitainerie   -- une seule variante
+    "tavern",                # Taverne        -- une seule
+    "depot",                 # Entrepot       -- une seule (hors _pl)
+    "dockyard0",             # Chantier naval
+    "port0",                 # Docks
+    # L'EGLISE et l'HOTEL DE VILLE ont une variante par nation. Les suffixes de
+    # l'archive sont `_en`, `_fr`, `_nl`, `_sp` -- quinze .asset chacun -- plus
+    # `_pl`, treize. J'ai d'abord cru `_pl` = joueur ; la symetrie de la famille
+    # le dement, et les assets pirates sont ecrits en toutes lettres
+    # (`piratebarc`), pas abreges. On le sort donc pour le REGARDER.
+    "church0_en", "church0_fr", "church0_nl", "church0_sp", "church0_pl",
+    "administration0_en", "administration0_fr", "administration0_nl",
+    "administration0_sp", "administration0_pl",
 ]
 
 
@@ -102,11 +108,13 @@ def sortir(ar, nom):
 
 
 def main():
-    taille, angle = 142, 58.0
+    taille, angle, gain = 142, 58.0, 1.7
     if "--taille" in sys.argv:
         taille = int(sys.argv[sys.argv.index("--taille") + 1])
     if "--angle" in sys.argv:
         angle = float(sys.argv[sys.argv.index("--angle") + 1])
+    if "--gain" in sys.argv:
+        gain = float(sys.argv[sys.argv.index("--gain") + 1])
 
     os.makedirs(MAILLAGES, exist_ok=True)
     os.makedirs(VIGNETTES, exist_ok=True)
@@ -126,12 +134,24 @@ def main():
         raise SystemExit("aucun batiment sorti : l'archive n'a rien livre")
 
     print()
-    print("--- rendu (%d px, plongee %.0f deg) ---" % (taille, angle))
+    # LE GAIN D'ECLAIRAGE, choisi EN REGARDANT trois valeurs sur deux batiments.
+    #
+    # A 1,0 -- l'ombrage neutre de `pr3_mesh` -- le phare reste un brun illisible ;
+    # a 2,4 le haut de sa tour se delave. A 1,7 la galerie, la brique et la porte
+    # se detachent sans rien bruler. Les textures de PR3 sont sombres parce que le
+    # jeu les eclaire avec un soleil a 2,5 et un ciel a 1,5.
+    #
+    # CE QUE LE GAIN NE CORRIGE PAS : la taverne et le chantier restent charges a
+    # toute valeur. Leur defaut n'est pas la lumiere mais la GEOMETRIE -- balcons,
+    # escaliers et poutres rendus a 142 px en ombrage plat, sans anti-crenelage.
+    # Les batiments massifs passent, les touffus non.
+    print("--- rendu (%d px, plongee %.0f deg, gain %.1f) ---" % (taille, angle, gain))
     for nom in faits:
         src = os.path.join(MAILLAGES, nom)
         png = os.path.join(VIGNETTES, nom + ".png")
         try:
-            ns, nt = pr3_mesh.rendre(src, png, taille, angle)
+            ns, nt = pr3_mesh.rendre(src, png, taille, angle,
+                                     (-0.55, 0.68, -0.48), gain)
         except Exception as ex:                      # noqa: BLE001
             print("   %-22s ECHEC : %s" % (nom, ex))
             continue

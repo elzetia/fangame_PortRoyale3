@@ -118,7 +118,41 @@ const GOODS_GROSSI := 2.0
 const R_PRODUIT := PR3_GOODS_IC * ECHELLE * GOODS_GROSSI / 2.0
 
 # --- l'art du jeu -------------------------------------------------------------
-const ART_DESACTIVE := "ingame_radial_town/4"    # le disque gris (char7)
+# LE DISQUE DE PÉTALE DU JEU, et il sert à TOUS les états.
+#
+# `ingame_radial_town/4` est un disque NOIR à alpha 180 — mesuré, pas supposé :
+# coin (0,0,0,0), centre (0,0,0,180). Le « disque gris » que j'avais décrit venait
+# du fond clair de la visionneuse. Posé sur la mer, ce noir translucide donne le
+# bleu sombre qu'on voit sur les captures de PR3.
+#
+# Je ne l'employais que pour l'état DÉSACTIVÉ, parce que la scène nomme `disable`
+# le caractère 7. Mais les caractères 4, 5, 6 ET 7 pointent tous vers cette même
+# image : c'est le fond du pétale, avec ses états, pas seulement le grisé.
+const ART_DISQUE := "ingame_radial_town/4"
+
+# LES BÂTIMENTS, rendus depuis les modèles 3D du jeu par
+# `outils/extraire_batiments_pr3.py`. PR3 n'a pas d'illustration 2D de bâtiment —
+# cherché dans les 171 dossiers d'interface, dans `textures/` et dans
+# `rendertarget/` — il les rend depuis sa géométrie, et l'on fait pareil.
+#
+# L'église et l'hôtel de ville ont une variante par nation ; les autres non.
+# Le PORTUGAL n'a aucun équivalent chez PR3, qui n'a que quatre nations : il
+# reprend l'espagnole, la plus proche. C'est un choix, pas un relevé.
+const BATIMENTS := {
+	"capitainerie": "lighthouse",
+	"taverne": "tavern",
+	"entrepot": "depot",
+	"chantier": "dockyard0",
+	"docks": "port0",
+}
+const BATIMENTS_NATION := {
+	"eglise": "church0_",
+	"hotel_ville": "administration0_",
+}
+const SUFFIXE_NATION := {
+	"angleterre": "en", "france": "fr", "hollande": "nl",
+	"espagne": "sp", "portugal": "sp",
+}
 const ART_HALO      := "ingame_radial_town/8"    # l'anneau de sélection (char9..16)
 const ART_LOUPE     := "ingame_radial_town/33"   # « Sélectionner », sur le pétale ville
 
@@ -341,38 +375,41 @@ func _petale(c: Vector2, p: Dictionary) -> void:
 		halo.visible = false
 		_racine.add_child(halo)
 
-	# 2. LE DISQUE du pétale. La ROUE du jeu passe dessous (voir `_roue`) ; ce
-	#    disque-ci reste tracé, car PR3 n'a pas d'image par pétale — sa roue porte
-	#    les huit secteurs d'un seul tenant.
+	# 2. LE FOND EST CELUI DU JEU, ET LE BÂTIMENT PAR-DESSUS.
+	#
+	# Nos pétales portaient un disque CRÈME dessiné à la main — fond `LIN`,
+	# bordure de 3 px — qui n'avait rien à voir avec PR3. Il cède la place au
+	# disque du jeu (voir ART_DISQUE), et le bâtiment vient dessus.
+	var cote := Vector2(PR3_PETALE, PR3_PETALE) * ECHELLE
+	var fond := SkinPR3.texture(ART_DISQUE)
+	if fond != null:
+		var tf := TextureRect.new()
+		tf.texture = fond
+		tf.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tf.size = cote
+		tf.position = pos - cote / 2.0
+		# UN PÉTALE FERMÉ EST PLUS SOMBRE, et c'est tout : le disque est déjà
+		# noir, on l'assombrit encore au lieu de lui superposer un second calque.
+		tf.modulate = Color(1, 1, 1, 1) if actif else Color(0.75, 0.75, 0.75, 1)
+		tf.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_racine.add_child(tf)
+
+	_batiment(pos, p, actif)
+
+	# Le bouton ne porte plus ni fond ni texte : il n'est que la zone sensible.
+	# PR3 ne met pas de mot sur ses pétales — le bâtiment dit lequel c'est. Le
+	# libellé passe en INFOBULLE, pour que le survol le nomme quand même.
 	var b := Button.new()
-	b.text = _libelle(p)
+	b.tooltip_text = _libelle(p)
 	b.size = Vector2(R_PETALE * 2, R_PETALE * 2)
 	b.position = pos - Vector2(R_PETALE, R_PETALE)
-	b.add_theme_font_size_override("font_size", 12)
-	b.clip_text = false
-	b.autowrap_mode = TextServer.AUTOWRAP_WORD
-
-	var st := StyleBoxFlat.new()
-	st.bg_color = LIN if actif else Color(LIN.r, LIN.g, LIN.b, 0.45)
-	st.border_color = BOIS_CLAIR if actif else GRIS
-	st.set_border_width_all(3)
-	st.set_corner_radius_all(int(R_PETALE))
-	st.set_content_margin_all(4)
-	b.add_theme_stylebox_override("normal", st)
-	var sh := st.duplicate() as StyleBoxFlat
-	sh.bg_color = OR
-	b.add_theme_stylebox_override("hover", sh if actif else st)
-	# LES QUATRE AUTRES ÉTATS, sans quoi Godot retombe sur SON thème.
-	#
-	# C'est l'origine du CARRÉ NOIR derrière les pétales bloquées : `disabled`
-	# n'était pas surchargé, donc un bouton désactivé reprenait le rectangle
-	# sombre du thème par défaut — visible uniquement sous les quatre pétales
-	# grises, ce qui rendait le défaut d'autant plus déroutant.
-	b.add_theme_stylebox_override("disabled", st)
-	b.add_theme_stylebox_override("pressed", sh if actif else st)
-	b.add_theme_stylebox_override("focus", st)
-	b.add_theme_color_override("font_color", BOIS if actif else GRIS)
-	b.add_theme_color_override("font_hover_color", BOIS)
+	b.flat = true
+	var vide := StyleBoxEmpty.new()
+	# LES SIX ÉTATS, tous vides. Sans `disabled`, Godot retombe sur SON thème et
+	# pose un rectangle sombre : c'est le carré noir qui était apparu derrière les
+	# pétales bloquées.
+	for etat in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(etat, vide)
 	b.disabled = not actif
 	if actif:
 		b.pressed.connect(_sur_petale.bind(String(p["sig"])))
@@ -386,21 +423,40 @@ func _petale(c: Vector2, p: Dictionary) -> void:
 	if String(p["cle"]) == "ville":
 		_illustration(pos)
 
-	# 4. LE DISQUE GRIS de PR3 par-dessus ce qui ne mène nulle part.
-	if not actif:
-		var gris := SkinPR3.texture(ART_DESACTIVE)
-		if gris != null:
-			var tr := TextureRect.new()
-			tr.texture = gris
-			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			tr.size = Vector2(PR3_PETALE, PR3_PETALE) * ECHELLE
-			tr.position = pos - tr.size / 2.0
-			tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			_racine.add_child(tr)
-
 	var compteur := _compteur(String(p["cle"]))
 	if compteur != "":
 		_texte(pos + Vector2(0, R_PETALE - 12), compteur, 11, BOIS_CLAIR, 90)
+
+
+# Le bâtiment du pétale, rendu depuis le modèle 3D de PR3. Le pétale « ville »
+# n'en a pas : il porte l'illustration de la ville (voir `_illustration`).
+#
+# Absent — dépôt frais, sans `reference_pr3/` — on ne dessine rien : le pétale
+# reste son disque nu, et l'infobulle le nomme. Comme partout, l'absence de l'art
+# ne change que le look.
+func _batiment(pos: Vector2, p: Dictionary, actif: bool) -> void:
+	var cle := String(p["cle"])
+	var nom := String(BATIMENTS.get(cle, ""))
+	if nom == "":
+		var base := String(BATIMENTS_NATION.get(cle, ""))
+		if base == "":
+			return
+		nom = base + String(SUFFIXE_NATION.get(
+				String(_port.get("nation_cle", "")), "sp"))
+	var tex := SkinPR3.texture("batiments/" + nom)
+	if tex == null:
+		return
+	var tr := TextureRect.new()
+	tr.texture = tex
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# Rentré dans le disque : la vignette est carrée, le disque rond.
+	var cote := R_PETALE * 1.55
+	tr.size = Vector2(cote, cote)
+	tr.position = pos - tr.size / 2.0
+	tr.modulate = Color(1, 1, 1, 1) if actif else Color(0.55, 0.55, 0.58, 0.9)
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_racine.add_child(tr)
 
 
 # L'illustration de la ville, sur le pétale du haut. PR3 en a six, plus un crâne

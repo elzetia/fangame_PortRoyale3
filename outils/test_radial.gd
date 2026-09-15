@@ -95,14 +95,17 @@ func _lancer() -> void:
 	if b.size() != 8:
 		_rater("%d pétale(s) au lieu des 8 de la couronne de PR3" % b.size())
 
+	# LE LIBELLE EST DANS L'INFOBULLE, plus dans le texte du bouton : PR3 ne met
+	# pas de mot sur ses petales, c'est le BATIMENT qui dit lequel c'est. Le
+	# controle n'a pas disparu pour autant -- il a suivi le libelle.
 	var libelles: Array = []
 	var ouverts: Array = []
 	for e in b:
 		var bo: Button = e
-		libelles.append(bo.text)
+		libelles.append(bo.tooltip_text)
 		if not bo.disabled:
-			ouverts.append(bo.text)
-		if bo.text.strip_edges() == "":
+			ouverts.append(bo.tooltip_text)
+		if bo.tooltip_text.strip_edges() == "":
 			_rater("un pétale sans libellé")
 	print("  libellés : ", ", ".join(PackedStringArray(libelles)))
 	for a in ATTENDUS:
@@ -123,10 +126,19 @@ func _lancer() -> void:
 	for e in _boutons(radial):
 		var bo: Button = e
 		if not bo.disabled:
-			ouverts2.append(bo.text)
+			# LE LIBELLE EST DANS L'INFOBULLE, ici aussi. Cette ligne lisait encore
+			# `bo.text` alors que la section 1 avait migre : elle rendait donc une
+			# chaine VIDE, et le controle passait quand meme puisqu'il ne comptait
+			# que les entrees. Une chaine vide compte pour une.
+			ouverts2.append(bo.tooltip_text)
 	print("  accessibles : ", ouverts2 if not ouverts2.is_empty() else "aucun")
 	if ouverts2.size() != 1:
 		_rater("%d pétale(s) accessible(s) sans convoi, 1 attendu" % ouverts2.size())
+	# ET ON REGARDE LAQUELLE. Compter ne suffit pas : c'est precisement ce qui a
+	# laisse passer une infobulle vide comptee comme une entree valide.
+	elif String(ouverts2[0]) != "Info ville":
+		_rater("sans convoi, le pétale accessible est « %s », « Info ville » attendu"
+				% String(ouverts2[0]))
 
 	print("")
 	print("=== 3. L'ART DU JEU ===")
@@ -150,6 +162,36 @@ func _lancer() -> void:
 			print("  %-24s chargé" % nom)
 	if manquants == art.size():
 		print("  (aucun art PR3 sur ce poste — le menu reste jouable en repli)")
+
+	# LES BATIMENTS DES PETALES, rendus depuis les modeles 3D du jeu par
+	# `outils/extraire_batiments_pr3.py`.
+	#
+	# CE CONTROLE COMBLE UNE PANNE MUETTE : `_batiment()` sort sans rien dire
+	# quand la texture est introuvable, donc un nom mal orthographie donnerait des
+	# petales NUS sans qu'aucune erreur ne paraisse. Les pavillons, les ancres et
+	# la barre a roue sont deja controles par leur taille ; ceux-ci ne l'etaient
+	# pas.
+	#
+	# 142 px est la taille de rendu de l'outil : une autre valeur voudrait dire
+	# qu'on regarde une vignette produite autrement.
+	var batis := ["lighthouse", "tavern", "depot", "dockyard0", "port0",
+			"church0_sp", "administration0_sp"]
+	var batis_absents := 0
+	for nom_b in batis:
+		var tb := SkinPR3.texture("batiments/" + String(nom_b))
+		if tb == null:
+			batis_absents += 1
+			print("  batiment %-22s absent" % String(nom_b))
+			continue
+		if tb.get_width() != 142 or tb.get_height() != 142:
+			_rater("batiment %s fait %d x %d, attendu 142 x 142"
+					% [String(nom_b), tb.get_width(), tb.get_height()])
+	print("  batiments : %d sur %d" % [batis.size() - batis_absents, batis.size()])
+	# Tous absents = poste sans l'art, c'est le repli normal. QUELQUES-UNS
+	# absents = l'extraction est incomplete, et la des petales seraient nus.
+	if batis_absents > 0 and batis_absents < batis.size():
+		_rater("%d batiment(s) manquant(s) sur %d : extraction incomplete"
+				% [batis_absents, batis.size()])
 
 	# LA BARRE A ROUE du centre, et son OMBRE. Deux entrees ANONYMES de
 	# `skinlib_pr3` -- des identifiants nus, sans classe `Visual_*` -- ce qui les a
