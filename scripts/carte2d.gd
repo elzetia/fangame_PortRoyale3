@@ -1033,10 +1033,17 @@ func _geometrie_cartouche(port: Dictionary) -> Dictionary:
 		"nom": rect_nom,
 		"bande": bande,
 		"pavillon": pav,
-		# `icon_type` : 22 unités à droite du bord gauche du pavillon, une unité
-		# plus haut — il chevauche donc la moitié droite du drapeau.
-		"type": Rect2(pav.position.x + 22.0 * s, pav.position.y - 1.0 * s,
-				22.0 * s, 24.0 * s),
+		# `icon_type` : PR3 le pose en (80,-30) quand le pavillon est en (58,-29),
+		# soit +22 et -1.
+		#
+		# MAIS CE POINT EST SON CENTRE, PAS SON COIN. La table d'icônes donne à
+		# `Visual_IconButton_Towninfo` un ancrage de (-11,-12) — la moitié de ses
+		# 22 x 24 —, tandis que `Visual_NationFlag_Small` a (0,0) et se pose donc
+		# par son coin. Pris pour un coin, la couronne tombait SUR la moitié droite
+		# du drapeau au lieu de le surmonter. C'est le piège que `test_ecran`
+		# épingle déjà pour les boutons du HUD, et je suis retombé dedans.
+		"type": Rect2(pav.position.x + (22.0 - 11.0) * s,
+				pav.position.y - (1.0 + 12.0) * s, 22.0 * s, 24.0 * s),
 		"icone": Rect2(rect_nom.position.x + cote * 0.10,
 						bande.position.y + hbande + 2.0 * u, cote, cote),
 	}
