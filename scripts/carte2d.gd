@@ -153,6 +153,7 @@ var _infos_ville: VillePR3
 var _routes: RoutesPanneau
 var _chantier: ChantierPR3
 var _radial: RadialVille
+var _menu_pause: MenuPause
 var _capitainerie: CapitaineriePanneau
 var _convoy_town: ConvoyTownPanneau
 
@@ -240,6 +241,10 @@ func _ready() -> void:
 	# Le menu radial au clic sur une ville : infos, dock, chantier (si elle en a un).
 	_radial = RadialVille.new()
 	add_child(_radial)
+	# Le menu du joueur, sur Échap. Il REMPLACE un `get_tree().quit()` sec : une
+	# frappe par réflexe fermait le jeu sans rien demander.
+	_menu_pause = MenuPause.new()
+	add_child(_menu_pause)
 	# La capitainerie d'un port : convois à quai et navires sans convoi qui y sont.
 	_capitainerie = CapitaineriePanneau.new()
 	add_child(_capitainerie)
@@ -2064,7 +2069,13 @@ func _unhandled_input(e: InputEvent) -> void:
 					_noter("Partie reprise.")
 				else:
 					_noter("Reprise impossible : " + String(res_c.get("message", "")))
-			KEY_ESCAPE: get_tree().quit()
+			# ÉCHAP N'ARRÊTE PLUS LE JEU. Il appelait `get_tree().quit()` sans rien
+			# demander, et une frappe par habitude faisait perdre la partie. Il
+			# ouvre maintenant le menu du joueur de PR3, où quitter demande deux
+			# fois.
+			KEY_ESCAPE:
+				if _menu_pause != null:
+					_menu_pause.ouvrir(sim)
 
 
 # Conduire la vue : WASD (ou les flèches), et la souris contre un bord.

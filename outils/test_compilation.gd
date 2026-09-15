@@ -22,6 +22,9 @@ const DOSSIERS := ["res://scripts", "res://outils", "res://tools"]
 
 var _rates: Array[String] = []
 var _vus := 0
+# Le chemin de CE fichier : on le charge comme les autres, mais on ne le
+# recompile pas — voir la note dans la boucle.
+var _mon_chemin: String = ""
 
 
 # Tous les `.gd` sous un dossier, en descendant.
@@ -45,16 +48,39 @@ func _lister(chemin: String) -> Array[String]:
 
 
 func _init() -> void:
+	var moi := get_script() as Script
+	if moi != null:
+		_mon_chemin = moi.resource_path
 	print("=== compilation de tous les scripts ===")
 	for dossier in DOSSIERS:
 		var fichiers := _lister(dossier)
 		print("   %-16s %d fichier(s)" % [dossier.trim_prefix("res://"), fichiers.size()])
 		for chemin in fichiers:
 			_vus += 1
-			# `load()` et pas `ResourceLoader.exists()` : seul le chargement
-			# compile réellement le script.
-			var s: Resource = load(chemin)
+			# `load()` NE SUFFIT PAS, et ce test l'a appris à ses dépens.
+			#
+			# Sur un script DÉJÀ CHARGÉ puis cassé, le cache de ressources rend
+			# l'ANCIEN objet — non nul — et le contrôle passe au vert. C'est
+			# arrivé : `carte2d.gd` avait une erreur d'indentation dans un `match`,
+			# le rebalayage du projet la refusait, et ce test annonçait « les 68
+			# scripts compilent » dans la même minute.
+			#
+			# `reload()` recompile pour de bon et rend le vrai code d'erreur.
+			# `outils/test_ecran.gd` avait déjà payé cette leçon et porte le même
+			# commentaire ; celui-ci ne l'avait jamais reprise.
+			var s := load(chemin) as GDScript
 			if s == null:
+				_rates.append(chemin)
+				continue
+			# ON NE RECOMPILE PAS LE SCRIPT EN TRAIN DE TOURNER. `reload()` sur
+			# lui-même échoue toujours, et la première version de cette correction
+			# se signalait donc ELLE-MÊME en échec, à chaque passage.
+			#
+			# L'exempter n'est pas une complaisance : s'il n'avait pas compilé, on
+			# ne serait pas en train de l'exécuter. `load()` suffit pour celui-là.
+			if chemin == _mon_chemin:
+				continue
+			if s.reload() != OK:
 				_rates.append(chemin)
 
 	print("")
