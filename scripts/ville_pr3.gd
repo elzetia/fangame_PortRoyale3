@@ -289,6 +289,7 @@ func rafraichir() -> void:
 	_poser("tf_citizeninfo", LocaPR3.texte(str(palier[0]), str(palier[1])))
 
 	_poser_produits()
+	_poser_vignette(habitants)
 
 
 # Les cinq emplacements de marchandise produite, aux positions de PR3.
@@ -308,6 +309,46 @@ func _poser_produits() -> void:
 		var chemin := ICONES + cle + ".png"
 		tr.texture = load(chemin) if ResourceLoader.exists(chemin) else null
 		tr.tooltip_text = cle.capitalize()
+
+
+# NOTRE vignette de ville, dans l'emplacement que PR3 réserve à la sienne.
+#
+# `Tab_TownInfo` porte un `icon_town` en (61,79) : c'est là que le jeu pose son
+# illustration. On y met LA NÔTRE — celle de `sprites/villes/`, la même que la
+# carte dessine sur le terrain —, pour qu'on retrouve dans le panneau la ville
+# qu'on voit sur la carte, au même stade de croissance.
+#
+# CE TROU DURAIT DEPUIS LA REPRISE DU PANNEAU : la carte appelait bien
+# `poser_villes()` et `_villes` était rempli, mais RIEN ne s'en servait. La table
+# était stockée et morte, et seul l'ancien panneau dessinait la vignette.
+func _poser_vignette(habitants: int) -> void:
+	if _villes == null or _villes.vide():
+		return
+	var n := EcranPR3.champ(_page, "icon_town")
+	if n == null:
+		return
+	# `icon_town` EST UN CONTROL NU, ET NON UN TEXTURERECT. Son caractère (char23)
+	# est anonyme : `EcranPR3` ne lui connaît donc aucune image et n'en pose pas.
+	# On lui attache la nôtre EN ENFANT.
+	#
+	# La première version testait `n is TextureRect` et sortait sinon : elle ne
+	# posait jamais rien, en silence, et la compilation n'y voyait rien. C'est
+	# `outils/test_ecran.gd` qui a montré la vraie classe du nœud.
+	var tr := n.get_node_or_null(NodePath("vignette_ville")) as TextureRect
+	if tr == null:
+		tr = TextureRect.new()
+		tr.name = "vignette_ville"
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		# L'emplacement du jeu attend une image plus large que haute ; la nôtre
+		# garde ses proportions dedans plutôt que de s'y écraser.
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		# La taille du caractère de PR3 : 90 x 83, posé sur son centre — le
+		# décalage est déjà appliqué au Control par `EcranPR3`.
+		tr.size = Vector2(90, 83)
+		tr.position = Vector2.ZERO
+		n.add_child(tr)
+	tr.texture = _villes.texture_pour({"habitants": habitants})
 
 
 # Les quatre paliers de PR3 : hostile, neutre, respecté, populaire. La réputation

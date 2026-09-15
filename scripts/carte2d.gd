@@ -634,10 +634,14 @@ const INERTIE_CAMERA := 6.5
 # s'est retrouvé quatre fois trop gros d'un coup. Une taille exprimée en monde
 # ne dépend plus de la finesse de l'image.
 const CART_POLICE := 28.4        # hauteur de police
-const CART_PAVILLON_H := 76.0    # hauteur du pavillon
-# L'epaisseur des filets qui bordent la plaque du nom, et la part de sa largeur
-# sur laquelle le fond s'efface a chaque bout.
-const CART_FILET := 0.55
+# CART_PAVILLON_H a disparu. La hauteur du pavillon n'est plus un réglage libre :
+# elle se déduit de la bande, dans les proportions de Port Royale 3 (44 x 30 pour
+# une bande de 54). Voir `_geometrie_cartouche`.
+# La part de la largeur d'une plaque sur laquelle son fond s'efface, à chaque
+# bout. C'est le DÉFAUT de `_plaque_carte` ; le cartouche des villes, lui, passe
+# la valeur relevée dans la forme de PR3 (voir BANDE_FRANGE).
+#
+# CART_FILET a disparu avec les filets : la forme du jeu ne porte aucun trait.
 const CART_FRANGE := 0.16
 # Ce que vaut le cartouche au dézoom maximal, par rapport à sa taille au plus
 # près. Au-delà de 1,5 il écrase l'île qu'il désigne.
@@ -700,14 +704,60 @@ const NAV_ROSE := [7, 8, 5, 2, 1, 0, 3, 6]
 const SILLAGE_LONG := 1.15
 const SILLAGE_OUVRE := 0.30
 const CART_MARGE := 23.2         # respiration à gauche et à droite du nom
-# De combien le pavillon mord sur la plaque. Il doit couvrir le filet du haut
-# sans toucher les lettres : c'est ce qui soude les deux en un seul bloc au lieu
-# de laisser deux objets empilés.
-const CART_CHEVAUCHE := 7.7
-# Cote de la vignette du manque, en hauteurs de pavillon. Aux deux tiers de ce
-# qu'elle valait : le pavillon ayant grandi d'un tiers, elle avait grandi avec
-# lui et pesait autant que la ville qu'elle annote.
+# Cote de la vignette d'état, en hauteurs de pavillon.
 const CART_ICONE := 0.87
+
+# LA BANDE DE NOM DE PORT ROYALE 3 : UN DÉGRADÉ, PAS UNE IMAGE.
+#
+# J'ai d'abord cru que c'était un 3-tranches fait des images 46/47/48 de
+# `hud_seamap_pc`, dont les tailles — 10 / 1 / 10 px — s'y prêtaient à merveille.
+# C'ÉTAIT FAUX, et deux indices auraient dû m'arrêter : `Seamap_Text_Bg_16` est le
+# caractère 39, ABSENT de `caracteres.txt` — donc pas un bitmap —, et AUCUN écran
+# ne référence 46, 47 ni 48. J'ai déduit « bitmap » de tailles de fichiers.
+#
+# `outils/swf_formes.py hud_seamap_pc.swf Seamap_Text_Bg` décode la vraie forme :
+#
+#   Seamap_Text_Bg_16         fill grad  118:(0,0,0,153)  255:(0,0,0,0)
+#   Seamap_Text_Bg_Player_17  fill grad  203:(0,129,255,255)  255:(0,0,0,0)
+#
+# Un DÉGRADÉ de noir à alpha 153, soit 60 %, qui s'efface jusqu'à la transparence,
+# et AUCUN trait — la forme ne porte pas de LineStyle. Notre plaque peinte était
+# donc la bonne TECHNIQUE ; seuls ses chiffres étaient faux (0,72 d'alpha, deux
+# filets, un fondu de 16 %).
+#
+# Le noir garde sa pleine densité jusqu'au repère 118 sur 255, puis s'efface : le
+# fondu occupe (255-118)/255, soit 54 % de la DEMI-largeur — donc 27 % de la
+# largeur totale à chaque bout.
+const BANDE_ALPHA := 0.60
+const BANDE_FRANGE := 0.27
+
+# `marker_office`, LA SECONDE FORME, EST UN ÉTAT ET NON UNE DÉCORATION. Son
+# dégradé est BLEU — (0,129,255) —, et PR3 la superpose à la bande quand le joueur
+# tient un entrepôt dans la ville : c'est la ligne cyan qu'on voit sur les
+# captures du jeu. On ne la dessine pas, faute d'entrepôts de joueur dans la
+# simulation ; sa couleur est notée ici pour le jour où ils existeront.
+#
+# La copier comme ornement aurait fait passer un état pour un décor — et l'aurait
+# montrée sur les soixante villes.
+
+# Une unité de l'agencement de PR3, mesurée sur son champ de nom
+# (`Visual_Textfeld_16_Shadow`, seize points, soit environ 21 unités de haut).
+# La bande étant un dégradé sans dimensions propres, c'est le TEXTE qui donne
+# l'échelle du cartouche — pavillon et icône de type s'en déduisent.
+const TEXTE_PR3 := 21.0
+
+# Les pavillons du jeu (`Visual_NationFlag_Small`, 44 x 30). PR3 n'en livre pas
+# pour le Portugal : cette nation garde le nôtre plutôt qu'un drapeau qui n'est
+# pas le sien.
+const PAVILLONS_PR3 := {
+	"espagne": "skinlib_pr3/1568",
+	"hollande": "skinlib_pr3/1569",
+	"france": "skinlib_pr3/1570",
+	"angleterre": "skinlib_pr3/1571",
+}
+# `icon_type` du cartouche de PR3 : la couronne du roi, l'écusson du gouverneur.
+const TYPE_ROI := "skinlib_pr3/1694"
+const TYPE_GOUVERNEUR := "skinlib_pr3/1695"
 
 const UI_CARTE := "res://sprites/ui_pr/"
 # Le sceau du dignitaire : sa taille en hauteurs de pavillon, et la part de
@@ -881,27 +931,24 @@ func _haut_bourg(port: Dictionary) -> Vector2:
 	return Vector2(emprise.position.x + emprise.size.x * 0.5, emprise.position.y)
 
 
-# Le cartouche d'un port : pavillon, nom, et ce dont la ville manque le plus.
-# Dessiné dans une passe à part, après les navires — voir `_draw`.
-# La largeur de plaque, la MÊME pour toutes les villes.
+# Le cartouche d'un port : pavillon, nom, type de ville et état. Dessiné dans une
+# passe à part, après les navires — voir `_draw`.
 #
-# Ajustée au nom, elle donnait soixante plaques de soixante largeurs : une
-# rangée d'étiquettes dépareillées, où l'oeil lit la longueur du mot avant de
-# lire le mot. On prend donc celle du nom le plus long — « Port-d'Espagne » ou
-# « Nouvelle Orléans » selon la police — et tous les autres flottent dedans.
-# C'est sans conséquence : le fond est un dégradé qui s'efface sur les bords,
-# donc l'espace en trop ne se voit pas.
-func _largeur_plaque(taille_t: int) -> float:
-	if _largeurs.has(taille_t):
-		return _largeurs[taille_t]
-	var maxi := 0.0
-	for port in ports:
-		var l := _police.get_string_size(str(port["nom"]),
-								  HORIZONTAL_ALIGNMENT_LEFT, -1, taille_t).x
-		if l > maxi:
-			maxi = l
-	_largeurs[taille_t] = maxi
-	return maxi
+# LA LARGEUR EST CELLE DU NOM, et c'est un RETOUR EN ARRIÈRE ASSUMÉ.
+#
+# Toutes les plaques avaient la même largeur, délibérément : ajustées au nom,
+# elles donnaient « soixante plaques de soixante largeurs », une rangée
+# d'étiquettes dépareillées où l'œil lit la longueur du mot avant le mot. Mais la
+# bande de Port Royale 3 est un 3-tranches, donc taillée sur son texte par
+# construction, et c'est celle du jeu qui est demandée. La fidélité l'emporte
+# sur ma préférence.
+func _largeur_plaque_nom(nom: String, taille_t: int) -> float:
+	var cle := nom + "|" + str(taille_t)
+	if _largeurs.has(cle):
+		return _largeurs[cle]
+	var l := _police.get_string_size(nom, HORIZONTAL_ALIGNMENT_LEFT, -1, taille_t).x
+	_largeurs[cle] = l
+	return l
 
 
 # La taille de police À L'ÉCRAN pour un texte haut de `CART_POLICE` sur la carte.
@@ -952,20 +999,46 @@ func _geometrie_cartouche(port: Dictionary) -> Dictionary:
 	var t_ecran := _police_ecran()
 	# On mesure à l'écran, puis on ramène en pixels de carte.
 	var ht := _police.get_height(t_ecran) / _zoom
-	var lplaque := _largeur_plaque(t_ecran) / _zoom + CART_MARGE * u * 2.0
-	var hp := CART_PAVILLON_H * u
-	var lp := hp * 1.32           # rapport des vignettes de pavillon
+	var lplaque := _largeur_plaque_nom(str(port.get("nom", "")), t_ecran) / _zoom \
+			+ CART_MARGE * u * 2.0
+
+	# TOUT LE CARTOUCHE EST À L'ÉCHELLE DE LA BANDE, dans les proportions du jeu.
+	# `s` vaut une unité de son image : la bande y fait 54 de haut, l'embout 10,
+	# le pavillon 44 x 30, l'icône de type 22 x 24.
+	#
+	# On cale `s` sur le CORPS PLEIN de la bande — 41 de ses 54 unités, le reste
+	# étant le fondu du haut et du bas — pour qu'il garde la hauteur du texte. La
+	# barre sombre derrière le nom pèse donc exactement ce qu'elle pesait ; ce
+	# sont les fondus et le filet du jeu qui viennent en plus.
+	var s := ht / TEXTE_PR3
+	# La bande respire autour du texte ; son dégradé s'efface de toute façon avant
+	# d'atteindre ses bords.
+	var hbande := ht * 1.30
+	var lp := 44.0 * s
+	var hp := 30.0 * s
 
 	var bas := haut_bourg.y - 4.0 * u
 	var rect_nom := Rect2(haut_bourg.x - lplaque * 0.5, bas - ht, lplaque, ht)
+	# La bande déborde le texte de son fondu, en haut comme en bas.
+	var bande := Rect2(rect_nom.position.x,
+			rect_nom.position.y - (hbande - ht) * 0.5, lplaque, hbande)
+	# Le pavillon : PR3 le pose à 58 unités du bord gauche pour une bande d'environ
+	# 160, soit le milieu — on le centre donc, ce qui tient quelle que soit la
+	# longueur du nom. Il MORD sur le haut de la bande de 8 unités, comme le jeu.
+	var pav := Rect2(bande.position.x + (lplaque - lp) * 0.5,
+			bande.position.y - hp + 8.0 * s, lp, hp)
 	var cote := hp * CART_ICONE
 	return {
-		"t_ecran": t_ecran, "ht": ht,
+		"t_ecran": t_ecran, "ht": ht, "s": s,
 		"nom": rect_nom,
-		"pavillon": Rect2(haut_bourg.x - lp * 0.5,
-							  rect_nom.position.y - hp + CART_CHEVAUCHE * u, lp, hp),
+		"bande": bande,
+		"pavillon": pav,
+		# `icon_type` : 22 unités à droite du bord gauche du pavillon, une unité
+		# plus haut — il chevauche donc la moitié droite du drapeau.
+		"type": Rect2(pav.position.x + 22.0 * s, pav.position.y - 1.0 * s,
+				22.0 * s, 24.0 * s),
 		"icone": Rect2(rect_nom.position.x + cote * 0.10,
-						rect_nom.position.y + ht + 2.0 * u, cote, cote),
+						bande.position.y + hbande + 2.0 * u, cote, cote),
 	}
 
 # Ce dont la ville souffre, sous son nom — les fléaux de Port Royale 3, avec les
@@ -1032,7 +1105,7 @@ func _dessiner_nom(port: Dictionary) -> void:
 	var r: Rect2 = g["nom"]
 	var t_ecran: int = g["t_ecran"]
 	var texte: String = port["nom"]
-	_plaque_carte(r, 0.72, Color(0.86, 0.84, 0.78, 0.85), CART_FILET)
+	_bande_pr3(g["bande"])
 
 	# Le texte est tracé en pixels d'ÉCRAN, dans une transformation inverse :
 	# c'est ce qui le garde net quel que soit le cran de zoom.
@@ -1082,8 +1155,39 @@ func _dessiner_pavillon(port: Dictionary) -> void:
 		return
 	var g := _geometrie_cartouche(port)
 	var rect: Rect2 = g["pavillon"]
-	Pavillon.dessiner(self, str(port.get("nation_cle", "")), rect)
-	_dessiner_dignitaire(port, rect)
+	var cle := str(port.get("nation_cle", ""))
+	var tex := SkinPR3.texture(String(PAVILLONS_PR3.get(cle, "")))
+	if tex != null:
+		draw_texture_rect(tex, rect, false)
+	else:
+		# Le Portugal, et tout poste sans l'art du jeu.
+		Pavillon.dessiner(self, cle, rect)
+	_dessiner_type_ville(port, g)
+
+
+# `icon_type` du cartouche de PR3 : la couronne du roi sur les capitales,
+# l'écusson du gouverneur sur les villes de rang 2. Elle remplace le sceau que
+# nous dessinions — même idée, mais l'icône est celle du jeu. Sans elle, on
+# retombe sur le sceau.
+func _dessiner_type_ville(port: Dictionary, g: Dictionary) -> void:
+	var rang := int(port.get("taille", 1))
+	if rang < 2:
+		return
+	var tex := SkinPR3.texture(TYPE_ROI if rang >= 3 else TYPE_GOUVERNEUR)
+	if tex == null:
+		_dessiner_dignitaire(port, g["pavillon"])
+		return
+	draw_texture_rect(tex, g["type"], false)
+
+
+# La bande de nom du jeu. Rien à charger : c'est une forme vectorielle, et l'on
+# reproduit son dégradé avec les chiffres relevés dans le .swf — noir à 60 %,
+# effacé sur 27 % de la largeur à chaque bout, SANS filet.
+#
+# Elle ne dépend donc d'aucun art : elle s'affiche à l'identique sur une copie
+# fraîche du dépôt, sans `reference_pr3/`.
+func _bande_pr3(r: Rect2) -> void:
+	_plaque_carte(r, BANDE_ALPHA, Color(0, 0, 0, 0), 0.0, BANDE_FRANGE)
 
 
 # La couronne des capitales, la bague des villes de gouverneur.
@@ -1134,9 +1238,13 @@ func _dessiner_dignitaire(port: Dictionary, pavillon: Rect2) -> void:
 # couleur de fond. On pose donc deux quadrilatères à couleurs de sommet :
 # `draw_polygon` interpole entre les quatre coins, et deux quads dos à dos
 # donnent un fondu symétrique sans la moindre texture.
-func _plaque_carte(r: Rect2, alpha: float, bord: Color, ep_bord: float) -> void:
-	var noir := Color(0.03, 0.03, 0.04, alpha)
-	var vide := Color(0.03, 0.03, 0.04, 0.0)
+func _plaque_carte(r: Rect2, alpha: float, bord: Color, ep_bord: float,
+		frange := CART_FRANGE) -> void:
+	# Le NOIR du jeu est du noir pur : sa forme donne (0,0,0,153). Le nôtre tirait
+	# très légèrement sur le bleu, ce qui ne se voyait pas mais n'avait pas de
+	# raison d'être.
+	var noir := Color(0.0, 0.0, 0.0, alpha)
+	var vide := Color(0.0, 0.0, 0.0, 0.0)
 	var x0 := r.position.x
 	var x1 := r.position.x + r.size.x
 	var y0 := r.position.y
@@ -1146,7 +1254,7 @@ func _plaque_carte(r: Rect2, alpha: float, bord: Color, ep_bord: float) -> void:
 	# une frange étroite, et tout le milieu reste pleinement opaque. Étalé sur la
 	# demi-largeur, le noir n'atteignait sa densité qu'au centre exact et le nom
 	# se lisait sur un fond qui fuyait sous ses premières et dernières lettres.
-	var f := r.size.x * CART_FRANGE
+	var f := r.size.x * frange
 	var xa := x0 + f
 	var xb := x1 - f
 
@@ -1159,6 +1267,12 @@ func _plaque_carte(r: Rect2, alpha: float, bord: Color, ep_bord: float) -> void:
 	draw_polygon(PackedVector2Array([
 		Vector2(xb, y0), Vector2(x1, y0), Vector2(x1, y1), Vector2(xb, y1)]),
 		PackedColorArray([noir, vide, vide, noir]))
+
+	# La forme de PR3 ne porte AUCUN trait : la bande du cartouche passe donc ici
+	# avec une épaisseur nulle et ressort tout de suite. Les filets ne servent plus
+	# qu'aux autres plaques du jeu, qui en ont.
+	if ep_bord <= 0.0 or bord.a <= 0.0:
+		return
 
 	# Les filets s'effacent AVEC le fond : un liseré net sur un fond dégradé
 	# donnerait deux traits qui flottent dans le vide à chaque extrémité.

@@ -90,6 +90,46 @@ func _init() -> void:
 	if not proj.valide:
 		_rater("fiche invalide : %s" % proj.erreur)
 
+	# --- l'art du CARTOUCHE des villes ---------------------------------------
+	#
+	# LA BANDE DU NOM N'EST PAS DE L'ART. C'est une forme VECTORIELLE de PR3
+	# (`Seamap_Text_Bg_16`), qu'on repeint d'apres ses chiffres decodes -- noir a
+	# 60 %, efface sur 27 % de la largeur a chaque bout, sans filet. Elle s'affiche
+	# donc partout, meme sans `reference_pr3/`. Rien a verifier ici.
+	#
+	# LE PAVILLON ET L'ICONE DE TYPE, eux, sont des images du jeu : sous droits,
+	# hors du depot, et leur absence n'est pas une faute -- la carte retombe sur
+	# nos propres pavillons. Mais quand elles SONT la, leurs dimensions doivent
+	# etre celles annoncees par la table d'icones. C'est ce qui attrape un
+	# identifiant qui s'est trompe de cible, et j'en ai pris plusieurs aujourd'hui.
+	print("")
+	print("=== l'art du cartouche (facultatif) ===")
+	var art := {
+		"pavillon Espagne": ["skinlib_pr3/1568", 44, 30],
+		"pavillon Hollande": ["skinlib_pr3/1569", 44, 30],
+		"pavillon France": ["skinlib_pr3/1570", 44, 30],
+		"pavillon Angleterre": ["skinlib_pr3/1571", 44, 30],
+		"couronne du roi": ["skinlib_pr3/1694", 22, 24],
+		"ecusson du gouverneur": ["skinlib_pr3/1695", 22, 24],
+	}
+	var presents := 0
+	for nom in art:
+		var f: Array = art[nom]
+		var tex := SkinPR3.texture(str(f[0]))
+		if tex == null:
+			print("   %-24s absent" % nom)
+			continue
+		presents += 1
+		print("   %-24s %d x %d" % [nom, tex.get_width(), tex.get_height()])
+		if tex.get_width() != int(f[1]) or tex.get_height() != int(f[2]):
+			_rater("%s fait %d x %d, attendu %d x %d : mauvais identifiant"
+					% [nom, tex.get_width(), tex.get_height(), int(f[1]), int(f[2])])
+	if presents == 0:
+		print("   (aucun art PR3 ici : nos propres pavillons prennent le relais)")
+	# Le Portugal n'a PAS de pavillon chez PR3 -- quatre nations seulement, plus le
+	# pirate. Il garde le notre, et ce n'est pas un manque a signaler.
+	print("   (le Portugal garde le notre : PR3 n'en livre pas)")
+
 	print("")
 	if absente:
 		print("carte_cuite.png est ABSENT, et c'est normal sur une copie fraiche :")

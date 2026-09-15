@@ -26,6 +26,18 @@ func _init() -> void:
 			tf.append(str(e.name))
 	print("Tab_TownInfo -> %d noeuds, %d champs" % [t.get_child_count(), tf.size()])
 	print("  champs : ", ", ".join(tf))
+	# `icon_town` est l'emplacement que PR3 reserve a l'illustration de la ville,
+	# en (61,79) dans sa page, pour un caractere de 90 x 83.
+	#
+	# Il sort en CONTROL NU, et c'est normal : son caractere est anonyme, donc
+	# `EcranPR3` ne lui connait aucune image. `VillePR3` y attache NOTRE vignette
+	# en enfant. Ce test ne verifie donc que l'existence de l'emplacement ; que la
+	# vignette y arrive vraiment, c'est `outils/test_ville_pr3.gd` qui le prouve.
+	var icone_ville := EcranPR3.champ(t, "icon_town")
+	print("  icon_town : %s" % ("ABSENT" if icone_ville == null
+			else icone_ville.get_class()))
+	if icone_ville == null:
+		print("  *** ECART : pas d'emplacement icon_town, la vignette n'a nulle part ou aller")
 
 	# La planche de gauche du HUD (hud_pc.swf). Attendu : 8 nœuds, dont QUATRE
 	# portent une image — la planche de bois (639), les deux boutons d'allure
