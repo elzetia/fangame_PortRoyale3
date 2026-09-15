@@ -109,6 +109,11 @@ func _init() -> void:
 		"pavillon Hollande": ["skinlib_pr3/1569", 44, 30],
 		"pavillon France": ["skinlib_pr3/1570", 44, 30],
 		"pavillon Angleterre": ["skinlib_pr3/1571", 44, 30],
+		# Celui du Portugal est FABRIQUE a partir du tricolore neerlandais par
+		# `outils/pavillon_portugal_pr3.py` : PR3 n'a que quatre nations. Il doit
+		# donc faire exactement la meme taille que ses voisins -- une autre
+		# dimension voudrait dire que l'outil a change de donneur.
+		"pavillon Portugal": ["pavillons_pr3/portugal", 44, 30],
 		"couronne du roi": ["skinlib_pr3/1694", 22, 24],
 		"ecusson du gouverneur": ["skinlib_pr3/1695", 22, 24],
 		"ancre (repos)": ["skinlib_pr3/1114", 36, 34],
@@ -133,8 +138,9 @@ func _init() -> void:
 	if presents == 0:
 		print("   (aucun art PR3 ici : nos propres pavillons prennent le relais)")
 	# Le Portugal n'a PAS de pavillon chez PR3 -- quatre nations seulement, plus le
-	# pirate. Il garde le notre, et ce n'est pas un manque a signaler.
-	print("   (le Portugal garde le notre : PR3 n'en livre pas)")
+	# pirate. Le sien est fabrique a partir du leur ; absent, il retombe sur le
+	# notre dans `sprites/pavillons/`, et ce n'est pas un manque a signaler.
+	print("   (le Portugal : pavillon fabrique, cf. outils/pavillon_portugal_pr3.py)")
 
 	# --- l'ecrasement des anneaux poses au sol --------------------------------
 	#

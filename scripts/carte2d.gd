@@ -744,14 +744,28 @@ const BANDE_FRANGE := 0.27
 # l'échelle du cartouche — pavillon et icône de type s'en déduisent.
 const TEXTE_PR3 := 21.0
 
-# Les pavillons du jeu (`Visual_NationFlag_Small`, 44 x 30). PR3 n'en livre pas
-# pour le Portugal : cette nation garde le nôtre plutôt qu'un drapeau qui n'est
-# pas le sien.
+# Les pavillons du jeu (`Visual_NationFlag_Small`, 44 x 30).
+#
+# PR3 N'A PAS DE PAVILLON PORTUGAIS, et ce n'est pas un défaut d'extraction :
+# zéro occurrence de « portug » dans ses trois tables d'icônes, zéro dans
+# `data.fuk` et `data0.fuk`, et la liste complète des `Flag_*` s'arrête à
+# Angleterre, France, Pays-Bas, Espagne, Pirate, Joueur. Le jeu a quatre nations ;
+# le Portugal est la cinquième de NOTRE simulation.
+#
+# Le sien est donc FABRIQUÉ à partir des leurs par
+# `outils/pavillon_portugal_pr3.py` : l'outil reprend le tricolore néerlandais,
+# en extrait l'ombrage du plissé — luminance de chaque pixel divisée par celle de
+# sa bande — et le réapplique sur les champs vert et rouge. Le liseré sombre et
+# l'alpha de la frange d'ombre sont ceux de PR3, au pixel près.
+#
+# Sans lui (dépôt frais, sans `reference_pr3/`), le Portugal retombe sur le nôtre,
+# dans `sprites/pavillons/` — voir `_dessiner_pavillon`.
 const PAVILLONS_PR3 := {
 	"espagne": "skinlib_pr3/1568",
 	"hollande": "skinlib_pr3/1569",
 	"france": "skinlib_pr3/1570",
 	"angleterre": "skinlib_pr3/1571",
+	"portugal": "pavillons_pr3/portugal",
 }
 # `icon_type` du cartouche de PR3 : la couronne du roi, l'écusson du gouverneur.
 const TYPE_ROI := "skinlib_pr3/1694"
