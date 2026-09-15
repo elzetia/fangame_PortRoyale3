@@ -151,21 +151,23 @@ func _lancer() -> void:
 	if manquants == art.size():
 		print("  (aucun art PR3 sur ce poste — le menu reste jouable en repli)")
 
-	# LA ROUE, tiree des ARCHIVES du jeu et non du .swf : `centercircle0`, que
-	# `outils/extraire_selection_pr3.py` sort de `data.fuk`. Elle se charge par
-	# chemin `res://` complet, pas par la forme "<swf>/<id>" des autres.
+	# LA BARRE A ROUE du centre, et son OMBRE. Deux entrees ANONYMES de
+	# `skinlib_pr3` -- des identifiants nus, sans classe `Visual_*` -- ce qui les a
+	# rendues invisibles a un inventaire par nom pendant toute la reprise du menu.
 	#
-	# Sa TAILLE est le controle utile : 512 x 512. Une autre dimension voudrait
-	# dire qu'on est tombe sur un autre asset -- l'erreur que j'ai deja faite
-	# plusieurs fois en nommant une image d'apres sa voisine.
-	var roue := SkinPR3.fichier("res://reference_pr3/assets/centercircle0.png")
-	if roue == null:
-		print("  roue centercircle0      absente -> la couronne se passe d'elle")
-	else:
-		print("  roue centercircle0      %d x %d" % [roue.get_width(), roue.get_height()])
-		if roue.get_width() != 512 or roue.get_height() != 512:
-			_rater("centercircle0 fait %d x %d, attendu 512 x 512"
-					% [roue.get_width(), roue.get_height()])
+	# Leurs TAILLES sont le controle utile : 196 x 196 et 210 x 210. Une autre
+	# dimension voudrait dire qu'on est tombe sur une image voisine, l'erreur que
+	# j'ai deja faite plusieurs fois ici.
+	for nom_roue in [["barre a roue", "skinlib_pr3/301", 196, 196],
+			["ombre de la barre", "skinlib_pr3/298", 210, 210]]:
+		var t := SkinPR3.texture(String(nom_roue[1]))
+		if t == null:
+			print("  %-22s absente -> la couronne s'en passe" % String(nom_roue[0]))
+			continue
+		print("  %-22s %d x %d" % [String(nom_roue[0]), t.get_width(), t.get_height()])
+		if t.get_width() != int(nom_roue[2]) or t.get_height() != int(nom_roue[3]):
+			_rater("%s fait %d x %d, attendu %d x %d" % [String(nom_roue[0]),
+					t.get_width(), t.get_height(), int(nom_roue[2]), int(nom_roue[3])])
 
 	# Et les images posées : avec l'art présent, la couronne doit en porter.
 	radial.ouvrir(port, Vector2(700, 450), true, sim)

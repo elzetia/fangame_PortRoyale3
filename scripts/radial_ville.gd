@@ -114,29 +114,36 @@ const ART_DESACTIVE := "ingame_radial_town/4"    # le disque gris (char7)
 const ART_HALO      := "ingame_radial_town/8"    # l'anneau de sélection (char9..16)
 const ART_LOUPE     := "ingame_radial_town/33"   # « Sélectionner », sur le pétale ville
 
-# LA ROUE DU JEU, et elle n'était pas dans le .swf.
+# LA BARRE À ROUE DU CENTRE, et il m'a fallu trois essais pour la trouver.
 #
-# `ingame_radial_town.swf` ne porte pour ce fond qu'un `Visual_CR_Radial`, un
-# `customrenderelement` dont le remplissage Flash est un aplat bleu de
-# remplacement — (0, 102, 204), la couleur témoin classique. J'en avais conclu
-# que le moteur peignait les pétales de rien. FAUX : il pose un maillage et une
-# TEXTURE, rangée dans `data.fuk` comme l'était déjà `selectioncircle`. Il
-# fallait chercher dans les archives du jeu, pas seulement dans l'interface.
+# `skinlib_pr3/301` (196 x 196) est la roue de bois — huit rayons, huit poignées,
+# moyeu doré. `skinlib_pr3/298` (210 x 210) est son OMBRE PORTÉE : 51 % de
+# transparent, 12 % d'opaque, et UNE SEULE couleur opaque, le noir pur.
 #
-# `outils/extraire_selection_pr3.py` la sort ; `reference_pr3/` est ignoré par git.
+# ELLES ÉTAIENT LÀ DEPUIS LE DÉBUT, et voici par où elles me sont passées sous le
+# nez : mon inventaire de `skinlib_pr3` se faisait par NOM DE CLASSE (`Visual_*`),
+# or ces deux entrées sont anonymes — des identifiants nus, invisibles à une
+# recherche par nom.
 #
-# MESURÉE, pas devinée : huit rayons à 0/45/90/135/180/225/270/315 degrés —
-# relevés à trois rayons différents (0,35 / 0,55 / 0,75) —, un anneau lumineux à
-# 0,89 du demi-côté et un moyeu vers 0,05. Les huit rayons tombent exactement sur
-# nos huit pétales, sans rotation à appliquer.
+# CE QUE J'AVAIS MIS À LA PLACE : `centercircle0`, tiré des archives du jeu, un
+# anneau lumineux à huit rayons dont les angles tombaient juste. Il s'affichait en
+# grand cercle pâle autour de la couronne — et une capture du jeu a montré qu'il
+# n'y est pas. C'était un décalque de carte, pas le fond du radial. Les angles qui
+# « tombaient juste » ne prouvaient rien : huit directions, c'est commun.
 #
-# SON ALPHA EST PLAT : les 16384 blocs BC3 partagent la paire (64, 65) et les
-# 262144 indices valent 0, donc tous les texels sont à 64. Le dessin vit dans le
-# RGB — sombre partout sauf l'anneau, les rayons et le moyeu. Elle se pose donc
-# en fusion ADDITIVE : en fusion normale, c'est un carré sombre à 25 %.
-const ART_ROUE := "res://reference_pr3/assets/centercircle0.png"
-# Où tombe l'anneau lumineux dans l'image, en fraction du demi-côté.
-const ROUE_ANNEAU := 0.89
+# MESURÉE par rayon (fraction du demi-côté) : alésage 0,04 ; moyeu plein
+# 0,10-0,22 ; rayons 0,28-0,46 ; JANTE PLEINE 0,52-0,70 ; poignées jusqu'à 0,95.
+#
+# Fusion NORMALE : jante opaque, fond transparent. Rien à voir avec l'alpha plat
+# de `centercircle0`, qui imposait l'additif.
+const ART_BARRE := "skinlib_pr3/301"
+const ART_BARRE_OMBRE := "skinlib_pr3/298"
+# Le bord INTÉRIEUR de la jante, en fraction du demi-côté. C'est lui qui borne la
+# carte d'identité posée au centre : on dimensionne donc la roue par
+# `R_CENTRE / BARRE_JANTE`, ce qui pose du même coup les poignées (0,95) juste au
+# bord intérieur des pétales. Les deux contraintes tombent ensemble, comme chez
+# PR3 où la fiche de ville tient dans la jante.
+const BARRE_JANTE := 0.52
 # Les six illustrations de ville. Le septième état d'`Icon_Towns_Big` est un
 # crâne (`ingame_radial_town/30`) : on ne sait pas ce qui le déclenche.
 const ART_VILLES := ["ingame_radial_town/18", "ingame_radial_town/20",
@@ -265,25 +272,34 @@ func _libelle(p: Dictionary) -> String:
 	return LocaPR3.texte(String(p["loca"]), String(p["txt"]))
 
 
-# La roue de PR3, posée sous la couronne. Absente, on ne dessine rien de plus :
-# les pétales et le centre se suffisent, comme avant.
+# La barre à roue au centre de la couronne : son ombre d'abord, puis elle.
+# Absente, on ne dessine rien de plus — les pétales et la fiche se suffisent.
 func _roue(c: Vector2) -> void:
-	var tex := SkinPR3.fichier(ART_ROUE)
+	var tex := SkinPR3.texture(ART_BARRE)
 	if tex == null:
 		return
-	# On la dimensionne pour que SON anneau tombe sur le bord extérieur des
-	# pétales : demi-côté = (RAYON + R_PETALE) / 0,89.
-	var demi := (RAYON + R_PETALE) / ROUE_ANNEAU
+	var demi := R_CENTRE / BARRE_JANTE
+
+	var ombre := SkinPR3.texture(ART_BARRE_OMBRE)
+	if ombre != null:
+		# L'ombre est dessinée plus large que la roue dans le jeu — 210 contre
+		# 196 — et l'on garde ce rapport plutôt que de les caler bord à bord.
+		var do := demi * 210.0 / 196.0
+		var tro := TextureRect.new()
+		tro.texture = ombre
+		tro.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tro.size = Vector2(do, do) * 2.0
+		tro.position = c - Vector2(do, do) + Vector2(2.0, 3.0)
+		tro.modulate = Color(1, 1, 1, 0.45)
+		tro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_racine.add_child(tro)
+
 	var tr := TextureRect.new()
 	tr.texture = tex
 	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	tr.size = Vector2(demi, demi) * 2.0
 	tr.position = c - Vector2(demi, demi)
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# FUSION ADDITIVE, sans quoi son alpha plat en ferait un carré sombre.
-	var mat := CanvasItemMaterial.new()
-	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	tr.material = mat
 	_racine.add_child(tr)
 
 
