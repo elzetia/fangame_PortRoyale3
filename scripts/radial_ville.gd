@@ -1,48 +1,85 @@
 # Le menu radial d'une ville — la couronne `Scene_Radial_Town` de Port Royale 3.
 #
-# CE QUE PR3 FAIT, relevé dans son propre agencement (`outils/swf_arbre.py` sur
-# `ingame_radial_town.swf`) et non deviné :
+# TOUT CE QUI SUIT EST MESURÉ, pas deviné. Les sources sont deux fichiers que
+# `outils/swf_*.py` tire du jeu, et qui vivent dans `reference_pr3/` (sous droits,
+# ignoré par git) :
 #
-#   sept pétales autour d'un centre, aux huit directions d'une couronne —
-#     haut-gauche  entrepôt    (le négoce : c'est là qu'on échange)
-#     haut         ville       (la fiche de la ville)
-#     gauche       capitainerie (navires ET convois à l'ancre)
-#     droite       chantier    (nombre de navires)
-#     bas-gauche   palais
-#     bas          église
-#     bas-droite   taverne
+#   agencement/ingame_radial_town.json  la scène, ses groupes et leurs positions
+#   ingame_radial_town/caracteres.txt   ce que chaque image est, et où elle se pose
 #
-#   et un CENTRE qui n'est pas un simple disque : nom de la ville, habitants avec
-#   leur icône, réputation avec son marqueur, pavillon de la nation, type de
-#   ville, et LES CINQ MARCHANDISES PRODUITES disposées en arc.
+# LA GÉOMÉTRIE RELEVÉE, en pixels de la scène Flash :
 #
-# Autrement dit, chaque pétale de PR3 est un petit tableau de bord, pas une
-# étiquette. La version précédente n'avait que quatre boutons de texte en
-# éventail — d'où l'écart de tenue avec l'original.
+#   centre de la couronne      (335,5 ; 334)
+#   rayon centre -> pétale     208      (haut 207, gauche 207,5, diagonales 209,6)
+#   disque d'un pétale         Ø 142    (4.png)
+#   anneau de sélection        Ø 192    (8.png, plus sa queue : 192 x 246)
+#   arc des marchandises       r ≈ 83, du demi-cercle SOUS le centre
 #
-# DEUX CHOIX ASSUMÉS, pour ne pas laisser croire à une copie exacte :
+# HUIT PÉTALES, ET NON SEPT. Une version précédente de ce menu n'en comptait que
+# sept : `ingame_radial_town.json` ne place que sept groupes d'éléments, et j'en
+# avais conclu que le huitième emplacement restait vide. C'est faux — la table de
+# localisation nomme les HUIT directions (`ID_ACTION_RADIAL_DIR_*`), et la
+# huitième s'appelle « Docks ». Le groupe manquait parce que son contenu est
+# dessiné par le MOTEUR, pas par Flash (voir plus bas).
 #
-#  1. PR3 n'a pas de pétale « Marché » : son lieu de négoce est l'ENTREPÔT. Notre
-#     comptoir y est donc rattaché, ce qui garde les quatre écrans du clone
-#     atteignables tout en respectant la disposition d'origine.
-#  2. Église, taverne et palais existent dans PR3 mais pas encore ici : ils sont
-#     dessinés DÉSACTIVÉS, comme PR3 le fait avec son propre calque `disable`,
-#     plutôt qu'omis. Un menu amputé ment sur le jeu ; un menu grisé dit ce qui
-#     reste à construire.
+# LES LIBELLÉS SONT CEUX DU JEU, pris dans sa propre table :
 #
-# L'ART DES PÉTALES de PR3 est du dessin vectoriel : l'extracteur n'en sort pas
-# d'image, et il n'y en a donc pas à charger. Les illustrations de VILLE, elles,
-# existent (`ingame_radial_town/18..28.png`, sept états) et sont utilisées quand
-# l'extraction locale est là. Comme partout dans le projet, leur absence ne
-# change que le look : `SkinPR3.texture()` rend `null` et l'on retombe sur le
-# tracé maison.
+#   haut         ID_ACTION_RADIAL_DIR_UP         Info ville
+#   haut-droite  ID_ACTION_RADIAL_DIR_UPRIGHT    Docks
+#   droite       ID_ACTION_RADIAL_DIR_RIGHT      Chantier naval
+#   bas-droite   ID_ACTION_RADIAL_DIR_DOWNRIGHT  Taverne
+#   bas          ID_ACTION_RADIAL_DIR_DOWN       Eglise
+#   bas-gauche   ID_ACTION_RADIAL_DIR_DOWNLEFT   Hôtel de ville
+#   gauche       ID_ACTION_RADIAL_DIR_LEFT       Capitainerie
+#   haut-gauche  ID_ACTION_RADIAL_DIR_UPLEFT     Entrepôt
+#
+# DEUX ERREURS DE LA VERSION PRÉCÉDENTE, CORRIGÉES ICI :
+#
+#  1. Le pétale bas-gauche s'appelait « Palais ». Son groupe Flash se nomme bien
+#     `Group_Radial_Palace_19`, mais le jeu l'AFFICHE « Hôtel de ville ». Le nom
+#     interne n'est pas le nom montré au joueur.
+#  2. Le négoce était rattaché à l'ENTREPÔT, au motif que « PR3 n'a pas de pétale
+#     marché ». Il en a un : les DOCKS. `dialog_storage` est un écran de gestion
+#     d'entrepôt (aperçu, bilan, administrateur) tandis que `dialog_trade` porte
+#     `Tab_Trade_Town_Office` et `Tab_Trade_Office_Convoy`, et refuse d'ouvrir
+#     sans « un entrepôt OU UN CONVOI dans la ville ». Le radial pirate tranche
+#     définitivement : sa direction haut s'appelle « Dock du port ».
+#     Le comptoir est donc aux Docks, et l'Entrepôt reste gris faute d'écran.
+#
+# L'ART QUE PR3 FOURNIT, ET CELUI QU'IL NE FOURNIT PAS. `caracteres.txt` montre
+# que les caractères 9 à 16 sont UNE MÊME IMAGE — 8.png — posée aux huit
+# directions, et ses décalages retombent au pixel près sur les boutons (char15 en
+# (128,333) = `bu_rad_left`). C'est l'anneau de sélection. Le char7, lui, est le
+# disque gris de 4.png : l'état DÉSACTIVÉ.
+#
+# En revanche le FOND de la couronne est un `Visual_CR_Radial`, un
+# « customrenderelement » : le moteur le dessine en code natif, il n'existe donc
+# aucune image de pétale à charger. Le disque d'un pétale est tracé ici — c'est
+# assumé, pas un pis-aller. Un commentaire antérieur affirmait que tout l'art des
+# pétales était vectoriel et qu'il n'y avait rien à charger : à moitié faux, et
+# c'est ce qui avait fait passer l'anneau et le disque gris pour inexistants.
+#
+# L'ILLUSTRATION DE LA VILLE N'EST PAS AU CENTRE. `Group_Radial_Town_8` la pose
+# en (335,124), soit exactement sur le bouton du haut : c'est le VISAGE du pétale
+# « Info ville ». Le centre, lui, ne porte que le nom, les habitants, la
+# réputation, le pavillon, le type de ville et les cinq marchandises produites.
+# La version précédente mettait l'illustration au centre.
+#
+# `Icon_Towns_Big` compte SEPT états : six illustrations (18 à 28) et un CRÂNE
+# (30.png). On indexe par la taille de la ville, faute de savoir ce que PR3
+# indexe — c'est un choix, et le crâne n'est pas employé.
+#
+# UN ÉCART ASSUMÉ SUR LES PAVILLONS : la simulation a cinq nations, dont le
+# Portugal. PR3 n'en livre que quatre (Espagne 1568, Pays-Bas 1569, France 1570,
+# Angleterre 1571) plus le pirate. Le Portugal garde donc sa bande de couleur :
+# lui coller le drapeau d'une autre nation serait pire que ne rien montrer.
 #
 # Le panneau ne décide de rien : il émet un signal par pétale, la carte branche.
 class_name RadialVille
 extends CanvasLayer
 
 signal infos_demandee(port: Dictionary)
-signal dock_demande(port: Dictionary)          # l'entrepôt : le négoce
+signal dock_demande(port: Dictionary)          # les Docks : le négoce
 signal capitainerie_demande(port: Dictionary)  # la gestion des convois
 signal chantier_demande(port: Dictionary)      # acheter/réparer/construire/vendre
 
@@ -52,21 +89,68 @@ const OR         := Color(0.86, 0.71, 0.36)
 const LIN        := Color(0.921, 0.888, 0.812)
 const GRIS       := Color(0.55, 0.52, 0.47)
 
-const RAYON    := 132.0   # centre -> pétale
-const R_PETALE := 48.0
-const R_CENTRE := 62.0
-const R_PRODUIT := 13.0   # les pastilles de marchandises, en arc sous le centre
+# --- les mesures de PR3, en pixels de sa scène -------------------------------
+const PR3_RAYON    := 208.0   # centre -> centre d'un pétale
+const PR3_PETALE   := 142.0   # Ø du disque d'un pétale
+const PR3_HALO_L   := 192.0   # l'anneau de sélection, largeur
+const PR3_HALO_H   := 246.0   #   ... et hauteur, queue comprise
+const PR3_CENTRE   := 150.0   # Ø du disque central (déduit de l'arc, r ≈ 83)
+const PR3_GOODS_R  := 83.0    # rayon de l'arc des cinq marchandises
+const PR3_GOODS_IC := 22.0    # `Visual_IconButton_Goods_NoBg`, 22 x 20
 
-# Les sept pétales de PR3, dans l'ordre de sa couronne. `angle` en degrés, 0 = à
-# droite, sens horaire (repère écran). `signal` vide = pas encore d'écran.
+# L'ÉCHELLE est le seul chiffre choisi. Les PROPORTIONS ci-dessus sont celles du
+# jeu ; on les réduit toutes du même facteur pour que la couronne tienne dans nos
+# fenêtres. Un seul facteur, donc aucun rapport n'est déformé.
+const ECHELLE := 0.70
+
+const RAYON     := PR3_RAYON * ECHELLE
+const R_PETALE  := PR3_PETALE * ECHELLE / 2.0
+const R_CENTRE  := PR3_CENTRE * ECHELLE / 2.0
+const R_GOODS   := PR3_GOODS_R * ECHELLE
+const R_PRODUIT := PR3_GOODS_IC * ECHELLE / 2.0
+
+# --- l'art du jeu -------------------------------------------------------------
+const ART_DESACTIVE := "ingame_radial_town/4"    # le disque gris (char7)
+const ART_HALO      := "ingame_radial_town/8"    # l'anneau de sélection (char9..16)
+const ART_LOUPE     := "ingame_radial_town/33"   # « Sélectionner », sur le pétale ville
+# Les six illustrations de ville. Le septième état d'`Icon_Towns_Big` est un
+# crâne (`ingame_radial_town/30`) : on ne sait pas ce qui le déclenche.
+const ART_VILLES := ["ingame_radial_town/18", "ingame_radial_town/20",
+	"ingame_radial_town/22", "ingame_radial_town/24",
+	"ingame_radial_town/26", "ingame_radial_town/28"]
+
+const ICN_HABITANTS  := "skinlib_pr3/1798"   # Visual_IconButton_habitants
+const ICN_POUCE      := "skinlib_pr3/1438"   # Visual_IconButton_ThumbsUp
+const ICN_TYPE       := "skinlib_pr3/1695"   # Visual_IconButton_Towninfo
+const ICN_REPUTATION := "skinlib_pr3/1936"   # Visual_AniElement_Reputationmarker
+
+# `Flag_*_small` de la table d'icônes, tous en 44 x 30.
+const PAVILLONS := {
+	"espagne": "skinlib_pr3/1568",
+	"hollande": "skinlib_pr3/1569",
+	"france": "skinlib_pr3/1570",
+	"angleterre": "skinlib_pr3/1571",
+}
+
+# Les huit pétales, dans le sens horaire depuis le haut. `angle` en degrés,
+# 0 = à droite, y vers le bas (repère écran). `sig` vide = pas encore d'écran.
 const PETALES := [
-	{"cle": "entrepot",     "txt": "Entrepôt",      "angle": -135.0, "sig": "dock"},
-	{"cle": "ville",        "txt": "Ville",         "angle":  -90.0, "sig": "infos"},
-	{"cle": "chantier",     "txt": "Chantier",      "angle":    0.0, "sig": "chantier"},
-	{"cle": "capitainerie", "txt": "Bureau du port","angle":  180.0, "sig": "capitainerie"},
-	{"cle": "palais",       "txt": "Palais",        "angle":  135.0, "sig": ""},
-	{"cle": "eglise",       "txt": "Église",        "angle":   90.0, "sig": ""},
-	{"cle": "taverne",      "txt": "Taverne",       "angle":   45.0, "sig": ""},
+	{"cle": "ville", "loca": "ID_ACTION_RADIAL_DIR_UP",
+		"txt": "Info ville", "angle": -90.0, "sig": "infos"},
+	{"cle": "docks", "loca": "ID_ACTION_RADIAL_DIR_UPRIGHT",
+		"txt": "Docks", "angle": -45.0, "sig": "dock"},
+	{"cle": "chantier", "loca": "ID_ACTION_RADIAL_DIR_RIGHT",
+		"txt": "Chantier naval", "angle": 0.0, "sig": "chantier"},
+	{"cle": "taverne", "loca": "ID_ACTION_RADIAL_DIR_DOWNRIGHT",
+		"txt": "Taverne", "angle": 45.0, "sig": ""},
+	{"cle": "eglise", "loca": "ID_ACTION_RADIAL_DIR_DOWN",
+		"txt": "Eglise", "angle": 90.0, "sig": ""},
+	{"cle": "hotel_ville", "loca": "ID_ACTION_RADIAL_DIR_DOWNLEFT",
+		"txt": "Hôtel de ville", "angle": 135.0, "sig": ""},
+	{"cle": "capitainerie", "loca": "ID_ACTION_RADIAL_DIR_LEFT",
+		"txt": "Capitainerie", "angle": 180.0, "sig": "capitainerie"},
+	{"cle": "entrepot", "loca": "ID_ACTION_RADIAL_DIR_UPLEFT",
+		"txt": "Entrepôt", "angle": -135.0, "sig": ""},
 ]
 
 var _port: Dictionary
@@ -86,6 +170,19 @@ class ColrRectFerme extends ColorRect:
 
 
 func _ready() -> void:
+	_batir_socle()
+
+
+# Le voile qui ferme au clic, et la racine où vivent les pétales et le centre.
+#
+# BÂTI À PART, ET APPELÉ AUSSI DEPUIS `ouvrir`, pour que l'ouverture ne dépende
+# pas de l'ordre dans lequel Godot a propagé `_ready`. En jeu la question ne se
+# pose pas — la carte ajoute le menu dans son propre `_ready` et ne l'ouvre qu'au
+# clic, bien plus tard. C'est un appelant PRÉCOCE qui trouvait `_racine` nul.
+# L'appel est sans effet la deuxième fois : le socle ne se bâtit qu'une seule.
+func _batir_socle() -> void:
+	if _racine != null:
+		return
 	layer = 62
 	visible = false
 	_voile = ColrRectFerme.new()
@@ -108,10 +205,17 @@ func _ready() -> void:
 # réputation et les compteurs. L'ancienne signature à trois arguments reste donc
 # valide.
 func ouvrir(port: Dictionary, ecran_pos: Vector2, a_convoi: bool, sim_ref = null) -> void:
+	_batir_socle()
 	_port = port
 	_sim = sim_ref
 	_a_convoi = a_convoi
+	# ON RETIRE DE L'ARBRE AVANT DE LIBÉRER. `queue_free` est DIFFÉRÉ : le nœud ne
+	# s'en va qu'en fin d'image. Deux ouvertures dans la même image laissaient donc
+	# la couronne PRÉCÉDENTE en place sous la nouvelle — les pétales d'une autre
+	# ville par-dessous, et leurs boutons encore cliquables. `remove_child` coupe
+	# sur-le-champ, `queue_free` fait le ménage ensuite.
 	for e in _racine.get_children():
+		_racine.remove_child(e)
 		e.queue_free()
 
 	# On garde la couronne entière à l'écran : le centre est repoussé des bords.
@@ -131,6 +235,163 @@ func fermer() -> void:
 	visible = false
 
 
+# Le libellé de PR3 pour ce pétale, ou le nôtre si la table n'est pas là.
+func _libelle(p: Dictionary) -> String:
+	return LocaPR3.texte(String(p["loca"]), String(p["txt"]))
+
+
+# --- les pétales -------------------------------------------------------------
+
+func _petale(c: Vector2, p: Dictionary) -> void:
+	var a := deg_to_rad(float(p["angle"]))
+	var pos := c + Vector2(cos(a), sin(a)) * RAYON
+	var actif := _actif(String(p["cle"]))
+
+	# 1. L'ANNEAU DE SÉLECTION, sous le pétale et caché jusqu'au survol.
+	#
+	# L'image porte son anneau en haut et une QUEUE en dessous, qui pointe vers le
+	# centre de la couronne. Dans la source la queue va vers le bas ; pour un
+	# pétale posé à l'angle θ elle doit viser le centre, donc l'image tourne de
+	# θ + 90°. Vérification sur le cas du haut (θ = -90) : rotation nulle, queue
+	# vers le bas, centre en dessous. C'est bien ce que fait le jeu.
+	var halo: TextureRect = null
+	var tex_halo := SkinPR3.texture(ART_HALO)
+	if tex_halo != null and actif:
+		halo = TextureRect.new()
+		halo.texture = tex_halo
+		halo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		halo.size = Vector2(PR3_HALO_L, PR3_HALO_H) * ECHELLE
+		# Le pivot est le centre de l'ANNEAU, pas celui de l'image : l'anneau
+		# occupe le carré supérieur (192 x 192), la queue pend sous lui.
+		halo.pivot_offset = Vector2(PR3_HALO_L, PR3_HALO_L) * ECHELLE / 2.0
+		halo.position = pos - halo.pivot_offset
+		halo.rotation = a + PI / 2.0
+		halo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		halo.visible = false
+		_racine.add_child(halo)
+
+	# 2. LE DISQUE. PR3 le dessine en code natif (`Visual_CR_Radial`) : il n'y a
+	#    pas d'image à charger, on le trace.
+	var b := Button.new()
+	b.text = _libelle(p)
+	b.size = Vector2(R_PETALE * 2, R_PETALE * 2)
+	b.position = pos - Vector2(R_PETALE, R_PETALE)
+	b.add_theme_font_size_override("font_size", 12)
+	b.clip_text = false
+	b.autowrap_mode = TextServer.AUTOWRAP_WORD
+
+	var st := StyleBoxFlat.new()
+	st.bg_color = LIN if actif else Color(LIN.r, LIN.g, LIN.b, 0.45)
+	st.border_color = BOIS_CLAIR if actif else GRIS
+	st.set_border_width_all(3)
+	st.set_corner_radius_all(int(R_PETALE))
+	st.set_content_margin_all(4)
+	b.add_theme_stylebox_override("normal", st)
+	var sh := st.duplicate() as StyleBoxFlat
+	sh.bg_color = OR
+	b.add_theme_stylebox_override("hover", sh if actif else st)
+	b.add_theme_color_override("font_color", BOIS if actif else GRIS)
+	b.add_theme_color_override("font_hover_color", BOIS)
+	b.disabled = not actif
+	if actif:
+		b.pressed.connect(_sur_petale.bind(String(p["sig"])))
+		if halo != null:
+			b.mouse_entered.connect(func() -> void: halo.visible = true)
+			b.mouse_exited.connect(func() -> void: halo.visible = false)
+	_racine.add_child(b)
+
+	# 3. LE VISAGE DU PÉTALE « INFO VILLE » : l'illustration de la ville, que PR3
+	#    pose exactement sur ce bouton.
+	if String(p["cle"]) == "ville":
+		_illustration(pos)
+
+	# 4. LE DISQUE GRIS de PR3 par-dessus ce qui ne mène nulle part.
+	if not actif:
+		var gris := SkinPR3.texture(ART_DESACTIVE)
+		if gris != null:
+			var tr := TextureRect.new()
+			tr.texture = gris
+			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			tr.size = Vector2(PR3_PETALE, PR3_PETALE) * ECHELLE
+			tr.position = pos - tr.size / 2.0
+			tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_racine.add_child(tr)
+
+	var compteur := _compteur(String(p["cle"]))
+	if compteur != "":
+		_texte(pos + Vector2(0, R_PETALE - 12), compteur, 11, BOIS_CLAIR, 90)
+
+
+# L'illustration de la ville, sur le pétale du haut. PR3 en a six, plus un crâne
+# dont on ignore le déclencheur ; on indexe par la taille (1 bourg, 2 ville,
+# 3 grande ville), et c'est un choix faute de mieux.
+func _illustration(pos: Vector2) -> void:
+	var taille := int(_port.get("taille", 1))
+	var vue := SkinPR3.texture(String(ART_VILLES[clampi(taille - 1, 0, ART_VILLES.size() - 1)]))
+	if vue == null:
+		return
+	var tr := TextureRect.new()
+	tr.texture = vue
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# L'illustration fait 146 x 134 pour un disque de 142 : on la rentre un peu
+	# pour qu'elle ne déborde pas du pétale.
+	tr.size = Vector2(R_PETALE * 1.7, R_PETALE * 1.7 * 134.0 / 146.0)
+	tr.position = pos - tr.size / 2.0 - Vector2(0, R_PETALE * 0.18)
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_racine.add_child(tr)
+	# La loupe « Sélectionner » (`ID_ACTION_RADIAL_CHOOSE`), en coin.
+	var loupe := SkinPR3.texture(ART_LOUPE)
+	if loupe != null:
+		var l := TextureRect.new()
+		l.texture = loupe
+		l.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		l.size = Vector2(44, 48) * ECHELLE * 0.55
+		l.position = pos + Vector2(R_PETALE * 0.42, -R_PETALE * 0.92)
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_racine.add_child(l)
+
+
+# Un pétale est actif s'il mène quelque part ET si le joueur peut y entrer.
+func _actif(cle: String) -> bool:
+	match cle:
+		"ville":
+			return true
+		"docks", "capitainerie":
+			return _a_convoi
+		"chantier":
+			return _a_convoi and bool(_port.get("chantier", false))
+		_:
+			# Entrepôt, hôtel de ville, église, taverne : pas encore d'écran.
+			return false
+
+
+# Les chiffres que PR3 pose sur ses pétales : ses groupes `Harbourmaster` et
+# `Shipyard` portent `tf_ships` et `tf_convoys` avec leurs icônes.
+func _compteur(cle: String) -> String:
+	if _sim == null:
+		return ""
+	var port_cle := String(_port.get("cle", ""))
+	if port_cle == "":
+		return ""
+	match cle:
+		"capitainerie":
+			if not _sim.has_method("convois_joueur"):
+				return ""
+			var n := 0
+			for m in _sim.convois_joueur():
+				var d: Dictionary = m
+				if String(d.get("ville", "")) == port_cle:
+					n += 1
+			return "%d convoi(s)" % n if n > 0 else ""
+	# PR3 pose aussi un nombre de navires sur le pétale CHANTIER. On ne l'affiche
+	# pas : `chantier_file()` rend la file GLOBALE du joueur, pas celle de ce
+	# port — le même chiffre s'afficherait dans les soixante villes. Un compteur
+	# faux est pire qu'un compteur absent ; il reviendra quand la file saura dire
+	# où chaque navire se construit.
+	return ""
+
+
 # --- le centre ---------------------------------------------------------------
 
 func _centre(c: Vector2) -> void:
@@ -146,8 +407,7 @@ func _centre(c: Vector2) -> void:
 	disque.add_theme_stylebox_override("panel", st)
 	_racine.add_child(disque)
 
-	# Le liseré à la couleur de la nation — le `flag` de PR3, réduit à sa teinte
-	# faute d'avoir les pavillons vectoriels.
+	# Le liseré à la couleur de la nation, sous le pavillon.
 	var coul: Color = _port.get("couleur", OR)
 	var anneau := Panel.new()
 	anneau.size = Vector2(d - 12, d - 12)
@@ -160,48 +420,50 @@ func _centre(c: Vector2) -> void:
 	anneau.add_theme_stylebox_override("panel", sa)
 	_racine.add_child(anneau)
 
-	# L'illustration de la ville, si l'extraction locale est là. PR3 en a sept,
-	# indexées par le type de ville ; on prend la taille (1 bourg, 2 ville,
-	# 3 grande ville) comme approche la plus proche de ce dont on dispose.
-	var taille := int(_port.get("taille", 1))
-	var ids := ["18", "20", "22", "24", "26", "28"]
-	var vue := SkinPR3.texture("ingame_radial_town/" + ids[clampi(taille - 1, 0, ids.size() - 1)])
-	if vue != null:
-		var tr := TextureRect.new()
-		tr.texture = vue
-		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		tr.size = Vector2(d - 22, (d - 22) * 0.62)
-		tr.position = c - Vector2(tr.size.x, tr.size.y) / 2.0 - Vector2(0, 10)
-		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_racine.add_child(tr)
+	# Le PAVILLON et le TYPE DE VILLE, au-dessus du nom — `flag` et `towntype`
+	# de PR3, posés en (14,-32) et (36,-32) dans son groupe central.
+	var pav := String(PAVILLONS.get(String(_port.get("nation_cle", "")), ""))
+	if pav != "":
+		_image(pav, c + Vector2(-16, -R_CENTRE - 2), Vector2(44, 30) * ECHELLE * 0.8)
+	_image(ICN_TYPE, c + Vector2(16, -R_CENTRE - 2), Vector2(22, 24) * ECHELLE * 0.8)
 
-	_texte(c + Vector2(0, -R_CENTRE + 14), String(_port.get("nom", "?")), 14, BOIS, 150)
+	_texte(c + Vector2(0, -R_CENTRE * 0.42), String(_port.get("nom", "?")), 14, BOIS, 150)
 
-	# Habitants et réputation, comme les `tf_citizen` / `tf_rep_val` de PR3.
+	# Habitants et réputation, comme les `tf_citizen` / `tf_rep_val` de PR3, avec
+	# leurs icônes : `Visual_IconButton_habitants` et le marqueur de réputation.
 	var hab := int(_port.get("habitants", 0))
-	_texte(c + Vector2(0, R_CENTRE - 26), "%d hab." % hab, 11, BOIS, 120)
+	_image(ICN_HABITANTS, c + Vector2(-26, R_CENTRE * 0.12), Vector2(42, 30) * ECHELLE * 0.6)
+	_texte(c + Vector2(8, R_CENTRE * 0.12), "%d" % hab, 11, BOIS, 80)
 	if _sim != null and _sim.has_method("etat_ville"):
 		var e: Dictionary = _sim.etat_ville(String(_port.get("cle", "")))
 		if e.has("reputation"):
-			_texte(c + Vector2(0, R_CENTRE - 14), "rép. %d" % int(e["reputation"]),
-					11, BOIS_CLAIR, 120)
+			var rep := int(e["reputation"])
+			_image(ICN_REPUTATION, c + Vector2(-26, R_CENTRE * 0.52),
+					Vector2(32, 32) * ECHELLE * 0.6)
+			_texte(c + Vector2(8, R_CENTRE * 0.52), "%d" % rep, 11, BOIS_CLAIR, 80)
+			# Le pouce levé de PR3 (`icn_tt_1`) quand la ville nous apprécie.
+			if rep >= 50:
+				_image(ICN_POUCE, c + Vector2(R_CENTRE * 0.62, R_CENTRE * 0.52),
+						Vector2(28, 28) * ECHELLE * 0.6)
 
 	_produits(c)
 
 
-# Les cinq marchandises produites, en arc SOUS le centre — le `gr_goods` de PR3.
+# Les cinq marchandises produites, sur le DEMI-CERCLE sous le centre — le
+# `gr_goods` de PR3. Ses cinq positions relevées tombent aux angles 180, 139, 92,
+# 42 et 0 degrés sur un rayon d'environ 83 : un demi-tour complet, et non le
+# petit éventail de 86° qu'affichait la version précédente.
 func _produits(c: Vector2) -> void:
 	var prod: Array = _port.get("produits", [])
 	if prod.is_empty():
 		return
 	var n := mini(prod.size(), 5)
-	var r := R_CENTRE + 22.0
-	var etendue := deg_to_rad(86.0)
-	var depart := deg_to_rad(90.0) - etendue / 2.0
 	for i in n:
-		var a := depart + (etendue * i / maxf(1.0, float(n - 1)))
-		var pos := c + Vector2(cos(a), sin(a)) * r
+		var t := float(i) / maxf(1.0, float(n - 1))
+		var ang := deg_to_rad(lerpf(180.0, 0.0, t))
+		# `sin` positif vers le bas en repère écran : l'arc passe donc SOUS le
+		# centre, comme celui du jeu.
+		var pos := c + Vector2(cos(ang), sin(ang)) * R_GOODS
 		var pastille := Panel.new()
 		pastille.size = Vector2(R_PRODUIT * 2, R_PRODUIT * 2)
 		pastille.position = pos - Vector2(R_PRODUIT, R_PRODUIT)
@@ -233,80 +495,22 @@ func _icone_marchandise(cle: String) -> Texture2D:
 	return tex
 
 
-# --- les pétales -------------------------------------------------------------
+# --- petits outils ------------------------------------------------------------
 
-func _petale(c: Vector2, p: Dictionary) -> void:
-	var a := deg_to_rad(float(p["angle"]))
-	var pos := c + Vector2(cos(a), sin(a)) * RAYON
-	var actif := _actif(String(p["cle"]))
-
-	var b := Button.new()
-	b.text = String(p["txt"])
-	b.size = Vector2(R_PETALE * 2, R_PETALE * 2)
-	b.position = pos - Vector2(R_PETALE, R_PETALE)
-	b.add_theme_font_size_override("font_size", 13)
-	b.clip_text = false
-	b.autowrap_mode = TextServer.AUTOWRAP_WORD
-
-	var st := StyleBoxFlat.new()
-	st.bg_color = LIN if actif else Color(LIN.r, LIN.g, LIN.b, 0.45)
-	st.border_color = BOIS_CLAIR if actif else GRIS
-	st.set_border_width_all(3)
-	st.set_corner_radius_all(int(R_PETALE))
-	st.set_content_margin_all(4)
-	b.add_theme_stylebox_override("normal", st)
-	var sh := st.duplicate() as StyleBoxFlat
-	sh.bg_color = OR
-	b.add_theme_stylebox_override("hover", sh if actif else st)
-	b.add_theme_color_override("font_color", BOIS if actif else GRIS)
-	b.add_theme_color_override("font_hover_color", BOIS)
-	b.disabled = not actif
-	if actif:
-		b.pressed.connect(_sur_petale.bind(String(p["sig"])))
-	_racine.add_child(b)
-
-	var compteur := _compteur(String(p["cle"]))
-	if compteur != "":
-		_texte(pos + Vector2(0, R_PETALE - 12), compteur, 11, BOIS_CLAIR, 80)
-
-
-# Un pétale est actif s'il mène quelque part ET si le joueur peut y entrer.
-func _actif(cle: String) -> bool:
-	match cle:
-		"ville":
-			return true
-		"entrepot", "capitainerie":
-			return _a_convoi
-		"chantier":
-			return _a_convoi and bool(_port.get("chantier", false))
-		_:
-			return false      # église, taverne, palais : pas encore d'écran
-
-
-# Les chiffres que PR3 pose sur ses pétales : navires au chantier, navires et
-# convois à l'ancre à la capitainerie.
-func _compteur(cle: String) -> String:
-	if _sim == null:
-		return ""
-	var port_cle := String(_port.get("cle", ""))
-	if port_cle == "":
-		return ""
-	match cle:
-		"capitainerie":
-			if not _sim.has_method("convois_joueur"):
-				return ""
-			var n := 0
-			for m in _sim.convois_joueur():
-				var d: Dictionary = m
-				if String(d.get("ville", "")) == port_cle:
-					n += 1
-			return "%d convoi(s)" % n if n > 0 else ""
-	# PR3 pose aussi un nombre de navires sur le pétale CHANTIER. On ne l'affiche
-	# pas : `chantier_file()` rend la file GLOBALE du joueur, pas celle de ce
-	# port — le même chiffre s'afficherait dans les soixante villes. Un compteur
-	# faux est pire qu'un compteur absent ; il reviendra quand la file saura dire
-	# où chaque navire se construit.
-	return ""
+# Une image du jeu, centrée sur `centre`. Ne fait rien si l'art n'est pas là :
+# comme partout, l'absence de `reference_pr3/` ne change que le look.
+func _image(cle: String, centre: Vector2, taille: Vector2) -> void:
+	var tex := SkinPR3.texture(cle)
+	if tex == null:
+		return
+	var tr := TextureRect.new()
+	tr.texture = tex
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.size = taille
+	tr.position = centre - taille / 2.0
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_racine.add_child(tr)
 
 
 func _texte(centre: Vector2, txt: String, taille: int, coul: Color, largeur: float) -> void:
