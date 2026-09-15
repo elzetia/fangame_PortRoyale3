@@ -12,26 +12,6 @@ const CHEMIN_MER := "res://carte_cuite_mer.png"
 const RAYON_CLIC_PORT := 90.0        # en mètres monde
 const MARGE_CLIC := 8.0              # en pixels de carte, autour du dessin
 
-# L'ANNEAU DE SÉLECTION DU JEU, et non un disque de mon cru.
-#
-# Port Royale 3 le pose en `selectioncircle` : le registre d'entités de la carte
-# maritime (`0x460d11`) nomme `SelectionConvoyMap` pour un convoi et
-# `SelectionConvoyTown` pour une ville, et l'archive livre deux anneaux de
-# 256 x 256 — `selectioncircle0` (trait FIN) et `selectioncircle1` (trait ÉPAIS).
-#
-# CE QUE JE N'AI PAS PU ÉTABLIR : lequel des deux revient à la ville. Leurs
-# descripteurs `.asset` sont identiques à leur nom près, et leurs maillages le
-# sont au octet près (215 / 1104 / 416) — la taille est appliquée à l'exécution,
-# elle n'est pas dans l'art, donc le rapport 16:11 des rayons de sélection ne
-# permet pas de les départager non plus. Il se peut d'ailleurs que la distinction
-# ne soit pas ville/convoi mais SURVOL/SÉLECTION, ce que l'écart d'épaisseur
-# suggère davantage. L'appariement vit dans l'exécutable.
-#
-# On prend donc le trait fin pour le survol d'une ville, et c'est un choix, pas
-# un relevé. L'art est sous droits (© Kalypso / Gaming Minds) : il vit dans
-# `reference_pr3/`, ignoré par git, et s'extrait de ta copie du jeu.
-const ANNEAU_SELECTION := "res://reference_pr3/assets/selectioncircle0.png"
-
 # LES ICÔNES D'ÉTAT DE VILLE, prises dans le jeu.
 #
 # Ce que la carte montrait avant sous le nom d'un port — la marchandise qui lui
@@ -888,23 +868,6 @@ func _dessiner_port(port: Dictionary) -> void:
 	var bord: Color = port["couleur_bord"]
 	var e := 1.0 / _zoom                                # taille constante à l'écran
 
-	if _port_survole == port:
-		# L'anneau du jeu s'il est là, le disque dessiné sinon. `SkinPR3.fichier`
-		# rend `null` quand l'art manque, et la règle du projet est que SEUL LE
-		# LOOK en dépende, jamais le comportement : une copie fraîche, sans
-		# `reference_pr3/`, doit rester jouable.
-		var anneau := SkinPR3.fichier(ANNEAU_SELECTION)
-		if anneau != null:
-			# Même encombrement que le disque qu'il remplace (rayon 22) : on
-			# change l'art, pas la taille — sans quoi on ne saurait plus lequel
-			# des deux a bougé.
-			var cote := 44.0 * e
-			draw_texture_rect(anneau,
-				Rect2(p - Vector2(cote, cote) * 0.5, Vector2(cote, cote)),
-				false, Color(1.0, 0.98, 0.85, 0.85))
-		else:
-			draw_circle(p, 22 * e, Color(1, 0.95, 0.7, 0.25))
-
 	# Mouillage, au large
 	draw_arc(r, 9 * e, 0, TAU, 20, Color(1, 1, 1, 0.35), 1.5 * e)
 
@@ -928,9 +891,44 @@ func _dessiner_port(port: Dictionary) -> void:
 		# Teinte légèrement rabattue : le rendu généré est plus saturé et plus
 		# contrasté que le terrain cuit, et ressort trop sans ça.
 		draw_texture_rect(tex, Rect2(coin, taille), false, Color(0.93, 0.93, 0.90))
+		# Le pourtour de sélection ENTOURE l'image, donc il vient après elle.
+		if _port_survole == port:
+			_pourtour_ville(emprise)
 	else:
 		draw_circle(p, 7 * e, Color(0.10, 0.08, 0.06))
 		draw_circle(p, 5 * e, couleur)
+		if _port_survole == port:
+			draw_arc(p, 11 * e, 0.0, TAU, 28, Color(0.98, 0.78, 0.30, 0.95), 2.0 * e)
+
+
+# LE POURTOUR DE SÉLECTION : un ovale doré autour de l'IMAGE de la ville.
+#
+# Il remplace l'anneau que nous posions sur le POINT du port. Ce point est une
+# convention interne que le joueur ne voit jamais ; ce qu'il voit, c'est un
+# village dessiné, et c'est lui qu'il faut entourer.
+#
+# CE QUI DISPARAÎT AVEC LUI, et le relevé mérite d'être gardé : Port Royale 3
+# pose un `selectioncircle` sur ses entités de carte maritime — le registre
+# (`0x460d11`) nomme `SelectionConvoyMap` pour un convoi et `SelectionConvoyTown`
+# pour une ville —, et l'archive livre DEUX anneaux de 256 x 256,
+# `selectioncircle0` à trait fin et `selectioncircle1` à trait épais. Lequel
+# revient à la ville n'a jamais pu être établi : leurs descripteurs sont
+# identiques à leur nom près et leurs maillages au octet près, la taille étant
+# appliquée à l'exécution. Il se peut d'ailleurs que la distinction ne soit pas
+# ville/convoi mais survol/sélection.
+func _pourtour_ville(r: Rect2) -> void:
+	var e := 1.0 / _zoom
+	var c := r.get_center()
+	# Un ovale plutôt qu'un cercle : les vignettes sont plus larges que hautes, et
+	# un cercle laisserait deux vides sur les côtés.
+	var ra := r.size * Vector2(0.62, 0.58)
+	var pts := PackedVector2Array()
+	for i in range(41):
+		var a := TAU * float(i) / 40.0
+		pts.append(c + Vector2(cos(a) * ra.x, sin(a) * ra.y))
+	# Un liseré sombre dessous : sur une plage claire, l'or seul s'évanouit.
+	draw_polyline(pts, Color(0.10, 0.06, 0.02, 0.55), 4.0 * e)
+	draw_polyline(pts, Color(0.98, 0.78, 0.30, 0.95), 2.0 * e)
 
 
 
@@ -1409,11 +1407,15 @@ func _dessiner_route_convoi() -> void:
 # couleurs de leur couronne et sans voile : d'un coup d'oeil on sait que ce
 # n'est pas le sien.
 func _dessiner_marchands() -> void:
-	var e := 1.0 / _zoom
 	for m in _marchands:
-		# On les dessine AUSSI à quai, en plus pâle. Les masquer au port les
-		# faisait disparaître la moitié du temps, et l'archipel semblait vide.
-		var quai := bool(m.get("a_quai", false))
+		# À QUAI, ON NE LES DESSINE PLUS. Ils l'étaient, en plus pâle, et le
+		# commentaire d'alors disait que les masquer « les faisait disparaître la
+		# moitié du temps, et l'archipel semblait vide ». C'était vrai quand la
+		# carte ne montrait presque rien d'autre ; elle a maintenant ses cartouches
+		# et ses ancres. Un navire au port EST dans le port : il n'a plus à flotter
+		# par-dessus.
+		if bool(m.get("a_quai", false)):
+			continue
 		var pos: Vector2 = m["position"]
 		# UN CONVOI ÉTRANGER NE SE VOIT QUE SOUS LES YEUX D'UN DES NÔTRES, ici et
 		# maintenant. À la différence d'une ville, voir un navire ne s'acquiert
@@ -1426,38 +1428,11 @@ func _dessiner_marchands() -> void:
 		# Un halo sous la coque : un navire brun foncé sur une mer bleu nuit ne se
 		# voit pas au zoom de la carte.
 		var u := _par_unite_brut()
-		if not quai:
-			_dessiner_sillage(p, a, u)
-		draw_circle(p, NAV_TAILLE * 0.18 * u, Color(0, 0, 0, 0.18 if quai else 0.24))
-		_poser_navire(p, a, NAV_TAILLE * 0.88 * u,
-			Color(1, 1, 1, 0.55) if quai else Color(1, 1, 1, 1),
+		_dessiner_sillage(p, a, u)
+		draw_circle(p, NAV_TAILLE * 0.18 * u, Color(0, 0, 0, 0.24))
+		_poser_navire(p, a, NAV_TAILLE * 0.88 * u, Color(1, 1, 1, 1),
 			_modele_voile(str(m.get("modele", "")),
 				int(NAV_VOILES_NATIONS.get(str(m.get("nation_cle", "")), NAV_VOILE_DEFAUT))))
-		continue
-
-		var coque: Array[Vector2] = [
-			Vector2(12, 0), Vector2(3, 5), Vector2(-9, 4),
-			Vector2(-10, 0), Vector2(-9, -4), Vector2(3, -5),
-		]
-		var pts := PackedVector2Array()
-		for v in coque:
-			pts.append(p + v.rotated(a) * e)
-		draw_colored_polygon(pts, Color(0.44, 0.33, 0.21) if quai
-							 else Color(0.62, 0.47, 0.30))
-		draw_polyline(pts + PackedVector2Array([pts[0]]),
-					  Color(0.14, 0.08, 0.04), 1.5 * e)
-
-		# Pavillon de la nation, planté au milieu de la coque : c'est lui qui
-		# dit à qui on a affaire.
-		var couleur: Color = m["couleur"]
-		var flamme := PackedVector2Array([
-			p + Vector2(-2, -2).rotated(a) * e,
-			p + Vector2(-2, -13).rotated(a) * e,
-			p + Vector2(8, -10).rotated(a) * e,
-		])
-		draw_colored_polygon(flamme, couleur.darkened(0.35) if quai else couleur)
-		draw_polyline(flamme + PackedVector2Array([flamme[0]]),
-					  Color(0.10, 0.06, 0.03), 1.0 * e)
 
 
 func _dessiner_navire() -> void:
@@ -1482,9 +1457,12 @@ func _dessiner_convois_joueur() -> void:
 		var pos: Vector2 = m["position"]
 		var p := proj.vers_carte(pos.x, pos.y)
 		var a := proj.angle_ecran(cos(float(m["cap"])), sin(float(m["cap"])))
-		var quai := bool(m.get("a_quai", false))
-		if not quai:
-			_dessiner_sillage(p, a, u)
+		# À quai, le convoi quitte la carte : il est dans le port, et c'est
+		# l'ANCRE du cartouche qui dit qu'il y est. Le dessiner par-dessus faisait
+		# deux marques pour une seule chose.
+		if bool(m.get("a_quai", false)):
+			continue
+		_dessiner_sillage(p, a, u)
 		if int(m.get("indice", -1)) == _convoi_selectionne:
 			draw_arc(p, NAV_TAILLE * 0.5 * u, 0.0, TAU, 32, Color(0.95, 0.83, 0.4, 0.95), 2.5 * u)
 		draw_circle(p, NAV_TAILLE * 0.20 * u, Color(0, 0, 0, 0.22))

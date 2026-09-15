@@ -69,6 +69,25 @@ func texture_pour(port: Dictionary) -> Texture2D:
 
 
 # Rectangle occupé par le village sur la carte, en pixels d'image.
+#
+# LA VIGNETTE EST CENTRÉE SUR LE POINT DU PORT. Elle ne l'était pas : elle se
+# posait par son ancrage de base, puis on la REPOUSSAIT vers l'intérieur des
+# terres de 45 % de sa hauteur, le long de l'axe mouillage -> bourg, pour qu'une
+# ville de côte nord ne déborde pas sur sa propre mer. Le village se retrouvait
+# donc à côté de son point au lieu d'être dessus, et c'est ce décalage qu'on
+# retire.
+#
+# UNE CONSÉQUENCE À CONNAÎTRE : `cuisson_carte.gd` appelle CETTE MÊME fonction
+# pour réserver la clairière autour de chaque village (`_clairieres`, emprise
+# élargie de 16 %). Une carte cuite AVANT ce changement garde donc ses clairières
+# à l'ancienne place — il faut la recuire, sans quoi des palmiers poussent au
+# milieu des toits. C'est tout l'intérêt d'avoir gardé ce calcul dans un seul
+# endroit : le rendu et la cuisson ne peuvent pas diverger, mais ils doivent être
+# refaits ensemble.
+#
+# Le `decalage` de la fiche du port reste appliqué : c'est une donnée d'auteur,
+# qui écarte l'image d'un relief gênant. Le point réel, lui, ne bouge jamais —
+# c'est lui qui sert au mouillage.
 func emprise(proj: ProjectionCarte, port: Dictionary) -> Rect2:
 	if textures.is_empty():
 		return Rect2()
@@ -76,26 +95,9 @@ func emprise(proj: ProjectionCarte, port: Dictionary) -> Rect2:
 	var tex: Texture2D = textures[i]
 	# Combien de pixels de carte vaut une unite de monde, ici et maintenant.
 	var ech: float = ECHELLE_MONDE * float(proj.pixels.x) / proj.vue_taille.x
-	var anc: Vector2 = ancrages[i] * ech
 	var taille := Vector2(tex.get_width(), tex.get_height()) * ech
 
 	var bourg: Vector3 = port["bourg"]
-	var rade: Vector3 = port["rade"]
-	var p := proj.vers_carte(bourg.x, bourg.z, 14.0)
-	var r := proj.vers_carte(rade.x, rade.z)
-
-	# Le sprite est ancré à sa base et se développe vers le HAUT de l'image,
-	# c'est-à-dire vers le nord. Une ville de côte nord déborderait donc sur
-	# sa propre mer. On la repousse vers l'intérieur des terres, le long de
-	# l'axe mouillage -> bourg, d'autant plus qu'elle est grande.
-	var vers_terre := p - r
-	if vers_terre.length_squared() > 0.01:
-		vers_terre = vers_terre.normalized()
-	else:
-		vers_terre = Vector2(0, -1)
-
-	# Le décalage ne bouge que l'image : le point réel, lui, reste sur la côte,
-	# et c'est lui qui sert au mouillage et à la cible du clic.
 	var dec: Vector2 = port.get("decalage", Vector2.ZERO)
 	var p_img := proj.vers_carte(bourg.x + dec.x, bourg.z + dec.y, 14.0)
-	return Rect2(p_img - anc + vers_terre * taille.y * 0.45, taille)
+	return Rect2(p_img - taille * 0.5, taille)
