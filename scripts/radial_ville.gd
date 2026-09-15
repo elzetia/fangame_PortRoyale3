@@ -138,11 +138,22 @@ const ART_DISQUE := "ingame_radial_town/4"
 # L'église et l'hôtel de ville ont une variante par nation ; les autres non.
 # Le PORTUGAL n'a aucun équivalent chez PR3, qui n'a que quatre nations : il
 # reprend l'espagnole, la plus proche. C'est un choix, pas un relevé.
+#
+# TROIS BÂTIMENTS N'Y SONT PAS, ET C'EST DÉLIBÉRÉ. La taverne, l'entrepôt et le
+# chantier sortent illisibles : ce sont des structures OUVERTES — hangars à
+# poutres, échafaudages — sans silhouette fermée. À 142 px elles ne donnent qu'un
+# enchevêtrement sombre.
+#
+# Cinq tentatives avant d'en convenir : gain d'éclairage, sur-échantillonnage,
+# angle de vue, taille doublée, et retrait de leurs pièces mécaniques (l'entrepôt
+# porte un crochet et une corde, le chantier une grue et une scie — les enlever
+# ne change RIEN, le rendu est identique au pixel près).
+#
+# Ces trois pétales gardent donc leur LIBELLÉ sur le disque de PR3. Un mot propre
+# vaut mieux qu'une tache : voir `_petale`, qui rend le texte quand aucune image
+# n'a pu être posée.
 const BATIMENTS := {
 	"capitainerie": "lighthouse",
-	"taverne": "tavern",
-	"entrepot": "depot",
-	"chantier": "dockyard0",
 	"docks": "port0",
 }
 const BATIMENTS_NATION := {
@@ -394,13 +405,26 @@ func _petale(c: Vector2, p: Dictionary) -> void:
 		tf.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_racine.add_child(tf)
 
-	_batiment(pos, p, actif)
+	var a_image := _batiment(pos, p, actif)
 
-	# Le bouton ne porte plus ni fond ni texte : il n'est que la zone sensible.
-	# PR3 ne met pas de mot sur ses pétales — le bâtiment dit lequel c'est. Le
-	# libellé passe en INFOBULLE, pour que le survol le nomme quand même.
+	# Le bouton n'a pas de fond : il n'est que la zone sensible. PR3 ne met pas de
+	# mot sur ses pétales — le bâtiment dit lequel c'est —, donc le libellé passe
+	# en INFOBULLE.
+	#
+	# SAUF QUAND AUCUNE IMAGE N'A PU ÊTRE POSÉE : taverne, entrepôt et chantier
+	# rendent illisible (voir BATIMENTS), et un pétale nu ne dirait plus rien. Le
+	# texte revient alors sur le disque. Un mot propre vaut mieux qu'une tache.
 	var b := Button.new()
 	b.tooltip_text = _libelle(p)
+	if not a_image:
+		b.text = _libelle(p)
+		b.add_theme_font_size_override("font_size", 12)
+		b.clip_text = false
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD
+		b.add_theme_color_override("font_color",
+				Color(0.93, 0.90, 0.82) if actif else GRIS)
+		b.add_theme_color_override("font_hover_color", Color(1, 0.96, 0.85))
+		b.add_theme_color_override("font_disabled_color", GRIS)
 	b.size = Vector2(R_PETALE * 2, R_PETALE * 2)
 	b.position = pos - Vector2(R_PETALE, R_PETALE)
 	b.flat = true
@@ -434,18 +458,18 @@ func _petale(c: Vector2, p: Dictionary) -> void:
 # Absent — dépôt frais, sans `reference_pr3/` — on ne dessine rien : le pétale
 # reste son disque nu, et l'infobulle le nomme. Comme partout, l'absence de l'art
 # ne change que le look.
-func _batiment(pos: Vector2, p: Dictionary, actif: bool) -> void:
+func _batiment(pos: Vector2, p: Dictionary, actif: bool) -> bool:
 	var cle := String(p["cle"])
 	var nom := String(BATIMENTS.get(cle, ""))
 	if nom == "":
 		var base := String(BATIMENTS_NATION.get(cle, ""))
 		if base == "":
-			return
+			return false
 		nom = base + String(SUFFIXE_NATION.get(
 				String(_port.get("nation_cle", "")), "sp"))
 	var tex := SkinPR3.texture("batiments/" + nom)
 	if tex == null:
-		return
+		return false
 	var tr := TextureRect.new()
 	tr.texture = tex
 	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -457,6 +481,7 @@ func _batiment(pos: Vector2, p: Dictionary, actif: bool) -> void:
 	tr.modulate = Color(1, 1, 1, 1) if actif else Color(0.55, 0.55, 0.58, 0.9)
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_racine.add_child(tr)
+	return true
 
 
 # L'illustration de la ville, sur le pétale du haut. PR3 en a six, plus un crâne

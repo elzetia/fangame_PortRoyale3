@@ -115,9 +115,40 @@ def lire_texture(dossier):
     return w, h, px
 
 
+def _reduire(img, grand, petit, n):
+    """Moyenne des blocs n x n : le lissage qui manque au rastériseur."""
+    out = bytearray(petit * petit * 4)
+    inv = 1.0 / (n * n)
+    for y in range(petit):
+        for x in range(petit):
+            r = g = b = a = 0
+            for dy in range(n):
+                base = ((y * n + dy) * grand + x * n) * 4
+                for dx in range(n):
+                    o = base + dx * 4
+                    r += img[o]; g += img[o + 1]; b += img[o + 2]; a += img[o + 3]
+            d = (y * petit + x) * 4
+            out[d] = int(r * inv)
+            out[d + 1] = int(g * inv)
+            out[d + 2] = int(b * inv)
+            out[d + 3] = int(a * inv)
+    return out
+
+
 def rendre(dossier, sortie, taille=512, angle=58.0, lumiere=(-0.55, 0.68, -0.48),
-           gain=1.0):
-    """Rend le maillage en plongee oblique, sur fond transparent."""
+           gain=1.0, sursample=1):
+    """Rend le maillage en plongee oblique, sur fond transparent.
+
+    `sursample` : rend N fois plus grand, puis reduit en moyennant. C'est le seul
+    lissage de ce rastériseur, qui ecrit sinon un pixel par triangle sans aucun
+    fondu -- d'ou des contours en escalier et un grain sale qui mange les formes
+    a petite taille. Les vignettes de batiment du menu radial en vivaient.
+    """
+    sortie_taille = taille
+    sursample = max(1, int(sursample))
+    # Tout le rendu travaille en GRAND : `taille` est locale, la reassigner ici
+    # suffit a mettre projection, cadrage et tampons a l'echelle.
+    taille = taille * sursample
     sommets, normales, uv, triangles = lire_maillage(dossier)
     tex = lire_texture(dossier)
     th = math.radians(angle)
@@ -223,7 +254,9 @@ def rendre(dossier, sortie, taille=512, angle=58.0, lumiere=(-0.55, 0.68, -0.48)
                 img[d + 2] = min(255, int(b_ * f))
                 img[d + 3] = 255
 
-    ecrire_png(sortie, taille, taille, img)
+    if sursample > 1:
+        img = _reduire(img, taille, sortie_taille, sursample)
+    ecrire_png(sortie, sortie_taille, sortie_taille, img)
     return len(sommets), len(triangles)
 
 

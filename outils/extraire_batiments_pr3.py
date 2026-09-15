@@ -108,7 +108,16 @@ def sortir(ar, nom):
 
 
 def main():
-    taille, angle, gain = 142, 58.0, 1.7
+    # L'ANGLE EST CELUI DE LA CAMERA DE PR3 : 35 degres, mesure dans sa vue
+    # `seamap` (camera en (0 ; 280,083 ; -400) visant l'origine). Je rendais a 58,
+    # un plonge raide qui ecrase les facades et ne montre que des toits -- alors
+    # que `outils/rendre_navires_pr3.gd` porte cet avertissement depuis des mois :
+    # « rendus a 60 ou 72 degres, ils sortent aplatis ». Passer a 35 est ce qui a
+    # rendu le phare, l'eglise et l'hotel de ville enfin lisibles.
+    #
+    # LE SUR-ECHANTILLONNAGE a 3 : ce rastériseur ecrit un pixel par triangle sans
+    # aucun fondu, d'ou un grain qui mange les formes a petite taille.
+    taille, angle, gain, ss = 142, 35.0, 1.9, 3
     if "--taille" in sys.argv:
         taille = int(sys.argv[sys.argv.index("--taille") + 1])
     if "--angle" in sys.argv:
@@ -151,7 +160,7 @@ def main():
         png = os.path.join(VIGNETTES, nom + ".png")
         try:
             ns, nt = pr3_mesh.rendre(src, png, taille, angle,
-                                     (-0.55, 0.68, -0.48), gain)
+                                     (-0.45, 0.55, -0.70), gain, ss)
         except Exception as ex:                      # noqa: BLE001
             print("   %-22s ECHEC : %s" % (nom, ex))
             continue
