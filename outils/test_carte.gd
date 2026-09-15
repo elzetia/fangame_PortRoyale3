@@ -111,6 +111,8 @@ func _init() -> void:
 		"pavillon Angleterre": ["skinlib_pr3/1571", 44, 30],
 		"couronne du roi": ["skinlib_pr3/1694", 22, 24],
 		"ecusson du gouverneur": ["skinlib_pr3/1695", 22, 24],
+		"ancre (repos)": ["skinlib_pr3/1114", 36, 34],
+		"ancre (survol)": ["skinlib_pr3/1111", 36, 34],
 	}
 	var presents := 0
 	for nom in art:
@@ -129,6 +131,35 @@ func _init() -> void:
 	# Le Portugal n'a PAS de pavillon chez PR3 -- quatre nations seulement, plus le
 	# pirate. Il garde le notre, et ce n'est pas un manque a signaler.
 	print("   (le Portugal garde le notre : PR3 n'en livre pas)")
+
+	# --- l'ancre : le cycle entre les convois a quai --------------------------
+	#
+	# L'ancre du cartouche se clique et fait defiler les convois du port. La regle
+	# est STATIQUE dans carte2d.gd pour etre exercable ici : monter toute la carte
+	# pour verifier un bouclage serait absurde, et ne pas le verifier laisserait
+	# passer le cas qui casse -- le DERNIER convoi, qui doit revenir au premier.
+	# Ce cas ne se voit qu'avec plusieurs convois dans un meme port.
+	print("")
+	print("=== l'ancre : cycle entre les convois a quai ===")
+	var sc := ResourceLoader.load("res://scripts/carte2d.gd") as GDScript
+	if sc == null or sc.reload() != OK:
+		_rater("carte2d.gd ne compile pas : le cycle n'est pas verifiable")
+	else:
+		var cas := [
+			[[3], 3, 3, "un seul convoi : il reste"],
+			[[1, 2, 3], 1, 2, "du premier au deuxieme"],
+			[[1, 2, 3], 3, 1, "du DERNIER au premier (le bouclage)"],
+			[[1, 2, 3], 9, 1, "selection hors du port : on entre par le premier"],
+			[[], 1, -1, "aucun convoi : rien a selectionner"],
+		]
+		for c in cas:
+			var attendu := int(c[2])
+			var obtenu: int = sc.call("_convoi_suivant", c[0], int(c[1]))
+			var bon := obtenu == attendu
+			print("   %-44s %s + %s -> %d  %s" % [str(c[3]), str(c[0]), str(c[1]),
+					obtenu, "OK" if bon else "*** ECART ***"])
+			if not bon:
+				_rater("cycle (%s) : %d attendu, %d obtenu" % [str(c[3]), attendu, obtenu])
 
 	print("")
 	if absente:

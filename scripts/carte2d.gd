@@ -144,6 +144,10 @@ var _saisie_image := false      # on déplace l'image, pas le point réel
 var _charge := false         # le démarrage est-il terminé ?
 var _tex_ombre: ImageTexture
 var _rects_villes := {}         # rectangle dessiné de chaque village, pour le saisir
+# Le rectangle de l'ANCRE de chaque port, mémorisé au dessin pour que le clic
+# puisse la viser, et la clé du port dont l'ancre est sous le curseur.
+var _rects_ancre := {}
+var _ancre_survolee := ""
 var _sceaux := {}               # couronne et bague, chargées une fois
 var _atlas_nav: Texture2D       # les trente-deux caps du navire
 var _message := ""
@@ -759,6 +763,18 @@ const PAVILLONS_PR3 := {
 const TYPE_ROI := "skinlib_pr3/1694"
 const TYPE_GOUVERNEUR := "skinlib_pr3/1695"
 
+# L'ANCRE, quand un de tes convois est à quai.
+#
+# `Group_Seamap_Town_8` pose DEUX choses au même point (-43, +8) : `icon_convoy`
+# (`Visual_IconButton_Anchor`, 1114) et `bu_convoy` (`Visual_RoundButton_Anchored`,
+# 1111), toutes deux en 36 x 34. Deux images au même endroit, c'est un élément et
+# son état — PR3 a d'ailleurs un `bu_trade` en miroir à (+43, +8).
+#
+# LEQUEL EST LE REPOS ET LEQUEL LE SURVOL EST UN CHOIX, pas un relevé : on prend
+# 1114 au repos et 1111 sous le curseur.
+const ANCRE := "skinlib_pr3/1114"
+const ANCRE_SURVOL := "skinlib_pr3/1111"
+
 const UI_CARTE := "res://sprites/ui_pr/"
 # Le sceau du dignitaire : sa taille en hauteurs de pavillon, et la part de
 # lui-même qui passe au-dessus de l'arête du drapeau.
@@ -1046,6 +1062,12 @@ func _geometrie_cartouche(port: Dictionary) -> Dictionary:
 				pav.position.y - (1.0 + 12.0) * s, 22.0 * s, 24.0 * s),
 		"icone": Rect2(rect_nom.position.x + cote * 0.10,
 						bande.position.y + hbande + 2.0 * u, cote, cote),
+		# `icon_convoy` : PR3 le pose à (-43, +8) du point de la ville, et CENTRÉ
+		# sur ce point — la table d'icônes donne (-18,-17) à
+		# `Visual_IconButton_Anchor`, la moitié de ses 36 x 34. Même piège que la
+		# couronne, évité cette fois.
+		"ancre": Rect2(haut_bourg + Vector2(-43.0, 8.0) * s - Vector2(18.0, 17.0) * s,
+				Vector2(36.0, 34.0) * s),
 	}
 
 # Ce dont la ville souffre, sous son nom — les fléaux de Port Royale 3, avec les
@@ -1125,29 +1147,66 @@ func _dessiner_nom(port: Dictionary) -> void:
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-# Un de tes convois est-il à quai dans ce port ?
-func _convoi_du_joueur_au_port(cle: String) -> bool:
+# Les indices de TES convois à quai dans ce port, dans l'ordre.
+#
+# Rendait un simple « oui / non » tant que l'ancre n'était qu'une marque. Elle est
+# maintenant CLIQUABLE et fait défiler les convois du port : il lui faut la liste.
+func _convois_au_port(cle: String) -> Array:
+	var sortie: Array = []
 	for m in _convois_joueur:
 		if bool(m.get("a_quai", false)) and String(m.get("ville", "")) == cle:
-			return true
-	return false
+			sortie.append(int(m.get("indice", -1)))
+	sortie.sort()
+	return sortie
 
 
-# Un petit sceau d'or au bord de la plaque quand un de tes convois y est à quai :
-# d'un coup d'œil sur la carte, on sait où sont ses navires.
+# Le convoi suivant dans la liste, en bouclant. -1 si la liste est vide.
+#
+# STATIQUE, donc exerçable par un test sans monter toute la carte. C'est la seule
+# règle de ce fichier qui se vérifie hors du jeu, et le BOUCLAGE — du dernier
+# convoi au premier — est exactement ce qu'on casse sans s'en apercevoir, puisqu'il
+# ne se voit qu'avec plusieurs convois dans un même port.
+static func _convoi_suivant(indices: Array, courant: int) -> int:
+	if indices.is_empty():
+		return -1
+	var i := indices.find(courant)
+	# Sélection ailleurs (ou aucune) : on entre dans le port par le premier.
+	if i < 0:
+		return int(indices[0])
+	return int(indices[(i + 1) % indices.size()])
+
+
+# L'ANCRE DE PORT ROYALE 3, à la place du sceau d'or que nous dessinions.
+#
+# Elle dit d'un coup d'œil où sont tes navires, et elle SE CLIQUE : chaque clic
+# passe au convoi suivant à quai dans ce port. Son rectangle est mémorisé ici
+# parce que c'est le seul endroit qui connaît sa position ; `_clic_gauche` le
+# relit.
 func _dessiner_marque_convoi(port: Dictionary) -> void:
+	var cle := String(port.get("cle", ""))
+	# On l'oublie AVANT tout : une ville qu'on ne voit plus, ou qui n'a plus de
+	# convoi, ne doit pas garder une zone cliquable fantôme.
+	_rects_ancre.erase(cle)
 	if not _ville_vue(port):
 		return
-	if not _convoi_du_joueur_au_port(String(port.get("cle", ""))):
+	if _convois_au_port(cle).is_empty():
 		return
 	var g := _geometrie_cartouche(port)
-	var r: Rect2 = g["nom"]
+	var r: Rect2 = g["ancre"]
+	_rects_ancre[cle] = r
+
+	var tex := SkinPR3.texture(ANCRE_SURVOL if _ancre_survolee == cle else ANCRE)
+	if tex != null:
+		draw_texture_rect(tex, r, false)
+		return
+
+	# Repli dessiné, sans l'art du jeu : le sceau d'or et son ancre stylisée —
+	# jambe, jas, patte. Le comportement ne dépend jamais de l'art, seul le look.
 	var u := _par_unite()
-	var c := r.position + Vector2(0.0, r.size.y * 0.5)   # bord gauche de la plaque
-	var ray := maxf(r.size.y * 0.42, 5.0 * u)
+	var c := r.get_center()
+	var ray := r.size.y * 0.5
 	draw_circle(c, ray + 1.4 * u, Color(0.03, 0.03, 0.04, 0.85))
 	draw_circle(c, ray, Color(0.95, 0.83, 0.4, 1.0))
-	# Une petite ancre stylisée : jambe + jas + patte, en sombre sur l'or.
 	var sombre := Color(0.16, 0.11, 0.07)
 	var ep := maxf(ray * 0.16, 0.8 * u)
 	draw_line(c + Vector2(0, -ray * 0.55), c + Vector2(0, ray * 0.5), sombre, ep)
@@ -1690,7 +1749,25 @@ func _process(delta: float) -> void:
 
 
 func _maj_survol() -> void:
-	_port_survole = _port_sous(get_global_mouse_position())
+	var pos := get_global_mouse_position()
+	_port_survole = _port_sous(pos)
+	# L'ancre change d'image sous le curseur. On ne redessine QUE si l'état change :
+	# la carte se repeint déjà à chaque image pour les navires, mais s'appuyer
+	# là-dessus rendrait le survol muet le jour où ce ne serait plus vrai.
+	var avant := _ancre_survolee
+	_ancre_survolee = _ancre_sous(pos)
+	if _ancre_survolee != avant:
+		queue_redraw()
+
+
+# La clé du port dont l'ancre est sous ce point, ou "". Le cache vient du dessin,
+# donc il est vide avant la première image — sans conséquence, il n'y a encore
+# rien à survoler.
+func _ancre_sous(pos: Vector2) -> String:
+	for cle in _rects_ancre:
+		if (_rects_ancre[cle] as Rect2).has_point(pos):
+			return String(cle)
+	return ""
 
 
 # Le port désigné par un point de la carte, ou un dictionnaire vide.
@@ -1977,7 +2054,19 @@ func _finir_survol() -> void:
 
 
 func _clic_gauche() -> void:
-	var monde := proj.vers_monde(get_global_mouse_position())
+	var souris := get_global_mouse_position()
+	var monde := proj.vers_monde(souris)
+
+	# L'ANCRE D'ABORD, et c'est l'ordre qui compte : elle se pose juste à côté du
+	# village, donc dans la zone qui ouvre la couronne radiale. Testée après, elle
+	# ne serait jamais atteinte — la couronne s'ouvrirait à sa place.
+	var cle_ancre := _ancre_sous(souris)
+	if cle_ancre != "":
+		var suivant := _convoi_suivant(_convois_au_port(cle_ancre), _convoi_selectionne)
+		if suivant != -1:
+			_selectionner(suivant)
+		return
+
 	var port := _port_survole
 	if port.is_empty():
 		port = _port_proche(monde, RAYON_CLIC_PORT)
