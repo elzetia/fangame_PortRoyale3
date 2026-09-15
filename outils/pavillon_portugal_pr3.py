@@ -66,6 +66,8 @@ OR = (255, 204, 51)
 PART_VERTE = 0.40
 # En dessous de ce facteur d'ombrage, un pixel est du LISERE : on n'y touche pas.
 SEUIL_LISERE = 0.45
+# Au-dessus, on ecrete : voir la note sur les coutures dans la boucle de repeinte.
+PLAFOND_OMBRAGE = 1.35
 
 
 def lire_png(chemin):
@@ -136,16 +138,65 @@ def main():
     w, h, lignes = lire_png(src)
     px = lambda x, y: tuple(lignes[y][x * 4:(x + 1) * 4])
 
-    # --- 1. la base de chaque LIGNE : la couleur moyenne de ses pixels opaques.
-    #     C'est elle qui sert de reference d'ombrage, bande par bande, sans qu'on
-    #     ait a coder ou les bandes commencent.
-    base = {}
+    # --- 1. la base d'ombrage, PAR BANDE et non par ligne.
+    #
+    # C'EST LE POINT DELICAT, et ma premiere version s'y est trompee. Normaliser
+    # chaque ligne par SA PROPRE moyenne efface la variation VERTICALE : or les
+    # lignes du haut et du bas de la toile sont naturellement plus sombres, c'est
+    # le bord ombre du tissu. Elles ressortaient donc a facteur 1, repeintes en
+    # vert pleine intensite -- deux barres claires en haut et en bas.
+    #
+    # Les chiffres du donneur le disent : y=2 vaut (138,77,20) contre (190,107,28)
+    # au coeur de la bande orange, soit 72 % de sa luminance. Divise par sa propre
+    # ligne, ce 72 % redevient 100 %.
+    #
+    # On regroupe donc les lignes en BANDES de couleur, et toutes les lignes d'une
+    # bande partagent une seule reference. L'ombrage vertical survit, les plis
+    # horizontaux aussi, et comme chaque bande a par construction une moyenne de
+    # 1, aucune couture n'apparait entre elles.
+    moyennes = {}
     for y in range(h):
         p = [px(x, y) for x in range(w) if px(x, y)[3] > 200]
-        if p:
-            base[y] = (sum(q[0] for q in p) / len(p),
-                       sum(q[1] for q in p) / len(p),
-                       sum(q[2] for q in p) / len(p))
+        # Les lignes trop peu couvertes sont le LISERE du haut et du bas (7, 24 et
+        # 12 pixels opaques chez le donneur, contre une quarantaine ailleurs) :
+        # elles n'entrent dans aucune bande et ne seront pas repeintes.
+        if len(p) >= 30:
+            moyennes[y] = (sum(q[0] for q in p) / len(p),
+                           sum(q[1] for q in p) / len(p),
+                           sum(q[2] for q in p) / len(p))
+
+    bandes = []
+    for y in sorted(moyennes):
+        c = moyennes[y]
+        if bandes and y == bandes[-1][-1][0] + 1:
+            ref = bandes[-1][0][1]
+            ecart = sum(abs(c[k] - ref[k]) for k in range(3))
+            if ecart < 150:                 # meme bande
+                bandes[-1].append((y, c))
+                continue
+        bandes.append([(y, c)])
+
+    # LES LIGNES DE TRANSITION GARDENT LEUR PROPRE MOYENNE.
+    #
+    # Une ligne a cheval sur deux bandes -- y=17 chez le donneur, un melange
+    # bleu-blanc -- n'appartient a AUCUNE. Rangee dans la bande bleue, dont la
+    # base vaut 53 de luminance, elle sortait a f=1,62 : une ligne claire en
+    # travers du drapeau. J'ai d'abord tente d'ECRETER ce facteur a 1,35 ; ca n'a
+    # rien donne de visible, et pour cause -- la mediane etant a 0,94, une ligne a
+    # 1,35 reste une ligne claire.
+    #
+    # Normalisee par sa PROPRE moyenne, une telle ligne revient a f ~ 1,0, donc au
+    # niveau de ses voisines. La couture disparait par construction, sans rien
+    # raboter du plisse.
+    base = {}
+    for bande in bandes:
+        n = len(bande)
+        moy = tuple(sum(e[1][k] for e in bande) / n for k in range(3))
+        for y, c in bande:
+            ecart = sum(abs(c[k] - moy[k]) for k in range(3))
+            base[y] = c if ecart > 90 else moy
+    print("   %d bande(s) : %s" % (len(bandes),
+          ", ".join("y=%d..%d" % (b[0][0], b[-1][0]) for b in bandes)))
 
     # --- 2. l'etendue de la TOILE, pour placer la partition verticale.
     cols = [x for x in range(w)
@@ -172,6 +223,17 @@ def main():
             if f < SEUIL_LISERE:
                 n_liseré += 1
                 continue                      # liseré : on garde l'original
+            # BORNE HAUTE, contre les COUTURES aux jointures de bandes.
+            #
+            # Les lignes de TRANSITION -- y=17 chez le donneur, un melange
+            # bleu-blanc range dans la bande bleue -- sortent a f=1,62 contre une
+            # base de 53 : une ligne claire nette en travers du drapeau.
+            #
+            # Aucun seuil ne les separe des vrais reflets : la mesure donne, dans
+            # les bandes, p05=0,39 med=0,94 p95=1,57. On ECRETE donc plutot que de
+            # trier. A 1,35 la couture disparait et le plisse reste entier, la
+            # mediane etant a 0,94.
+            f = min(f, PLAFOND_OMBRAGE)
             champ = VERT if x < coupe else ROUGE
             o = (x * 4)
             sortie[y][o + 0] = min(255, int(champ[0] * f))

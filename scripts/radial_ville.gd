@@ -107,7 +107,15 @@ const RAYON     := PR3_RAYON * ECHELLE
 const R_PETALE  := PR3_PETALE * ECHELLE / 2.0
 const R_CENTRE  := PR3_CENTRE * ECHELLE / 2.0
 const R_GOODS   := PR3_GOODS_R * ECHELLE
-const R_PRODUIT := PR3_GOODS_IC * ECHELLE / 2.0
+# LES MARCHANDISES SONT GROSSIES DEUX FOIS. À la taille de PR3 — 22 unités, soit
+# 7,7 px de rayon une fois à l'échelle — nos vignettes de 96 px se réduisaient à
+# treize pixels : illisibles. PR3 peut se le permettre, ses icônes sont dessinées
+# pour cette taille ; les nôtres ne le sont pas.
+#
+# L'arc ne bouge pas : cinq pastilles sur un demi-cercle de rayon 58 sont espacées
+# de 45 px, et une pastille grossie n'en fait que 31.
+const GOODS_GROSSI := 2.0
+const R_PRODUIT := PR3_GOODS_IC * ECHELLE * GOODS_GROSSI / 2.0
 
 # --- l'art du jeu -------------------------------------------------------------
 const ART_DESACTIVE := "ingame_radial_town/4"    # le disque gris (char7)
