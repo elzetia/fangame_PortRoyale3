@@ -354,6 +354,15 @@ func _petale(c: Vector2, p: Dictionary) -> void:
 	var sh := st.duplicate() as StyleBoxFlat
 	sh.bg_color = OR
 	b.add_theme_stylebox_override("hover", sh if actif else st)
+	# LES QUATRE AUTRES ÉTATS, sans quoi Godot retombe sur SON thème.
+	#
+	# C'est l'origine du CARRÉ NOIR derrière les pétales bloquées : `disabled`
+	# n'était pas surchargé, donc un bouton désactivé reprenait le rectangle
+	# sombre du thème par défaut — visible uniquement sous les quatre pétales
+	# grises, ce qui rendait le défaut d'autant plus déroutant.
+	b.add_theme_stylebox_override("disabled", st)
+	b.add_theme_stylebox_override("pressed", sh if actif else st)
+	b.add_theme_stylebox_override("focus", st)
 	b.add_theme_color_override("font_color", BOIS if actif else GRIS)
 	b.add_theme_color_override("font_hover_color", BOIS)
 	b.disabled = not actif
