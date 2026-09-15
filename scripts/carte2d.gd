@@ -27,18 +27,32 @@ const MARGE_CLIC := 8.0              # en pixels de carte, autour du dessin
 # une numérotation des catastrophes. Elle n'en est pas une — 1852 est un tas de
 # rondins, 1849 un badge « 100 % ». Seules les entrées NOMMÉES sont fiables.
 #
-# DEUX TROUS, et je les comble avec des génériques du jeu plutôt que de faire
-# passer une icône pour ce qu'elle n'est pas — la table ne contient ni criquets
-# ni famine :
-#   sauterelles -> Visual_IconButton_Events (1456), le parchemin d'événement ;
-#   famine      -> Visual_IconButton_Attention_Red (1917), le badge « ! ».
-# Ce sont des CHOIX, pas des relevés. `Drought_Protection` (1866) existe mais
-# c'est la PROTECTION contre la sécheresse, et notre simulation n'a pas ce
-# fléau : on ne le détourne pas.
+# LES SAUTERELLES ONT LEUR ICÔNE, ET JE L'AVAIS DÉCLARÉE INEXISTANTE.
+#
+# J'avais écrit ici qu'aucune icône de criquets n'existait, et posé à la place le
+# parchemin générique `Visual_IconButton_Events` (1456) en l'assumant comme un
+# choix. C'était une erreur de MÉTHODE : je cherchais par NOM dans la table
+# d'icônes de l'interface Flash, or le criquet est dans un ATLAS du moteur —
+# `textures/0_icons.dds` de `data.fuk`, une grille de 8 x 8 cellules de 128 px
+# dont les cases n'ont pas de nom, seulement des coordonnées. Une recherche par
+# nom ne pouvait pas l'y trouver.
+#
+# `outils/extraire_evenements_pr3.py` en découpe les trois cellules, vérifiées en
+# les REGARDANT : (2,1) deux pestiférés, (4,1) une flamme, (6,1) le criquet. Les
+# effets `0_fx_locustsswarm1/2.dds` confirment que le fléau existe bien chez PR3.
+#
+# On garde malgré tout les icônes NOMMÉES de l'interface pour la peste et le feu :
+# elles sont dessinées pour être lues petites, sur la carte, alors que l'atlas est
+# celui des listes d'événements.
+#
+# IL RESTE UN TROU, lui bien réel : la FAMINE n'a d'icône nulle part. Elle garde
+# le badge « ! » (`Visual_IconButton_Attention_Red`, 1917), et c'est un CHOIX.
+# `Drought_Protection` (1866) existe mais c'est la PROTECTION contre la
+# sécheresse, un fléau que la simulation n'a pas : on ne le détourne pas.
 const ICONES_ETAT := {
 	"peste": "skinlib_pr3/1743",
 	"feu": "skinlib_pr3/1838",
-	"sauterelles": "skinlib_pr3/1456",
+	"sauterelles": "atlas_evenements/sauterelles",
 	"famine": "skinlib_pr3/1917",
 }
 

@@ -113,6 +113,10 @@ func _init() -> void:
 		"ecusson du gouverneur": ["skinlib_pr3/1695", 22, 24],
 		"ancre (repos)": ["skinlib_pr3/1114", 36, 34],
 		"ancre (survol)": ["skinlib_pr3/1111", 36, 34],
+		# Le criquet vient de l'ATLAS du moteur (`textures/0_icons.dds`), decoupe
+		# par `outils/extraire_evenements_pr3.py`. Ses cellules font 128 px : une
+		# autre taille voudrait dire que la grille a bouge.
+		"sauterelles (atlas)": ["atlas_evenements/sauterelles", 128, 128],
 	}
 	var presents := 0
 	for nom in art:
