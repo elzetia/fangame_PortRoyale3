@@ -174,8 +174,23 @@ func _lancer() -> void:
 	#
 	# 142 px est la taille de rendu de l'outil : une autre valeur voudrait dire
 	# qu'on regarde une vignette produite autrement.
-	var batis := ["lighthouse", "tavern", "depot", "dockyard0", "port0",
-			"church0_sp", "administration0_sp"]
+	# LA LISTE VIENT DU CODE, pas d'une copie à la main. `RadialVille` dit lui-même
+	# quels bâtiments il pose, et les trois illisibles — taverne, entrepôt,
+	# chantier — n'y sont plus : ils gardent leur libellé. Une liste recopiée ici
+	# mentirait deux fois. Elle resterait verte si un nom disparaissait du menu, et
+	# elle virerait au rouge le jour où l'on effacerait un rendu devenu inutile.
+	#
+	# LES QUATRE NATIONS, pas seulement l'Espagne : l'église et l'hôtel de ville
+	# prennent le suffixe du port. Un `church0_fr` manquant ne se verrait que dans
+	# une ville française, donc jamais ici tant qu'on ne contrôlait que `_sp`.
+	var batis: Array = []
+	for cle_b in RadialVille.BATIMENTS:
+		batis.append(String(RadialVille.BATIMENTS[cle_b]))
+	for cle_b in RadialVille.BATIMENTS_NATION:
+		for suffixe in RadialVille.SUFFIXE_NATION.values():
+			var nom_n := String(RadialVille.BATIMENTS_NATION[cle_b]) + String(suffixe)
+			if not batis.has(nom_n):
+				batis.append(nom_n)
 	var batis_absents := 0
 	for nom_b in batis:
 		var tb := SkinPR3.texture("batiments/" + String(nom_b))
