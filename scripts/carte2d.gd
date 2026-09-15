@@ -929,24 +929,48 @@ func _pourtour_ville(r: Rect2) -> void:
 	draw_polyline(pts, Color(0.98, 0.78, 0.30, 0.95), 2.0 * e)
 
 
+# L'ÉLÉVATION DE LA CAMÉRA DE PORT ROYALE 3, mesurée dans le jeu : sa vue `seamap`
+# (`default.sceneviewmgr`, et le même triplet deux fois dans `constdata.dat`) pose
+# la caméra en (0 ; 280,083 ; −400) visant l'origine, soit
+# atan(280,083 / 400) = 35,0000° au-dessus de l'horizon. Un cercle posé au sol y
+# est donc écrasé de sin(35°) = 0,5736 selon l'axe nord-sud.
+#
+# C'est le même angle auquel `outils/rendre_navires_pr3.gd` rend les vignettes de
+# navires — rendues à 60° ou 72°, elles sortaient aplaties. Anneaux et navires
+# partagent donc la même plongée, ce qui est tout l'intérêt de la prendre là.
+const PR3_PLONGEE := 35.0
+
+
 # UN ANNEAU POSÉ AU SOL, donc une ELLIPSE et non un cercle.
 #
-# La carte est une plongée oblique : elle comprime le nord-sud, et tout ce qui y
-# est dessiné suit cet angle. Un `draw_arc` trace un cercle parfait, qui flotte
-# alors au-dessus du terrain au lieu d'y être posé — c'est ce qui clochait sur
-# l'anneau du convoi et sur le pourtour des villes.
+# D'OÙ VIENT L'ÉCRASEMENT — ET C'EST ICI QUE JE M'ÉTAIS TROMPÉ. J'ai d'abord cru
+# qu'il suffisait du rapport de `proj.echelle()`. Mesure faite sur la vraie fiche :
 #
-# LE RAPPORT N'EST PAS DEVINÉ. `proj.echelle()` rend les pixels de carte par mètre
-# monde sur chaque axe — `pixels.x / vue_taille.x` et `pixels.y * sin(angle) /
-# vue_taille.y` — et leur rapport EST l'écrasement. Il suit donc l'angle de vue
-# si celui-ci change, au lieu d'un coefficient figé qu'il faudrait rattraper.
+#     angle 90° -> sin = 1 ; vue_taille 17270,4 x 11516,2 ; pixels 3072 x 2048
+#     echelle() = (0,177878 ; 0,177836)  ->  rapport 0,9998
 #
-# Et il n'y a rien à échantillonner : `vers_carte` est AFFINE en (x, z) à altitude
-# constante, donc un cercle au sol y devient une ellipse exacte, à axes alignés.
-# Projeter quarante points donnerait le même tracé, pour plus cher.
+# soit un cercle, à quatre dix-millièmes près. Le « correctif » ne corrigeait rien.
+#
+# LA RAISON : il y a DEUX cartes. `outils/carte_illustree.py` écrit `angle: 90` —
+# c'est l'ILLUSTRATION PEINTE de PR3, calée sous sa géographie, et son obliquité
+# est DANS LE DESSIN, pas dans les maths : la projection est alors zénithale et ne
+# comprime rien. `scripts/cuisson_carte.gd`, l'autre chemin, cuit un terrain avec
+# un vrai `angle_vue` (65°) et comprime pour de bon. Les commentaires « plongée
+# oblique » de ce fichier décrivent ce second pipeline, pas la fiche en place.
+#
+# On applique donc les DEUX facteurs : ce que la projection comprime déjà, et —
+# quand elle ne comprime rien parce que la carte est peinte — la plongée de PR3.
+#
+# Rien à échantillonner : `vers_carte` est AFFINE en (x, z) à altitude constante,
+# donc un cercle au sol y devient une ellipse exacte, à axes alignés.
 func _anneau_sol(centre: Vector2, rayon_x: float) -> PackedVector2Array:
 	var k := proj.echelle()
-	var ry := rayon_x * (k.y / k.x) if k.x > 0.0 else rayon_x
+	var f := (k.y / k.x) if k.x > 0.0 else 1.0
+	# Fiche zénithale : l'obliquité n'est pas dans la projection, on prend celle
+	# du dessin.
+	if proj.angle >= 89.0:
+		f *= sin(deg_to_rad(PR3_PLONGEE))
+	var ry := rayon_x * f
 	var pts := PackedVector2Array()
 	for i in range(41):
 		var a := TAU * float(i) / 40.0

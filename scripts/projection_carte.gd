@@ -90,6 +90,15 @@ func vers_monde(pixel: Vector2) -> Vector2:
 
 
 # Combien de pixels de carte pour un mètre monde, selon l'axe.
+#
+# ATTENTION À CE QU'ON EN DÉDUIT. Avec la fiche de la carte PEINTE — celle que
+# `outils/carte_illustree.py` écrit, `angle: 90` — `_sin` vaut 1, et le rapport
+# des deux composantes vaut 0,9998 : la projection ne comprime RIEN. L'obliquité
+# qu'on voit est peinte dans le dessin de PR3.
+#
+# Ce rapport ne mesure donc l'écrasement du sol QUE pour un terrain cuit par
+# `cuisson_carte.gd`, qui a un vrai `angle_vue`. S'en servir pour aplatir un
+# anneau sur la carte peinte donne un cercle parfait — l'erreur a été faite.
 func echelle() -> Vector2:
 	return Vector2(pixels.x / vue_taille.x, pixels.y * _sin / vue_taille.y)
 
